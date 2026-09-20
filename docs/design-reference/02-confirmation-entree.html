@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html class="h-full bg-background" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Nouvelle entrée | Cave &amp; Terroir</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Noto+Serif:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "primary": "#7a5522",
+            "on-tertiary-fixed-variant": "#504534",
+            "on-secondary-fixed": "#1e1b18",
+            "on-background": "#1c1c18",
+            "primary-fixed": "#ffddb7",
+            "on-secondary": "#ffffff",
+            "surface-bright": "#fcf9f3",
+            "surface-container": "#f0eee8",
+            "outline": "#817568",
+            "on-primary-fixed": "#2a1700",
+            "on-primary": "#ffffff",
+            "error-container": "#ffdad6",
+            "on-tertiary-fixed": "#231a0c",
+            "secondary-fixed": "#e9e1dc",
+            "surface-dim": "#dcdad4",
+            "on-tertiary-container": "#fffbff",
+            "tertiary": "#675a48",
+            "inverse-primary": "#efbe81",
+            "secondary-container": "#e7ded9",
+            "on-error": "#ffffff",
+            "primary-fixed-dim": "#efbe81",
+            "surface-container-lowest": "#ffffff",
+            "surface-variant": "#e5e2dc",
+            "surface": "#fcf9f3",
+            "secondary": "#635d5a",
+            "on-error-container": "#93000a",
+            "on-surface-variant": "#4f453a",
+            "surface-container-highest": "#e5e2dc",
+            "on-tertiary": "#ffffff",
+            "inverse-surface": "#31312d",
+            "on-primary-container": "#fffbff",
+            "error": "#ba1a1a",
+            "surface-container-low": "#f6f3ed",
+            "on-secondary-fixed-variant": "#4b4642",
+            "tertiary-container": "#80735f",
+            "surface-tint": "#7c5724",
+            "inverse-on-surface": "#f3f0ea",
+            "background": "#fcf9f3",
+            "tertiary-fixed-dim": "#d5c4ad",
+            "outline-variant": "#d3c4b5",
+            "tertiary-fixed": "#f2e0c8",
+            "on-secondary-container": "#67615e",
+            "primary-container": "#956d38",
+            "surface-container-high": "#ebe8e2",
+            "on-surface": "#1c1c18",
+            "on-primary-fixed-variant": "#61400e",
+            "secondary-fixed-dim": "#cdc5c0",
+            "iron-dark": "#2b2621"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "fontFamily": {
+            "display": ["Noto Serif"],
+            "headline-lg": ["Noto Serif"],
+            "headline-md": ["Noto Serif"],
+            "headline-sm": ["Noto Serif"],
+            "body-lg": ["Manrope"],
+            "body-md": ["Manrope"],
+            "body-sm": ["Manrope"],
+            "label-lg": ["Manrope"],
+            "label-md": ["Manrope"],
+            "label-sm": ["Manrope"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .btn-tactile:active {
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+      transform: scale(0.97);
+    }
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="h-full bg-background text-on-surface antialiased flex flex-col items-center justify-start selection:bg-primary-fixed selection:text-primary">
+<div class="w-full max-w-md min-h-screen bg-background flex flex-col pb-36 relative overflow-x-hidden shadow-[0_0_50px_-12px_rgba(43,38,33,0.06)]">
+<header class="sticky top-0 z-30 bg-surface/95 backdrop-blur-md px-4 py-2 flex flex-col gap-1.5 border-b border-outline-variant/50">
+<div class="flex items-center justify-between h-11">
+<button aria-label="Retour" class="flex items-center justify-center w-10 h-10 -ml-2 rounded-full hover:bg-surface-container-high active:scale-95 transition-all text-primary" type="button">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="flex flex-col items-center">
+<h1 class="font-headline-sm text-xl text-iron-dark tracking-tight font-medium">Nouvelle entrée</h1>
+</div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-high text-secondary text-xs font-label-md border border-outline-variant/60">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-md text-xs text-primary font-semibold">2.4s</span>
+</div>
+</div>
+<div class="flex items-center justify-center gap-2 pb-1 text-xs font-label-md text-secondary">
+<span class="material-symbols-outlined text-[15px] text-primary" data-icon="auto_awesome">auto_awesome</span>
+<span>Reconnaissance VLM terminée avec succès</span>
+</div>
+</header>
+<main class="flex-1 px-4 pt-4 flex flex-col gap-5">
+<section class="relative rounded-2xl bg-surface-container-lowest border border-outline-variant/60 p-3 shadow-[0_2px_12px_-2px_rgba(122,85,34,0.06)] overflow-hidden">
+<div class="relative w-full h-44 rounded-xl overflow-hidden bg-surface-container">
+<div class="absolute inset-4 rounded-lg border-2 border-[#a37943]/85 bg-[#a37943]/10 flex flex-col justify-between p-2 pointer-events-none">
+<div class="flex justify-between items-start">
+<span class="px-2 py-0.5 rounded bg-iron-dark text-surface-bright font-label-md text-[11px] shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]" data-icon="view_in_ar">view_in_ar</span>
+                Carton 6 bouteilles détecté
+              </span>
+<span class="px-1.5 py-0.5 rounded bg-surface-bright/95 backdrop-blur-sm text-primary font-semibold text-[11px] border border-outline-variant/60">
+                100% OIV
+              </span>
+</div>
+<div class="w-full h-[1.5px] bg-[#a37943] shadow-[0_0_8px_rgba(163,121,67,0.8)]"></div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2.5 px-1">
+<div class="flex items-center gap-1.5 text-secondary font-label-md text-xs">
+<span class="material-symbols-outlined text-[15px] text-primary" data-icon="document_scanner">document_scanner</span>
+<span>Flux brut · Capteur HD 48MP</span>
+</div>
+<button class="text-primary font-label-md text-xs font-semibold underline underline-offset-4 active:opacity-75" type="button">
+            Reprendre
+          </button>
+</div>
+</section>
+<section class="rounded-2xl bg-surface-container-lowest border border-outline-variant/60 p-4 shadow-[0_2px_12px_-2px_rgba(122,85,34,0.06)] flex flex-col gap-3.5">
+<div class="flex items-start justify-between gap-2 border-b border-outline-variant/40 pb-3">
+<div>
+<span class="font-label-md text-xs text-secondary block mb-0.5">Producteur</span>
+<h2 class="font-headline-sm text-2xl text-iron-dark leading-tight font-normal">Domaine Tempier</h2>
+</div>
+<div class="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary-fixed/60 text-primary font-semibold text-[11px] shrink-0 border border-primary/20">
+<span class="material-symbols-outlined text-[13px]" data-icon="verified">verified</span>
+<span>98%</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3 border-b border-outline-variant/40 pb-3">
+<div>
+<div class="flex items-center gap-1 mb-0.5">
+<span class="font-label-md text-xs text-secondary">Cuvée</span>
+<span class="text-[10px] font-semibold text-primary bg-primary-fixed/40 px-1 rounded">95%</span>
+</div>
+<p class="font-headline-sm text-lg text-on-surface font-normal">La Tourtine</p>
+</div>
+<div>
+<div class="flex items-center gap-1 mb-0.5">
+<span class="font-label-md text-xs text-secondary">Appellation INAO</span>
+<span class="material-symbols-outlined text-[14px] text-primary" data-icon="task_alt">task_alt</span>
+</div>
+<p class="font-headline-sm text-lg text-primary font-medium">Bandol AOC</p>
+<span class="font-label-md text-[10px] text-secondary">Recalage auto INAO 2024</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-0.5">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-1 rounded-lg bg-surface-container-high font-semibold text-base text-iron-dark border border-outline-variant/40">
+              2019
+            </span>
+<span class="font-label-md text-[11px] text-secondary">
+              (94% conf.)
+            </span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#5c2423]/10 text-[#5c2423] border border-[#5c2423]/20">
+              ● Rouge
+            </span>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface-container text-secondary border border-outline-variant/40">
+              Bouteille 75 cl
+            </span>
+</div>
+</div>
+</section>
+<section class="flex flex-col gap-2">
+<div class="flex items-center justify-between px-1">
+<label class="font-label-md text-sm font-semibold text-iron-dark flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="touch_app">touch_app</span>
+            Quantité à intégrer
+          </label>
+<span class="font-label-md text-xs text-primary font-semibold bg-primary-fixed/80 px-2 py-0.5 rounded-full border border-primary/20">
+            Détecté sur carton : 6
+          </span>
+</div>
+<div class="grid grid-cols-5 gap-1.5 p-1.5 bg-surface-container rounded-2xl border border-outline-variant/50">
+<button class="btn-tactile min-h-[50px] rounded-xl flex flex-col items-center justify-center bg-surface-container-lowest text-on-surface font-semibold text-lg border border-outline-variant/40 hover:bg-surface-bright transition-all" type="button">
+            1
+            <span class="font-label-md text-[9px] text-secondary -mt-0.5 font-normal">btl</span>
+</button>
+<button class="btn-tactile min-h-[50px] rounded-xl flex flex-col items-center justify-center bg-[#a37943] text-surface-bright font-semibold text-lg shadow-md ring-2 ring-[#a37943]/30 transition-all" type="button">
+            6
+            <span class="font-label-md text-[9px] text-primary-fixed -mt-0.5 font-semibold">Carton</span>
+</button>
+<button class="btn-tactile min-h-[50px] rounded-xl flex flex-col items-center justify-center bg-surface-container-lowest text-on-surface font-semibold text-lg border border-outline-variant/40 hover:bg-surface-bright transition-all" type="button">
+            12
+            <span class="font-label-md text-[9px] text-secondary -mt-0.5 font-normal">Caisse</span>
+</button>
+<button class="btn-tactile min-h-[50px] rounded-xl flex flex-col items-center justify-center bg-surface-container-lowest text-on-surface font-semibold text-lg border border-outline-variant/40 hover:bg-surface-bright transition-all" type="button">
+            18
+            <span class="font-label-md text-[9px] text-secondary -mt-0.5 font-normal">Lot</span>
+</button>
+<button class="btn-tactile min-h-[50px] rounded-xl flex flex-col items-center justify-center bg-surface-container-lowest text-secondary font-label-md text-sm border border-outline-variant/40 hover:bg-surface-bright transition-all" type="button">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="edit">edit</span>
+<span class="font-label-md text-[9px] -mt-0.5">Autre</span>
+</button>
+</div>
+</section>
+<section class="rounded-2xl bg-surface-container-lowest border border-outline-variant/60 p-4 shadow-[0_2px_12px_-2px_rgba(122,85,34,0.06)] flex flex-col gap-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="hourglass_top">hourglass_top</span>
+<span class="font-label-md text-sm font-semibold text-iron-dark">Fenêtre d'apogée conseillée</span>
+</div>
+<span class="font-semibold text-base text-primary">2027 – 2038</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container-high overflow-hidden flex">
+<div class="h-full bg-outline-variant w-[25%]" title="En garde"></div>
+<div class="h-full bg-primary-container w-[55%]" title="Apogée optimale"></div>
+<div class="h-full bg-tertiary-fixed-dim/70 w-[20%]" title="Déclin progressif"></div>
+</div>
+<div class="flex items-center justify-between font-label-md text-xs text-secondary pt-0.5">
+<span class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+            Attendre (Garde)
+          </span>
+<span class="font-label-md text-[11px] text-primary font-medium flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+            Bandol Rouge (10-20 ans)
+          </span>
+<span class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+            Déclin
+          </span>
+</div>
+</section>
+<details class="group rounded-2xl bg-surface-container-lowest border border-outline-variant/60 shadow-[0_2px_12px_-2px_rgba(122,85,34,0.06)] overflow-hidden" open="">
+<summary class="flex items-center justify-between p-4 cursor-pointer list-none select-none text-iron-dark font-label-md text-sm font-semibold">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="tune">tune</span>
+            Détails d'affectation &amp; valorisation
+          </span>
+<span class="material-symbols-outlined text-secondary transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-4 pb-4 pt-1 flex flex-col gap-3 border-t border-outline-variant/40">
+<div class="flex items-center justify-between">
+<label class="font-body-md text-sm text-secondary">Prix d'achat unitaire</label>
+<div class="flex items-center gap-1 bg-surface-container-low px-3 py-1.5 rounded-xl border border-outline-variant/50">
+<span class="font-semibold text-base text-iron-dark">48,00</span>
+<span class="font-body-md text-sm text-secondary">€</span>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<label class="font-body-md text-sm text-secondary">Caviste / Provenance</label>
+<div class="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-xl border border-outline-variant/50">
+<span class="material-symbols-outlined text-[16px] text-primary" data-icon="storefront">storefront</span>
+<span class="font-body-md text-sm text-iron-dark font-medium">Domaine direct</span>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<label class="font-body-md text-sm text-secondary">Emplacement suggéré</label>
+<div class="flex items-center gap-1.5 bg-secondary-container/60 text-on-secondary-container px-3 py-1.5 rounded-xl border border-outline-variant/50">
+<span class="material-symbols-outlined text-[16px] text-primary" data-icon="shelves">shelves</span>
+<span class="font-label-md text-sm font-semibold text-iron-dark">Casier C • Rangée 3</span>
+</div>
+</div>
+</div>
+</details>
+</main>
+<div class="fixed bottom-0 left-0 right-0 z-40 bg-surface/92 backdrop-blur-lg border-t border-outline-variant/40 px-4 py-3 flex flex-col items-center">
+<div class="w-full max-w-md flex flex-col gap-2">
+<button class="btn-tactile w-full h-[52px] bg-iron-dark hover:bg-black text-[#fcf9f3] rounded-2xl flex flex-col items-center justify-center shadow-[0_8px_24px_-4px_rgba(43,38,33,0.3)] border border-[#a37943]/30 transition-all" type="button">
+<span class="font-label-md text-base font-semibold tracking-wide flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px] text-[#efbe81]" data-icon="check_circle">check_circle</span>
+            Confirmer l'entrée (+6 bouteilles)
+          </span>
+</button>
+<div class="flex items-center justify-center gap-2 text-xs font-label-md text-secondary">
+<span class="w-2 h-2 rounded-full bg-[#a37943]"></span>
+<span>Écriture du mouvement IN &amp; sync Google Sheets immédiate</span>
+</div>
+</div>
+</div>
+</div>
+</body></html>

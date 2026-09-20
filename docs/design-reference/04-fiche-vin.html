@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>Fiche Vin &amp; Valorisation — Cave &amp; Terroir</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Noto+Serif:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "primary": "#7a5522",
+          "on-tertiary-fixed-variant": "#504534",
+          "on-secondary-fixed": "#1e1b18",
+          "on-background": "#1c1c18",
+          "primary-fixed": "#ffddb7",
+          "on-secondary": "#ffffff",
+          "surface-bright": "#fcf9f3",
+          "surface-container": "#f0eee8",
+          "outline": "#817568",
+          "on-primary-fixed": "#2a1700",
+          "on-primary": "#ffffff",
+          "error-container": "#ffdad6",
+          "on-tertiary-fixed": "#231a0c",
+          "secondary-fixed": "#e9e1dc",
+          "surface-dim": "#dcdad4",
+          "on-tertiary-container": "#fffbff",
+          "tertiary": "#675a48",
+          "inverse-primary": "#efbe81",
+          "secondary-container": "#e7ded9",
+          "on-error": "#ffffff",
+          "primary-fixed-dim": "#efbe81",
+          "surface-container-lowest": "#ffffff",
+          "surface-variant": "#e5e2dc",
+          "surface": "#fcf9f3",
+          "secondary": "#635d5a",
+          "on-error-container": "#93000a",
+          "on-surface-variant": "#4f453a",
+          "surface-container-highest": "#e5e2dc",
+          "on-tertiary": "#ffffff",
+          "inverse-surface": "#31312d",
+          "on-primary-container": "#fffbff",
+          "error": "#ba1a1a",
+          "surface-container-low": "#f6f3ed",
+          "on-secondary-fixed-variant": "#4b4642",
+          "tertiary-container": "#80735f",
+          "surface-tint": "#7c5724",
+          "inverse-on-surface": "#f3f0ea",
+          "background": "#fcf9f3",
+          "tertiary-fixed-dim": "#d5c4ad",
+          "outline-variant": "#d3c4b5",
+          "tertiary-fixed": "#f2e0c8",
+          "on-secondary-container": "#67615e",
+          "primary-container": "#956d38",
+          "surface-container-high": "#ebe8e2",
+          "on-surface": "#1c1c18",
+          "on-primary-fixed-variant": "#61400e",
+          "secondary-fixed-dim": "#cdc5c0",
+          "stone-blonde": "#e6dfd3",
+          "ferronnerie": "#2b2621"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "0.75rem"
+        },
+        "spacing": {
+          "gutter-mobile": "1rem",
+          "space-xl": "2.5rem",
+          "margin-mobile": "1.25rem",
+          "space-md": "1rem",
+          "space-sm": "0.5rem",
+          "space-xs": "0.25rem",
+          "margin": "2.5rem",
+          "gutter": "1.5rem",
+          "space-lg": "1.5rem"
+        },
+        "fontFamily": {
+          "body-sm": ["Manrope"],
+          "headline-lg": ["Noto Serif"],
+          "label-lg": ["Manrope"],
+          "display": ["Noto Serif"],
+          "headline-sm": ["Noto Serif"],
+          "display-mobile": ["Noto Serif"],
+          "headline-lg-mobile": ["Noto Serif"],
+          "body-md": ["Manrope"],
+          "label-md": ["Manrope"],
+          "body-lg": ["Manrope"],
+          "label-sm": ["Manrope"],
+          "headline-md": ["Noto Serif"]
+        }
+      },
+    }
+</script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      background-color: #fcf9f3;
+      min-height: max(884px, 100dvh);
+    }
+</style>
+</head>
+<body class="bg-background text-on-surface font-body-md text-sm antialiased min-h-screen flex flex-col justify-between selection:bg-primary-fixed selection:text-primary">
+<header class="sticky top-0 z-40 bg-surface/95 backdrop-blur-md px-space-md py-space-sm h-14 flex items-center justify-between border-b border-stone-blonde shadow-[0_2px_12px_-2px_rgba(122,85,34,0.05)]">
+<div class="flex items-center space-x-space-sm">
+<button aria-label="Retour au répertoire" class="w-10 h-10 flex items-center justify-center rounded-full text-primary hover:bg-surface-container-high active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex flex-col">
+<span class="font-headline-sm text-lg text-primary font-semibold tracking-tight">Détail du Flacon</span>
+<span class="font-body-sm text-xs text-secondary">Référence #CR-2010-04</span>
+</div>
+</div>
+<div class="flex items-center space-x-1">
+<button aria-label="Partager la fiche" class="w-10 h-10 flex items-center justify-center rounded-full text-secondary hover:text-primary hover:bg-surface-container-high active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined">ios_share</span>
+</button>
+<button aria-label="Menu contextuel" class="w-10 h-10 flex items-center justify-center rounded-full text-secondary hover:text-primary hover:bg-surface-container-high active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<main class="flex-1 w-full max-w-xl mx-auto px-space-md pt-space-md pb-36 space-y-space-lg">
+<section class="bg-surface-container-lowest rounded-xl p-space-lg border border-stone-blonde shadow-[0_2px_12px_-2px_rgba(122,85,34,0.05)]">
+<div class="flex items-start justify-between">
+<div class="space-y-1">
+<div class="flex items-center space-x-2">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-primary-fixed/50 text-primary font-label-md text-xs font-semibold">
+<span class="w-2 h-2 rounded-full bg-primary mr-1.5"></span>
+              Rouge profond • 75 cl
+            </span>
+</div>
+<h1 class="font-headline-md text-2xl text-on-surface pt-1">Château Rayas</h1>
+<p class="text-secondary font-body-md text-sm">Châteauneuf-du-Pape • Réservé</p>
+</div>
+<div class="flex flex-col items-end">
+<div class="bg-surface-container-low px-3 py-1.5 rounded-lg border border-stone-blonde text-center">
+<span class="block font-headline-sm text-lg font-bold text-primary leading-none">2010</span>
+<span class="font-body-sm text-[11px] text-secondary">Millésime</span>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-md border-t border-stone-blonde flex items-center justify-between bg-surface-container-low/70 -mx-space-lg -mb-space-lg px-space-lg py-space-md rounded-b-xl">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-primary">shelves</span>
+</div>
+<div>
+<span class="block font-label-lg text-sm font-semibold text-primary">4 bouteilles en stock</span>
+<span class="font-body-sm text-xs text-secondary">Casier A • Rang 2 • Colonne 4</span>
+</div>
+</div>
+<div class="flex items-center space-x-1.5 text-primary bg-surface-container-lowest px-2.5 py-1 rounded-full border border-stone-blonde">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="font-body-sm text-[11px] font-medium">Vérifié en cave</span>
+</div>
+</div>
+</section>
+<section class="bg-surface-container-lowest rounded-xl p-space-lg border border-stone-blonde shadow-[0_2px_12px_-2px_rgba(122,85,34,0.05)] space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">wine_bar</span>
+<h2 class="font-headline-sm text-lg font-semibold text-primary">Fenêtre d'Apogée</h2>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-tertiary-fixed text-primary font-label-md text-xs font-semibold">Prêt à boire</span>
+</div>
+<div class="space-y-2 pt-2">
+<div class="flex justify-between text-secondary font-body-sm text-xs">
+<span>2015</span>
+<span class="text-primary font-bold">2022</span>
+<span class="text-primary font-bold">2035</span>
+<span>2045</span>
+</div>
+<div class="relative w-full h-3 bg-surface-container rounded-full overflow-hidden flex">
+<div class="h-full bg-outline-variant/50 w-[23%]"></div>
+<div class="h-full bg-primary-container relative w-[44%]">
+<div class="absolute top-0 bottom-0 left-[30%] w-1.5 bg-surface-bright rounded-full ring-2 ring-primary"></div>
+</div>
+<div class="h-full bg-tertiary-fixed-dim/60 w-[33%]"></div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<p class="font-body-sm text-xs text-primary flex items-center space-x-1">
+<span class="w-2 h-2 rounded-full bg-primary inline-block mr-1"></span>
+            À son apogée idéale (2022 – 2035)
+          </p>
+<span class="font-body-sm text-[11px] text-secondary">Année 2026 : Pleine maturité</span>
+</div>
+</div>
+<button class="w-full py-2.5 px-3 rounded-lg border border-stone-blonde text-secondary hover:text-primary hover:bg-surface-container-low font-label-md text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+<span>Modifier l'apogée manuellement</span>
+</button>
+</section>
+<section class="bg-surface-container-lowest rounded-xl p-space-lg border border-stone-blonde shadow-[0_2px_12px_-2px_rgba(122,85,34,0.05)] space-y-space-md">
+<div class="flex items-start justify-between border-b border-stone-blonde pb-space-sm">
+<div>
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary">analytics</span>
+<h2 class="font-headline-sm text-lg font-semibold text-primary">Cote iDealwine</h2>
+</div>
+<p class="font-body-sm text-[11px] text-secondary mt-0.5">Argus officiel des grands vins aux enchères</p>
+</div>
+<span class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-md text-xs font-medium border border-tertiary-fixed-dim/50">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Liquidité forte</span>
+</span>
+</div>
+<div class="grid grid-cols-2 gap-space-sm pt-1">
+<div class="p-space-sm rounded-lg bg-surface-container-low border border-stone-blonde">
+<span class="block font-body-sm text-[11px] text-secondary">Cote moyenne constatée</span>
+<div class="font-headline-sm text-[20px] font-bold text-primary mt-1">1 150 €</div>
+<span class="text-secondary font-body-sm text-xs">/ bouteille</span>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-low border border-stone-blonde">
+<span class="block font-body-sm text-[11px] text-secondary">Valeur de cession estimée</span>
+<div class="font-headline-sm text-[20px] font-bold text-primary mt-1">~966 €</div>
+<span class="text-secondary font-body-sm text-xs">net (−16% frais acheteur)</span>
+</div>
+</div>
+<div class="space-y-2.5 bg-surface-container-low/60 p-space-md rounded-lg border border-stone-blonde">
+<div class="flex items-center justify-between font-body-md text-xs">
+<span class="text-secondary">Tendance annuelle</span>
+<span class="text-primary font-semibold flex items-center space-x-1">
+<span class="material-symbols-outlined text-[16px] text-primary">trending_up</span>
+<span>+8,5% cette année (42 adjudications)</span>
+</span>
+</div>
+<div class="flex items-center justify-between font-body-md text-xs">
+<span class="text-secondary">Prix d'achat historique</span>
+<span class="text-primary font-medium">
+            180,00 € <span class="text-primary-container font-semibold">(+538% latent)</span>
+</span>
+</div>
+<div class="flex items-center justify-between font-body-md text-xs pt-1 border-t border-stone-blonde">
+<span class="text-secondary text-[11px]">Dernier relevé :</span>
+<span class="text-secondary text-[11px]">12 août 2026 (il y a 1 mois)</span>
+</div>
+</div>
+<div class="pt-1 flex items-center justify-between">
+<button class="inline-flex items-center space-x-2 py-2 px-3 rounded-lg bg-surface-container-high hover:bg-surface-container text-primary font-label-md text-xs font-semibold active:scale-95 transition-all border border-stone-blonde/60" type="button">
+<span class="material-symbols-outlined text-[16px]">cached</span>
+<span>Rafraîchir la cote iDealwine</span>
+</button>
+<span class="font-body-sm text-[11px] text-secondary">
+          Quota : <span class="font-semibold text-primary">4 / 50</span> requêtes
+        </span>
+</div>
+</section>
+<section class="bg-surface-container-lowest rounded-xl p-space-lg border border-stone-blonde shadow-[0_2px_12px_-2px_rgba(122,85,34,0.05)] space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary">history_edu</span>
+<h2 class="font-headline-sm text-lg font-semibold text-primary">Journal des Mouvements</h2>
+</div>
+<span class="font-body-sm text-[11px] text-secondary">Append-only</span>
+</div>
+<div class="space-y-space-md relative pl-4 border-l-2 border-stone-blonde">
+<div class="relative">
+<div class="absolute -left-[23px] top-0.5 w-3.5 h-3.5 rounded-full border-2 border-surface-container-lowest bg-tertiary"></div>
+<div class="space-y-0.5">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-tertiary text-sm font-semibold">−1 col dégusté</span>
+<span class="font-body-sm text-[11px] text-secondary">12 Oct. 2023</span>
+</div>
+<p class="font-body-md text-sm text-on-surface">Dîner anniversaire</p>
+<p class="font-body-sm text-xs text-secondary">Notes : Robe rubis tuilée, arômes de kirsch, fraise écrasée et sous-bois. Grande finesse.</p>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[23px] top-0.5 w-3.5 h-3.5 rounded-full border-2 border-surface-container-lowest bg-primary"></div>
+<div class="space-y-0.5">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-primary text-sm font-semibold">+6 cols rentrés</span>
+<span class="font-body-sm text-[11px] text-secondary">04 Mai 2021</span>
+</div>
+<p class="font-body-md text-sm text-on-surface">Achat primeur / caviste</p>
+<p class="font-body-sm text-xs text-secondary">Acquis à 180 € TTC / bouteille. Caisse bois d'origine vérifiée.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<aside aria-label="Actions rapides pour ce vin" class="fixed bottom-0 left-0 right-0 z-50 bg-surface/95 backdrop-blur-md px-space-md py-space-md shadow-[0_-8px_30px_-4px_rgba(43,38,33,0.08)] border-t border-stone-blonde">
+<div class="max-w-xl mx-auto flex items-center space-x-space-sm">
+<button class="flex-1 h-[52px] px-space-md rounded-xl bg-surface-container-high hover:bg-surface-variant active:scale-95 text-secondary border border-stone-blonde font-label-md text-sm font-semibold flex items-center justify-center space-x-1.5 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">edit_note</span>
+<span>Modifier fiche</span>
+</button>
+<button class="flex-[1.4] h-[52px] px-space-md rounded-xl bg-ferronnerie hover:bg-black active:scale-[0.98] text-surface font-label-md text-sm font-semibold shadow-md flex items-center justify-center space-x-2 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">remove_circle_outline</span>
+<span>Sortir 1 bouteille</span>
+</button>
+</div>
+</aside>
+</body></html>
