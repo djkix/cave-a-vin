@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WineColor {
+  ROUGE
+  BLANC
+  ROSE
+  PETILLANT
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum PhotoStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model Appellation {
+  id            String      @id @default(uuid())
+  canonicalName String      @unique @map("canonical_name")
+  region        String?
+  allowedColors WineColor[] @map("allowed_colors")
+  guardMinYears Int?        @map("guard_min_years")
+  guardMaxYears Int?        @map("guard_max_years")
+  wines         Wine[]
+
+  @@map("appellation")
+}
+
+model Wine {
+  id             String       @id @default(uuid())
+  matchKey       String       @unique @map("match_key")
+  producer       String
+  cuvee          String?
+  appellationId  String?      @map("appellation_id")
+  appellation    Appellation? @relation(fields: [appellationId], references: [id])
+  appellationRaw String       @map("appellation_raw")
+  vintage        Int?
+  color          WineColor
+  formatCl       Int          @default(75) @map("format_cl")
+  apogeeMin      Int?         @map("apogee_min")
+  apogeeMax      Int?         @map("apogee_max")
+  apogeeSource   String?      @map("apogee_source")
+  idealwineRef   String?      @map("idealwine_ref")
+  referencePhotoId String?    @map("reference_photo_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  movements      Movement[]
+
+  @@map("wine")
+}
+
+model Movement {
+  id             String       @id @default(uuid())
+  wineId         String       @map("wine_id")
+  wine           Wine         @relation(fields: [wineId], references: [id])
+  delta          Int
+  type           MovementType
+  occurredAt     DateTime     @default(now()) @map("occurred_at")
+  photoId        String?      @map("photo_id")
+  photo          Photo?       @relation(fields: [photoId], references: [id])
+  priceUnitCents Int?         @map("price_unit_cents")
+  note           String?
+  idempotencyKey String       @unique @map("idempotency_key")
+  reversesId     String?      @map("reverses_id")
+
+  @@index([wineId, occurredAt])
+  @@map("movement")
+}
+
+model Photo {
+  id            String      @id @default(uuid())
+  contentHash   String      @unique @map("content_hash")
+  storagePath   String      @map("storage_path")
+  mimeType      String      @default("image/jpeg") @map("mime_type")
+  status        PhotoStatus @default(PENDING)
+  rawExtraction Json?       @map("raw_extraction")
+  model         String?
+  latencyMs     Int?        @map("latency_ms")
+  costCents     Int?        @map("cost_cents")
+  errorMessage  String?     @map("error_message")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  movements     Movement[]
+
+  @@map("photo")
+}
+
+model AppUser {
+  id           String   @id @default(uuid())
+  googleSub    String?  @unique @map("google_sub")
+  email        String   @unique
+  displayName  String?  @map("display_name")
+  isBreakGlass Boolean  @default(false) @map("is_break_glass")
+  passwordHash String?  @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("app_user")
+}
+
+model AllowedEmail {
+  email   String   @id
+  addedBy String?  @map("added_by")
+  addedAt DateTime @default(now()) @map("added_at")
+
+  @@map("allowed_email")
+}
+
+model ExportLog {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  generatedAt DateTime @default(now()) @map("generated_at")
+  filter      Json?
+  rowCount    Int      @map("row_count")
+
+  @@map("export_log")
+}
