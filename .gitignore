@@ -1,1 +1,10 @@
 .superpowers/
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.DS_Store
+web/src/design-tokens/tokens.css
+api/data/photos/
+backups/
