@@ -6,4 +6,10 @@ module.exports = {
   root: true,
   env: { node: true, jest: true },
   ignorePatterns: ['.eslintrc.cjs', 'dist', 'jest.config.ts'],
+  overrides: [
+    {
+      files: ['*.spec.ts'],
+      rules: { '@typescript-eslint/no-explicit-any': 'off' },
+    },
+  ],
 };
