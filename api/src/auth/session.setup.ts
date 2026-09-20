@@ -1,13 +1,16 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import RedisStore from 'connect-redis';
 import session from 'express-session';
 import Redis from 'ioredis';
 import passport from 'passport';
 import { loadEnv } from '../config/env';
 
+const logger = new Logger('Session');
+
 export function setupSession(app: INestApplication) {
   const env = loadEnv();
   const client = new Redis(env.REDIS_URL);
+  client.on('error', (err) => logger.error(`Redis (sessions) : ${err.message}`, err.stack));
   app.use(
     session({
       store: new RedisStore({ client, prefix: 'cave:sess:' }),

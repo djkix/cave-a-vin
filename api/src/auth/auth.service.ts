@@ -20,11 +20,20 @@ export class AuthService {
     const existing = await this.prisma.appUser.findUnique({ where: { googleSub: profile.sub } });
     if (existing) return existing;
 
-    const allowed = await this.prisma.allowedEmail.findUnique({ where: { email: profile.email.toLowerCase() } });
+    const email = profile.email.toLowerCase();
+    const allowed = await this.prisma.allowedEmail.findUnique({ where: { email } });
     if (!allowed) throw new ForbiddenException('Adresse non autorisée');
 
+    const byEmail = await this.prisma.appUser.findUnique({ where: { email } });
+    if (byEmail && byEmail.googleSub === null) {
+      return this.prisma.appUser.update({
+        where: { id: byEmail.id },
+        data: { googleSub: profile.sub, displayName: profile.displayName },
+      });
+    }
+
     return this.prisma.appUser.create({
-      data: { googleSub: profile.sub, email: profile.email.toLowerCase(), displayName: profile.displayName },
+      data: { googleSub: profile.sub, email, displayName: profile.displayName },
     });
   }
 

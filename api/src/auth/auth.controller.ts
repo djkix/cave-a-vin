@@ -34,7 +34,7 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Req() req: Request) {
-    await new Promise<void>((resolve) => req.logout(() => resolve()));
+    await new Promise<void>((resolve, reject) => req.logout((err) => (err ? reject(err) : resolve())));
     return { ok: true };
   }
 
