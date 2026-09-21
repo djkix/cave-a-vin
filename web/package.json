@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tokens": "node scripts/build-tokens.mjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "test": "npm run tokens && node --test scripts && vitest run",
+    "test": "npm run tokens && node --test scripts/build-tokens.test.mjs && vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
