@@ -10,7 +10,7 @@ export interface WineDraft {
   formatCl: number;
 }
 
-const STOP_WORDS = new Set(['domaine', 'chateau', 'cuvee', 'maison', 'clos', 'les', 'le', 'la', 'de', 'du', 'des', 'd']);
+const STOP_WORDS = new Set(['domaine', 'chateau', 'cuvee', 'maison', 'clos']);
 
 export function normalizeName(s: string | null | undefined): string {
   return normalizeLabel(s ?? '')

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { WineMatchingService } from './wine-matching.service';
 
 function fakes() {
@@ -46,5 +47,30 @@ describe('WineMatchingService.matchOrCreate', () => {
     const r = await new WineMatchingService(f.prisma as any, f.appellations as any).matchOrCreate({ ...draft, appellationRaw: 'Vin de France' });
     expect(r.wine.appellationId).toBeNull();
     expect(r.wine.appellationRaw).toBe('Vin de France');
+  });
+
+  it('recovers from a concurrent-create unique violation by returning the winning row', async () => {
+    const f = fakes();
+    const existingWine = { id: 'w-race', matchKey: 'placeholder' };
+    let findUniqueCalls = 0;
+    let createCalls = 0;
+    const prisma = {
+      wine: {
+        findUnique: async ({ where }: any) => {
+          findUniqueCalls += 1;
+          if (findUniqueCalls === 1) return null;
+          existingWine.matchKey = where.matchKey;
+          return existingWine;
+        },
+        create: async () => {
+          createCalls += 1;
+          throw Object.assign(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' }), {});
+        },
+      },
+    };
+    const r = await new WineMatchingService(prisma as any, f.appellations as any).matchOrCreate(draft);
+    expect(r.created).toBe(false);
+    expect(r.wine.id).toBe('w-race');
+    expect(createCalls).toBe(1);
   });
 });

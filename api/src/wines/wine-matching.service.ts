@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Wine } from '@prisma/client';
+import { Prisma, Wine } from '@prisma/client';
 import { AppellationMatch, AppellationsService } from '../appellations/appellations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { computeMatchKey, WineDraft } from './match-key';
@@ -19,18 +19,26 @@ export class WineMatchingService {
     const existing = await this.prisma.wine.findUnique({ where: { matchKey } });
     if (existing) return { wine: existing, created: false, appellation };
 
-    const wine = await this.prisma.wine.create({
-      data: {
-        matchKey,
-        producer: draft.producer.trim(),
-        cuvee: draft.cuvee?.trim() || null,
-        appellationId: appellation.kind === 'none' ? null : appellation.id,
-        appellationRaw,
-        vintage: draft.vintage ?? null,
-        color: draft.color,
-        formatCl: draft.formatCl,
-      },
-    });
-    return { wine, created: true, appellation };
+    try {
+      const wine = await this.prisma.wine.create({
+        data: {
+          matchKey,
+          producer: draft.producer.trim(),
+          cuvee: draft.cuvee?.trim() || null,
+          appellationId: appellation.kind === 'none' ? null : appellation.id,
+          appellationRaw,
+          vintage: draft.vintage ?? null,
+          color: draft.color,
+          formatCl: draft.formatCl,
+        },
+      });
+      return { wine, created: true, appellation };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const raced = await this.prisma.wine.findUnique({ where: { matchKey } });
+        if (raced) return { wine: raced, created: false, appellation };
+      }
+      throw e;
+    }
   }
 }

@@ -17,4 +17,14 @@ describe('computeMatchKey', () => {
   it('encodes a missing vintage as NV', () => {
     expect(computeMatchKey({ producer: 'Krug', appellationRaw: 'Champagne', color: 'PETILLANT', formatCl: 75 })).toBe('krug||champagne|NV|PETILLANT|75');
   });
+
+  it('does not merge distinct producers that share a word after stripping classification prefixes', () => {
+    const base = { appellationRaw: 'Châteauneuf-du-Pape', vintage: 2019, color: 'ROUGE' as const, formatCl: 75 };
+    const closDesPapes = computeMatchKey({ ...base, producer: 'Clos des Papes' });
+    const closPapes = computeMatchKey({ ...base, producer: 'Clos Papes' });
+    expect(closDesPapes).not.toBe(closPapes);
+    expect(computeMatchKey({ producer: 'Domaine Leflaive', appellationRaw: 'Puligny-Montrachet', color: 'BLANC', formatCl: 75 })).toBe(
+      'leflaive||puligny montrachet|NV|BLANC|75',
+    );
+  });
 });
