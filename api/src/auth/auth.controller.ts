@@ -9,6 +9,13 @@ import { AuthenticatedGuard } from './authenticated.guard';
 import { CurrentUser } from './current-user.decorator';
 import { OAuthRedirectFilter } from './oauth-redirect.filter';
 
+// Même forme que côté web (type Me) : local-login et /auth/me ne doivent pas
+// diverger, sinon la connexion locale mentirait sur isAdmin/status jusqu'au
+// prochain getMe().
+function toMe(user: AppUser) {
+  return { id: user.id, email: user.email, displayName: user.displayName, isAdmin: user.isAdmin, status: user.status };
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -36,7 +43,7 @@ export class AuthController {
     const user = await this.auth.verifyLocalLogin(body.email ?? '', body.password ?? '');
     if (!user) throw new UnauthorizedException('Identifiants invalides');
     await new Promise<void>((resolve, reject) => req.logIn(user, (err) => (err ? reject(err) : resolve())));
-    return { id: user.id, email: user.email, displayName: user.displayName };
+    return toMe(user);
   }
 
   @Post('logout')
@@ -48,6 +55,6 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthenticatedGuard)
   me(@CurrentUser() user: AppUser) {
-    return { id: user.id, email: user.email, displayName: user.displayName, isAdmin: user.isAdmin, status: user.status };
+    return toMe(user);
   }
 }

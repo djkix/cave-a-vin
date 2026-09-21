@@ -58,6 +58,7 @@ export function AdminPage() {
         {me.data?.isAdmin && (
           <>
             {update.isError && <p role="alert" className="text-error">{(update.error as Error).message}</p>}
+            {users.isError && <p role="alert" className="text-error">{(users.error as Error).message}</p>}
             <div className="list">
               {users.data?.map((u) => (
                 <AdminUserRow

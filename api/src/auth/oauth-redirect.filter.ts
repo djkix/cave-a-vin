@@ -3,9 +3,10 @@ import { Response } from 'express';
 import { loadEnv } from '../config/env';
 
 /**
- * Le retour Google est une navigation, pas un appel XHR : une adresse hors liste
- * blanche doit ramener l'utilisateur sur l'écran de connexion avec un message en
- * français, pas afficher un JSON 403 brut dans le navigateur.
+ * Le retour Google est une navigation, pas un appel XHR : un refus (compte
+ * bloqué, session non créée) doit ramener l'utilisateur sur l'écran de
+ * connexion avec un message en français, pas afficher un JSON 403/401 brut
+ * dans le navigateur.
  */
 @Catch(ForbiddenException, UnauthorizedException)
 export class OAuthRedirectFilter implements ExceptionFilter {
