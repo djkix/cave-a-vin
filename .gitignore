@@ -8,3 +8,4 @@ coverage/
 web/src/design-tokens/tokens.css
 api/data/photos/
 backups/
+dump.rdb

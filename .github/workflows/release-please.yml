@@ -1,0 +1,21 @@
+name: Release Please
+on:
+  push:
+    branches: [main]
+permissions: { contents: write, pull-requests: write, packages: write }
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v4
+        with: { config-file: release-please-config.json, manifest-file: .release-please-manifest.json }
+  images:
+    needs: release
+    if: ${{ needs.release.outputs.release_created == 'true' }}
+    uses: ./.github/workflows/docker-build.yml
+    with: { tag: "${{ needs.release.outputs.tag_name }}" }
+    permissions: { contents: read, packages: write }
