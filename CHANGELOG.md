@@ -9,7 +9,7 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
-## Non publié
+## [1.1.0](https://github.com/djkix/cave-a-vin/compare/v1.0.0...v1.1.0) (2026-09-21)
 
 ### Résumé
 
@@ -43,7 +43,6 @@ listant que les analyses terminées.
   que la photo est enregistrée, et propose de partir ou de saisir à la main. Une
   coupure du flux d'événements affiche désormais ce report plutôt qu'un échec de
   lecture, puisque l'analyse continue côté serveur.
-
 - **Version affichée en permanence** : en haut à droite de chaque écran et sur
   l'écran de connexion. `VITE_APP_VERSION` était déjà injectée dans l'image web
   par l'intégration continue, mais n'était affichée nulle part. Une image
@@ -58,8 +57,7 @@ listant que les analyses terminées.
   automatiquement au démarrage suivant du worker : les deux bouteilles perdues
   lors de l'incident sont récupérées sans action manuelle.
 
-## [1.1.0](https://github.com/djkix/cave-a-vin/compare/v1.0.0...v1.1.0) (2026-09-21)
-
+### Détail par commit
 
 ### Fonctionnalités
 

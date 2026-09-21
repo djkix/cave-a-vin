@@ -355,10 +355,12 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
 ## Journal des modifications
 
 Le détail par version, avec le lien vers chaque commit, est dans
-[`CHANGELOG.md`](CHANGELOG.md) ; voici la version publiée et ce qui attend
-publication.
+[`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
-### Non publié
+### 1.1.0 — 21 septembre 2026
+
+Publiée ([v1.1.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.1.0` et `-web:1.1.0`.
 
 **Analyse des photos différée et jamais bloquante.** Une indisponibilité
 passagère du service de vision (429, 500, 502, 503, 504, coupure réseau,
