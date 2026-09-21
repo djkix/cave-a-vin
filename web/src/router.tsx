@@ -5,6 +5,7 @@ import { CampagneReviewPage } from './pages/CampagneReviewPage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
 import { HomePage } from './pages/HomePage';
+import { JournalPage } from './pages/JournalPage';
 import { LoginPage } from './pages/LoginPage';
 
 export const router = createBrowserRouter([
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: '/entree/campagne', element: <CampagneCapturePage /> },
       { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
       { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
+      { path: '/journal', element: <JournalPage /> },
     ],
   },
 ]);

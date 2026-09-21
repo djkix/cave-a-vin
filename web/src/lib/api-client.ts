@@ -61,3 +61,18 @@ export const getPendingReviewPhotos = () => apiFetch<PhotoDto[]>('/photos/pendin
 export type BulkResult = Array<{ ok: true; idempotencyKey: string; result: MovementResult } | { ok: false; idempotencyKey: string; error: string }>;
 export const createMovementsBulk = (items: CreateMovementInput[]) =>
   apiFetch<BulkResult>('/movements/bulk', { method: 'POST', body: JSON.stringify(items) });
+
+export interface MovementWithWine {
+  id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null;
+  wine: { id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null };
+}
+export const getRecentMovements = (limit = 20) => apiFetch<MovementWithWine[]>(`/movements/recent?limit=${limit}`);
+export const cancelMovement = (id: string, idempotencyKey: string) =>
+  apiFetch<MovementResult>(`/movements/${id}/cancel`, { method: 'POST', body: JSON.stringify({ idempotencyKey }) });
+export function exportUrl(filter: { color?: WineColor; region?: string } = {}) {
+  const q = new URLSearchParams();
+  if (filter.color) q.set('color', filter.color);
+  if (filter.region) q.set('region', filter.region);
+  const s = q.toString();
+  return `/api/export.xlsx${s ? `?${s}` : ''}`;
+}
