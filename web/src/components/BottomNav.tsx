@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { Icon } from './Icon';
 
 const tabs = [
   { to: '/cave', icon: 'shelves', label: 'Cave', soon: true },
@@ -13,12 +14,12 @@ export function BottomNav() {
       {tabs.map((t) =>
         t.soon ? (
           <span key={t.to} className="bottomnav__tab bottomnav__tab--soon" aria-disabled="true" title="Bientôt disponible">
-            <span className="material-symbols-outlined">{t.icon}</span>
+            <Icon name={t.icon} />
             <span>{t.label}</span>
           </span>
         ) : (
           <NavLink key={t.to} to={t.to} className={({ isActive }) => `bottomnav__tab${isActive ? ' bottomnav__tab--active' : ''}`}>
-            <span className="material-symbols-outlined">{t.icon}</span>
+            <Icon name={t.icon} />
             <span>{t.label}</span>
           </NavLink>
         ),

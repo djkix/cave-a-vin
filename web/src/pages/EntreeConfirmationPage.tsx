@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { EditableField } from '../components/EditableField';
+import { Icon } from '../components/Icon';
 import { QuantityPicker } from '../components/QuantityPicker';
 import { TopBar } from '../components/TopBar';
 import { createMovement, getPhoto, MovementResult, PhotoEvent, WineDraft, WineExtraction } from '../lib/api-client';
@@ -13,6 +14,13 @@ const COLORS = [
 ];
 
 const EMPTY: WineDraft = { producer: '', cuvee: '', appellationRaw: '', vintage: null, color: 'ROUGE', formatCl: 75 };
+
+// Un message d'erreur de Gemini ou de la base peut faire plusieurs lignes : la carte
+// d'échec n'en montre que le début, le reste n'apporte rien sur un téléphone.
+const MAX_ERROR_CHARS = 160;
+function shortError(message: string): string {
+  return message.length > MAX_ERROR_CHARS ? `${message.slice(0, MAX_ERROR_CHARS)}…` : message;
+}
 
 export function EntreeConfirmationPage() {
   const { photoId = '' } = useParams();
@@ -42,12 +50,22 @@ export function EntreeConfirmationPage() {
         setStatus(p.status);
         setErrorMessage(p.errorMessage ?? null);
         if (p.status === 'FAILED') return;
-        unsub = subscribePhotoEvents(photoId, (e) => {
-          if (cancelled) return;
-          setStatus(e.status);
-          setErrorMessage(e.errorMessage ?? null);
-          if (e.extraction) setExtraction(e.extraction);
-        });
+        unsub = subscribePhotoEvents(
+          photoId,
+          (e) => {
+            if (cancelled) return;
+            setStatus(e.status);
+            setErrorMessage(e.errorMessage ?? null);
+            if (e.extraction) setExtraction(e.extraction);
+          },
+          // Flux SSE coupé (réseau, redémarrage de l'api) : sans ça l'écran reste
+          // bloqué sur « Analyse en cours… » indéfiniment.
+          () => {
+            if (cancelled) return;
+            setStatus('FAILED');
+            setErrorMessage('Connexion au serveur interrompue — réessayez ou saisissez à la main.');
+          },
+        );
       })
       .catch((e) => {
         if (cancelled) return;
@@ -111,7 +129,7 @@ export function EntreeConfirmationPage() {
   return (
     <>
       <TopBar title="Nouvelle entrée" back="/entree" />
-      <main className="page" style={{ paddingBottom: 140 }}>
+      <main className="page" style={{ paddingBottom: 'calc(var(--size-bottomnav-height) + var(--size-action-height) + var(--space-lg))' }}>
         <img className="preview" src={`/api/photos/${photoId}/image`} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         {waiting && (
           <section className="card">
@@ -121,7 +139,10 @@ export function EntreeConfirmationPage() {
         )}
         {failed && (
           <section className="card" role="alert">
-            <p className="text-error">Lecture impossible : {errorMessage ?? 'erreur inconnue'}</p>
+            <p className="text-error" style={{ margin: 0 }}>Lecture impossible</p>
+            <p style={{ margin: 'var(--space-xs) 0 var(--space-md)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {shortError(errorMessage ?? 'erreur inconnue')}
+            </p>
             <Button variant="outline" onClick={() => setManual(true)}>Saisir à la main</Button>
           </section>
         )}
@@ -143,7 +164,7 @@ export function EntreeConfirmationPage() {
             {submitError && <p role="alert" className="text-error">{submitError}</p>}
             <div className="dock">
               <Button variant="dark" onClick={confirm} disabled={submitting || !draft.producer || !draft.appellationRaw}>
-                <span className="material-symbols-outlined">check_circle</span>
+                <Icon name="check_circle" />
                 {submitting ? 'Enregistrement…' : `Confirmer l’entrée (+${quantity} bouteille${quantity > 1 ? 's' : ''})`}
               </Button>
               <span className="dock__hint">Écrit un mouvement IN · annulable depuis le journal</span>

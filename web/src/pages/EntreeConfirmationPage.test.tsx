@@ -62,6 +62,27 @@ it('shows a fetch error (404/offline) as a failure with a manual-entry fallback'
   expect(screen.getByRole('button', { name: /Saisir à la main/ })).toBeInTheDocument();
 });
 
+it('falls back to manual entry when the event stream drops', async () => {
+  vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'PENDING', createdAt: '' });
+  vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation((_id, _onEvent, onError) => {
+    onError?.();
+    return () => {};
+  });
+  mount();
+  expect(await screen.findByText(/Connexion au serveur interrompue/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Saisir à la main/ })).toBeInTheDocument();
+});
+
+it('truncates a very long failure message to one readable line', async () => {
+  const long = `Plafond mensuel atteint : ${'x'.repeat(400)}`;
+  vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'FAILED', errorMessage: long, createdAt: '' });
+  vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation(() => () => {});
+  mount();
+  const shown = await screen.findByText(/^Plafond mensuel atteint/);
+  expect(shown.textContent).toHaveLength(161);
+  expect(shown.textContent?.endsWith('…')).toBe(true);
+});
+
 it('prefills the form for a photo already DONE at load, via the SSE snapshot', async () => {
   vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'DONE', createdAt: '' });
   vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation((_id, onEvent) => { onEvent({ status: 'DONE', extraction }); return () => {}; });

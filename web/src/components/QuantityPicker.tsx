@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 
 const PRESETS = [
   { n: 1, label: 'btl' },
@@ -47,7 +48,7 @@ export function QuantityPicker({ value, detected, onChange }: { value: number; d
           </button>
         ))}
         <button type="button" className={`pill${free ? ' pill--active' : ''}`} aria-pressed={free} onClick={() => setFree(true)}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
+          <Icon name="edit" style={{ fontSize: 18 }} />
           <small>Autre</small>
         </button>
       </div>

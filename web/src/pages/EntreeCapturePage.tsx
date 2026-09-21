@@ -1,9 +1,10 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { Icon } from '../components/Icon';
 import { TopBar } from '../components/TopBar';
 import { uploadPhoto } from '../lib/api-client';
-import { enqueuePhoto, QueueFullError } from '../lib/offline-queue';
+import { enqueuePhoto, isRetryableUploadError, QueueFullError } from '../lib/offline-queue';
 import { notifyQueueChanged } from '../lib/use-offline-queue';
 
 export function EntreeCapturePage() {
@@ -24,7 +25,7 @@ export function EntreeCapturePage() {
       const { id } = await uploadPhoto(file);
       navigate(`/entree/${id}`);
     } catch (err) {
-      if (err instanceof TypeError) {
+      if (isRetryableUploadError(err)) {
         try {
           await enqueuePhoto(file, 'single');
           notifyQueueChanged();
@@ -50,7 +51,7 @@ export function EntreeCapturePage() {
         </p>
         <input ref={input} className="capture__input" type="file" accept="image/*" capture="environment" onChange={onFile} aria-label="Prendre une photo" />
         <Button variant="primary" onClick={() => input.current?.click()} disabled={busy} style={{ width: '100%', minHeight: 'var(--size-action-height)' }}>
-          <span className="material-symbols-outlined">photo_camera</span>
+          <Icon name="photo_camera" />
           {busy ? 'Envoi…' : 'Prendre la photo'}
         </Button>
         {error && <p role="alert" className="text-error">{error}</p>}

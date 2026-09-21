@@ -21,6 +21,17 @@ export class QueueFullError extends Error {
   }
 }
 
+/**
+ * Un envoi qui échouera peut-être mieux plus tard : réseau coupé (fetch jette un
+ * TypeError), api momentanément indisponible (5xx — dont le 503 que renvoie le
+ * rollback de la mise en file côté serveur) ou limiteur de débit (429).
+ * Tout le reste est un refus déterministe : inutile de mettre la photo en attente.
+ */
+export function isRetryableUploadError(e: unknown): boolean {
+  if (e instanceof TypeError) return true;
+  return e instanceof ApiError && (e.status >= 500 || e.status === 429);
+}
+
 let dbPromise: Promise<IDBPDatabase<CaveDB>> | null = null;
 
 function db() {
@@ -63,15 +74,16 @@ export async function flushQueue(upload: (blob: Blob) => Promise<unknown>): Prom
       await removeFromQueue(item.id);
       sent++;
     } catch (e) {
-      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 403) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 403 && e.status !== 429) {
         // Deterministically rejected by the server (bad format, too large…): retrying
-        // won't help, and it must not block the rest of the queue.
+        // won't help, and it must not block the rest of the queue. A 429 is the
+        // opposite — the limiter asks us to come back later, so it stays queued.
         await removeFromQueue(item.id);
         failed++;
         continue;
       }
-      // Network failure or a session problem (401/403) or a 5xx: stop here, keep this
-      // item and everything after it for the next flush attempt.
+      // Network failure, a session problem (401/403), a 429 or a 5xx: stop here, keep
+      // this item and everything after it for the next flush attempt.
       return { sent, failed: failed + 1 };
     }
   }

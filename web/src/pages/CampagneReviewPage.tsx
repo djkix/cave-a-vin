@@ -84,7 +84,7 @@ export function CampagneReviewPage() {
   return (
     <>
       <TopBar title="Revue groupée" back="/entree/campagne" />
-      <main className="page" style={{ paddingBottom: 140 }}>
+      <main className="page" style={{ paddingBottom: 'calc(var(--size-bottomnav-height) + var(--size-action-height) + var(--space-lg))' }}>
         <OfflineQueueBanner />
         {result && (
           <p role="status" className={`badge ${result.some((x) => x.ok) ? 'badge--ok' : 'badge--warn'}`}>
@@ -100,8 +100,8 @@ export function CampagneReviewPage() {
           const itemError = itemErrors[r.idempotencyKey];
           return (
             <article key={r.photoId} className="card" style={{ opacity: r.ignored ? 0.5 : 1 }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <img src={`/api/photos/${r.photoId}/image`} alt="" width={64} height={80} loading="lazy" decoding="async" style={{ objectFit: 'cover', borderRadius: 8 }} />
+              <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
+                <img src={`/api/photos/${r.photoId}/image`} alt="" width={64} height={80} loading="lazy" decoding="async" style={{ objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />
                 <span className={`badge ${r.globalConfidence >= LOW_CONFIDENCE ? 'badge--ok' : 'badge--warn'}`}>confiance {Math.round(r.globalConfidence * 100)} %</span>
                 {!r.ignored && problem && <span className="badge badge--warn">{problem}</span>}
                 {itemError && <span className="badge badge--warn">{itemError}</span>}

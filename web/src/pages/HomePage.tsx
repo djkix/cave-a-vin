@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { BottomNav } from '../components/BottomNav';
+import { Icon } from '../components/Icon';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
 import { getRecentMovements } from '../lib/api-client';
@@ -15,15 +16,15 @@ export function HomePage() {
         <OfflineQueueBanner />
         <section className="actions">
           <Link to="/entree" className="action action--in">
-            <span className="material-symbols-outlined">qr_code_scanner</span>
+            <Icon name="qr_code_scanner" />
             <span className="action__text">
               <strong>Rentrer du vin</strong>
               <small>Arrivage de cartons (6, 12, 18) ou bouteilles</small>
             </span>
-            <span className="material-symbols-outlined">arrow_forward</span>
+            <Icon name="arrow_forward" />
           </Link>
           <button type="button" className="action action--out" disabled>
-            <span className="material-symbols-outlined">remove_circle_outline</span>
+            <Icon name="remove_circle_outline" />
             <span className="action__text">
               <strong>Sortir une bouteille</strong>
               <small>Bientôt disponible (lot 2)</small>

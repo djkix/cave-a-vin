@@ -1,10 +1,11 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { Icon } from '../components/Icon';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
 import { uploadPhoto } from '../lib/api-client';
-import { enqueuePhoto, QueueFullError } from '../lib/offline-queue';
+import { enqueuePhoto, isRetryableUploadError, QueueFullError } from '../lib/offline-queue';
 import { notifyQueueChanged } from '../lib/use-offline-queue';
 
 export function CampagneCapturePage() {
@@ -21,7 +22,7 @@ export function CampagneCapturePage() {
       if (!navigator.onLine) throw new TypeError('offline');
       await uploadPhoto(file);
     } catch (err) {
-      if (!(err instanceof TypeError)) return setError(err instanceof Error ? err.message : 'Envoi impossible');
+      if (!isRetryableUploadError(err)) return setError(err instanceof Error ? err.message : 'Envoi impossible');
       try {
         await enqueuePhoto(file, 'campaign');
         notifyQueueChanged();
@@ -44,7 +45,7 @@ export function CampagneCapturePage() {
         <small>photos prises dans cette session</small>
         <input ref={input} className="capture__input" type="file" accept="image/*" capture="environment" onChange={onFile} aria-label="Photo suivante" />
         <Button variant="primary" onClick={() => input.current?.click()} style={{ width: '100%', minHeight: 'var(--size-action-height)' }}>
-          <span className="material-symbols-outlined">photo_camera</span>
+          <Icon name="photo_camera" />
           {taken === 0 ? 'Commencer' : 'Photo suivante'}
         </Button>
         {error && <p role="alert" className="text-error">{error}</p>}

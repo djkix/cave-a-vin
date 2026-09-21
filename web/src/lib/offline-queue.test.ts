@@ -43,6 +43,20 @@ it('skips a photo the server deterministically rejects and continues with the re
   expect((await queueStats()).count).toBe(0);
 });
 
+it('keeps the item when the server rate-limits the flush', async () => {
+  await enqueuePhoto(blob(1), 'single');
+  await enqueuePhoto(blob(2), 'single');
+  await enqueuePhoto(blob(3), 'single');
+  const upload = vi
+    .fn()
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new ApiError(429, 'Trop de requêtes'))
+    .mockResolvedValue({});
+  const r = await flushQueue(upload);
+  expect(r).toEqual({ sent: 1, failed: 1 });
+  expect((await queueStats()).count).toBe(2);
+});
+
 it('stops and keeps the item on a session error', async () => {
   await enqueuePhoto(blob(1), 'single');
   await enqueuePhoto(blob(2), 'single');

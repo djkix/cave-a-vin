@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
+import { Icon } from '../components/Icon';
 import { TopBar } from '../components/TopBar';
 import { cancelMovement, exportUrl, getRecentMovements, MovementWithWine, WineColor } from '../lib/api-client';
 
@@ -11,7 +12,7 @@ export function MovementRow({ m, onCancel, cancelling }: { m: MovementWithWine; 
   const isIn = m.delta > 0;
   return (
     <div className="list__row">
-      <span className="material-symbols-outlined" style={{ color: isIn ? 'var(--color-primary-action)' : 'var(--color-secondary)' }}>{isIn ? 'add' : 'remove'}</span>
+      <Icon name={isIn ? 'add' : 'remove'} style={{ color: isIn ? 'var(--color-primary-action)' : 'var(--color-secondary)' }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <span className={`list__delta ${isIn ? 'list__delta--in' : 'list__delta--out'} num`}>{isIn ? `+${m.delta}` : m.delta}</span>
         <span className="list__meta"> · {fmt.format(new Date(m.occurredAt))}</span>
@@ -42,7 +43,7 @@ export function JournalPage() {
       <main className="page">
         <section className="card">
           <h2 style={{ fontSize: 18 }}>Export Excel</h2>
-          <label className="field__label" style={{ marginTop: 8 }}>
+          <label className="field__label" style={{ marginTop: 'var(--space-sm)' }}>
             Filtre couleur
             <select value={color} onChange={(e) => setColor(e.target.value as WineColor | '')}>
               <option value="">Toute la cave</option>
@@ -52,8 +53,8 @@ export function JournalPage() {
               <option value="PETILLANT">Pétillant</option>
             </select>
           </label>
-          <a className="btn btn--primary" style={{ width: '100%', marginTop: 8 }} href={exportUrl(color ? { color } : {})} download>
-            <span className="material-symbols-outlined">download</span>
+          <a className="btn btn--primary" style={{ width: '100%', marginTop: 'var(--space-sm)' }} href={exportUrl(color ? { color } : {})} download>
+            <Icon name="download" />
             Exporter le classeur
           </a>
         </section>

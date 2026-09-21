@@ -1,13 +1,23 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Icon } from '../components/Icon';
 import { localLogin } from '../lib/api-client';
+
+// Messages posés par l'api quand le retour Google échoue (OAuthRedirectFilter,
+// `?error=session`) : la navigation revient ici, il faut dire pourquoi.
+const REDIRECT_ERRORS: Record<string, string> = {
+  unauthorized: 'Cette adresse Google n’est pas autorisée. Demandez à être ajoutée à la liste blanche.',
+  session: 'La session n’a pas pu être créée. Réessayez.',
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showLocal, setShowLocal] = useState(false);
+  const redirectError = REDIRECT_ERRORS[params.get('error') ?? ''] ?? null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -21,8 +31,9 @@ export function LoginPage() {
 
   return (
     <main className="login">
-      <span className="material-symbols-outlined login__logo">wine_bar</span>
+      <Icon name="wine_bar" className="login__logo" />
       <h1 className="login__title">Cave &amp; Terroir</h1>
+      {redirectError && <p role="alert" className="text-error">{redirectError}</p>}
       <a className="btn btn--primary" href="/api/auth/google">
         Se connecter avec Google
       </a>

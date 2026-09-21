@@ -1,3 +1,5 @@
+import { Icon } from './Icon';
+
 export const LOW_CONFIDENCE = 0.7;
 
 export function ConfidenceBadge({ confidence }: { confidence: number }) {
@@ -5,7 +7,7 @@ export function ConfidenceBadge({ confidence }: { confidence: number }) {
   const cls = confidence >= LOW_CONFIDENCE ? 'badge--ok' : 'badge--warn';
   return (
     <span className={`badge ${cls}`} aria-label={`Confiance ${pct} %`}>
-      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>{confidence >= LOW_CONFIDENCE ? 'verified' : 'help'}</span>
+      <Icon name={confidence >= LOW_CONFIDENCE ? 'verified' : 'help'} style={{ fontSize: 13 }} />
       <span>{pct} %</span>
     </span>
   );
