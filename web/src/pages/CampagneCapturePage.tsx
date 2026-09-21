@@ -30,7 +30,6 @@ export function CampagneCapturePage() {
       }
     }
     setTaken((n) => n + 1);
-    input.current?.click(); // enchaîner : photo, suivante — aucune confirmation unitaire
   }
 
   return (
@@ -39,7 +38,7 @@ export function CampagneCapturePage() {
       <main className="page capture">
         <OfflineQueueBanner />
         <p style={{ textAlign: 'center', color: 'var(--color-secondary)' }}>
-          Photographiez chaque référence à la suite. L’analyse se fait en arrière-plan ; vous validerez tout d’un coup dans la revue.
+          Photographiez chaque référence à la suite : appuyez sur « Photo suivante » après chaque prise. L’analyse se fait en arrière-plan ; vous validerez tout d’un coup dans la revue.
         </p>
         <p className="num" style={{ fontSize: 40, margin: 0 }}>{taken}</p>
         <small>photos prises dans cette session</small>

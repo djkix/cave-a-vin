@@ -27,7 +27,15 @@ export class PhotosController {
   @Get('pending-review')
   async pendingReview() {
     const photos = await this.photos.listPendingReview();
-    return photos.map((p) => ({ ...p, extraction: p.rawExtraction ? parseExtraction(p.rawExtraction) : null }));
+    return photos.map((p) => {
+      let extraction = null;
+      try {
+        extraction = p.rawExtraction ? parseExtraction(p.rawExtraction) : null;
+      } catch {
+        extraction = null;
+      }
+      return { ...p, extraction };
+    });
   }
 
   @Get(':id')
