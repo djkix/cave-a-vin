@@ -9,10 +9,9 @@ const PRESETS = [
 
 export function QuantityPicker({ value, detected, onChange }: { value: number; detected?: number | null; onChange: (n: number) => void }) {
   const [free, setFree] = useState(!PRESETS.some((p) => p.n === value));
-  // Buffer the free-quantity text locally (see EditableField for why): the
-  // input types as raw text so backspacing to empty doesn't get coerced back
-  // to a number mid-edit, and re-syncs from `value` when the parent pushes
-  // a new one.
+  // Text buffer for the free-quantity input: a numeric field must allow a
+  // transient empty string while typing, so it can't be `value` itself.
+  // Re-syncs from `value` when the parent pushes a new one.
   const [freeText, setFreeText] = useState(String(value));
   useEffect(() => setFreeText(String(value)), [value]);
 
@@ -23,12 +22,20 @@ export function QuantityPicker({ value, detected, onChange }: { value: number; d
 
   function handleFreeChange(raw: string) {
     setFreeText(raw);
-    onChange(Math.max(1, Number(raw) || 1));
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 1) onChange(n);
+  }
+
+  function handleFreeBlur() {
+    const n = Number(freeText);
+    const clamped = Number.isInteger(n) && n >= 1 ? n : 1;
+    setFreeText(String(clamped));
+    onChange(clamped);
   }
 
   return (
     <section className="card" aria-label="Quantité à intégrer">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
         <strong className="num">Quantité à intégrer</strong>
         {detected ? <span className="badge badge--ok">Détecté sur carton : {detected}</span> : null}
       </div>
@@ -45,9 +52,9 @@ export function QuantityPicker({ value, detected, onChange }: { value: number; d
         </button>
       </div>
       {free && (
-        <label style={{ display: 'block', marginTop: 8 }}>
+        <label style={{ display: 'block', marginTop: 'var(--space-sm)' }}>
           <span className="field__label">Quantité libre</span>
-          <input type="number" min={1} inputMode="numeric" aria-label="Quantité libre" value={freeText} onChange={(e) => handleFreeChange(e.target.value)} />
+          <input type="number" min={1} inputMode="numeric" aria-label="Quantité libre" value={freeText} onChange={(e) => handleFreeChange(e.target.value)} onBlur={handleFreeBlur} />
         </label>
       )}
     </section>
