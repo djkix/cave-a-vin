@@ -323,70 +323,49 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
 
 ## Journal des modifications
 
-Le détail par version est dans [`CHANGELOG.md`](CHANGELOG.md) ; voici la version
-courante.
-
-### Non publié
-
-**Fonctionnalités**
-
-- Inscription libre : n'importe quel compte Google obtient un accès complet
-  immédiat, sans liste blanche préalable.
-- Espace d'administration (`/admin`) : liste des comptes, blocage/réactivation,
-  promotion/retrait des droits d'administration ; désignation du ou des
-  premiers administrateurs par `ADMIN_EMAILS`, qui agit comme un plancher
-  garanti (jamais un plafond) — ces comptes-là ne sont ni blocables ni
-  rétrogradables depuis l'interface, et une promotion faite dans l'interface
-  sur un autre compte est durable.
-
-**Sécurité**
-
-- La liste blanche `allowed_email` n'est plus le point de contrôle des accès ;
-  le contrôle se fait désormais sur le statut du compte (`ACTIVE`/`BLOCKED`),
-  et un blocage coupe la session en cours dès la requête suivante.
-- Correctifs de revue avant mise en production : la liste des comptes
-  n'expose plus `passwordHash` ni `googleSub` ; un compte configuré comme
-  administrateur via `ADMIN_EMAILS` ne peut plus être bloqué ou rétrogradé
-  depuis `/admin` (risque de verrouillage total) ; un compte bloqué en session
-  ouverte est désormais redirigé vers l'écran de connexion au lieu d'un faux
-  message « serveur injoignable ».
+Le détail par version, avec le lien vers chaque commit, est dans
+[`CHANGELOG.md`](CHANGELOG.md) ; voici la version publiée.
 
 ### 1.0.0 — 21 septembre 2026
+
+Première version déployable ([v1.0.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.0.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.0.0` et `-web:1.0.0`.
 
 **Fonctionnalités**
 
 - Socle auto-hébergé : Compose (`web`, `api`, `worker`, `postgres`, `redis`,
-  `db-backup`), connexion Google OpenID Connect avec liste blanche d'adresses,
-  compte local de secours (argon2), sessions en Redis, PWA installable,
-  intégration continue et publication automatique des images.
-- Entrée de stock par photo : capture native, normalisation de l'image
-  (redressement EXIF, JPEG 1600 px, métadonnées GPS supprimées), extraction par
-  Gemini en JSON strict avec confiance par champ, recalage sur le référentiel des
-  appellations, dédoublonnage des références, écran de confirmation éditable,
-  quantité en un tap.
-- Mode campagne : prise de vue en rafale puis revue groupée triée par confiance
-  croissante, avec validation en masse.
-- File hors ligne dans le navigateur (20 photos / 50 Mo) vidée au premier plan.
+  `db-backup`), un seul port publié derrière Nginx Proxy Manager, intégration
+  continue et publication automatique des images.
+- Comptes : connexion Google OpenID Connect (scopes `openid`, `email`,
+  `profile`), inscription libre avec accès complet immédiat, compte local de
+  secours, sessions serveur en Redis.
+- Administration (`/admin`) : blocage et réactivation des comptes, promotion et
+  retrait des droits, avec `ADMIN_EMAILS` comme plancher garanti.
+- Entrée de stock par photo : capture native, normalisation de l'image,
+  extraction par Gemini avec confiance par champ, recalage sur le référentiel des
+  appellations, dédoublonnage, écran de confirmation éditable, quantité en un tap.
+- Mode campagne : rafale puis revue groupée triée par confiance croissante.
+- File hors ligne (20 photos / 50 Mo) vidée au premier plan.
 - Journal des 20 derniers mouvements avec annulation par mouvement inverse.
 - Export Excel à la demande (`Stock`, `Mouvements`, `Référence`) avec filtre par
   couleur.
 
-**Exploitation**
+**Sécurité et exploitation**
 
-- Sauvegardes quotidiennes de la base avec rotation et fichiers jamais tronqués.
+- Contrôle d'accès par statut de compte : un blocage coupe la session en cours
+  dès la requête suivante.
+- L'API d'administration n'expose ni hachage de mot de passe ni identifiant
+  Google.
+- Sauvegardes quotidiennes de la base avec rotation, sans fichier tronqué.
 - Limitation de débit sur l'envoi de photos et sur la connexion locale.
-- Plafond mensuel de dépense pour l'API de vision, au-delà duquel l'extraction
-  est refusée et la saisie manuelle prend le relais.
+- Plafond mensuel de dépense pour l'API de vision.
 
-**Corrections apportées à la première mise en service**
+**Corrections de la première mise en service**
 
-- Les moteurs Prisma sont désormais ceux compilés pour OpenSSL 3, faute de quoi
-  l'api et le worker mouraient au démarrage sur `libssl.so.1.1: No such file`.
-- L'en-tête `X-Forwarded-Proto` reçu de Nginx Proxy Manager est relayé tel quel :
-  sans cela le cookie de session `Secure` n'était jamais posé et la connexion
-  bouclait.
-- Un `.env` dont les variables de compte de secours sont vides ne fait plus
-  échouer le démarrage.
+- Moteurs Prisma compilés pour OpenSSL 3 (l'api et le worker ne démarraient pas).
+- En-tête `X-Forwarded-Proto` relayé tel quel (le cookie de session n'était
+  jamais posé derrière le proxy et la connexion bouclait).
+- Démarrage possible avec un `.env` dont les variables de secours sont vides.
 
 ## Stack technique
 
