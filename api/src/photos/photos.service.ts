@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Photo, Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
@@ -11,6 +11,7 @@ import { ImageNormalizationService } from './image-normalization.service';
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
 
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const ENQUEUE_TIMEOUT_MS = 5000;
 
 async function unlinkIgnoringMissing(path: string): Promise<void> {
   try {
@@ -22,6 +23,8 @@ async function unlinkIgnoringMissing(path: string): Promise<void> {
 
 @Injectable()
 export class PhotosService {
+  private readonly logger = new Logger(PhotosService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly normalization: ImageNormalizationService,
@@ -51,12 +54,11 @@ export class PhotosService {
     await writeFile(originalAbsolutePath, input);
     await writeFile(normalizedAbsolutePath, buffer);
 
+    let photo: Photo;
     try {
-      const photo = await this.prisma.photo.create({
+      photo = await this.prisma.photo.create({
         data: { id, contentHash, storagePath: normalizedPath, mimeType: 'image/jpeg' },
       });
-      await this.queue.add('extract', { photoId: photo.id }, { jobId: photo.id });
-      return { photo, duplicate: false };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         await unlinkIgnoringMissing(originalAbsolutePath);
@@ -65,6 +67,32 @@ export class PhotosService {
         if (existingAfterRace) return { photo: existingAfterRace, duplicate: true };
       }
       throw e;
+    }
+
+    try {
+      await this.enqueueWithTimeout(photo.id);
+    } catch (e) {
+      this.logger.warn(`Mise en file d'attente impossible pour la photo ${photo.id} : ${(e as Error).message}`);
+      await this.prisma.photo.delete({ where: { id: photo.id } });
+      await unlinkIgnoringMissing(originalAbsolutePath);
+      await unlinkIgnoringMissing(normalizedAbsolutePath);
+      throw new ServiceUnavailableException('File de traitement indisponible, réessayez dans un instant');
+    }
+
+    return { photo, duplicate: false };
+  }
+
+  private async enqueueWithTimeout(photoId: string): Promise<void> {
+    let timer!: NodeJS.Timeout;
+    try {
+      await Promise.race([
+        this.queue.add('extract', { photoId }, { jobId: photoId }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timeout')), ENQUEUE_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

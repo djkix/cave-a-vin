@@ -37,4 +37,11 @@ describe('ExtractionProcessor.process', () => {
     await expect(h.processor.process('p1')).rejects.toThrow('cap');
     expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
   });
+
+  it('keeps status PROCESSING (not FAILED) on a non-final attempt, but still rethrows so BullMQ retries', async () => {
+    const h = harness({ visionFails: true });
+    await expect(h.processor.process('p1', false)).rejects.toThrow('boom');
+    expect(h.photo.status).toBe('PROCESSING');
+    expect(h.photo.errorMessage).toBe('boom');
+  });
 });

@@ -16,7 +16,7 @@ export class ExtractionProcessor {
     private readonly budget: VisionBudgetService,
   ) {}
 
-  async process(photoId: string): Promise<void> {
+  async process(photoId: string, isLastAttempt = true): Promise<void> {
     await this.prisma.photo.update({ where: { id: photoId }, data: { status: 'PROCESSING' } });
     try {
       await this.budget.assertUnderCap();
@@ -36,7 +36,10 @@ export class ExtractionProcessor {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       this.logger.warn(`Extraction ${photoId} échouée : ${message}`);
-      await this.prisma.photo.update({ where: { id: photoId }, data: { status: 'FAILED', errorMessage: message } });
+      await this.prisma.photo.update({
+        where: { id: photoId },
+        data: { status: isLastAttempt ? 'FAILED' : 'PROCESSING', errorMessage: message },
+      });
       throw e;
     }
   }

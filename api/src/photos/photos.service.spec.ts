@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { mkdtempSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +18,12 @@ function fakePrisma() {
         photos.push(p);
         return p;
       },
+      delete: jest.fn(async ({ where }: any) => {
+        const idx = photos.findIndex((p) => p.id === where.id);
+        if (idx === -1) throw new Error('not found');
+        const [removed] = photos.splice(idx, 1);
+        return removed;
+      }),
       findMany: async () => photos,
     },
   };
@@ -99,5 +105,18 @@ describe('PhotosService.ingest', () => {
     await expect(service.ingest(Buffer.from('not an image'), 'image/jpeg')).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.photos).toHaveLength(0);
     expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the photo row and files, and returns 503, when the queue cannot accept the job', async () => {
+    const prisma = fakePrisma();
+    const queue = { add: jest.fn(async () => { throw new Error('redis down'); }) };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
+    const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#333' } }).jpeg().toBuffer();
+    await expect(service.ingest(img, 'image/jpeg')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(prisma.photo.delete).toHaveBeenCalledTimes(1);
+    const deletedId = (prisma.photo.delete as jest.Mock).mock.calls[0][0].where.id;
+    expect(prisma.photos).toHaveLength(0);
+    expect(readdirSync(join(dir, 'original')).some((f) => f.startsWith(deletedId))).toBe(false);
+    expect(readdirSync(join(dir, 'normalized')).some((f) => f.startsWith(deletedId))).toBe(false);
   });
 });
