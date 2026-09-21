@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { TopBar } from '../components/TopBar';
 import { uploadPhoto } from '../lib/api-client';
+import { enqueuePhoto, QueueFullError } from '../lib/offline-queue';
+import { notifyQueueChanged } from '../lib/use-offline-queue';
 
 export function EntreeCapturePage() {
   const navigate = useNavigate();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState(false);
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -16,10 +19,21 @@ export function EntreeCapturePage() {
     setBusy(true);
     setError(null);
     try {
+      if (!navigator.onLine) throw new TypeError('offline');
       const { id } = await uploadPhoto(file);
       navigate(`/entree/${id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Envoi impossible');
+      if (err instanceof TypeError) {
+        try {
+          await enqueuePhoto(file, 'single');
+          notifyQueueChanged();
+          setQueued(true);
+        } catch (q) {
+          setError(q instanceof QueueFullError ? q.message : 'File hors ligne indisponible');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Envoi impossible');
+      }
     } finally {
       setBusy(false);
       e.target.value = '';
@@ -39,6 +53,7 @@ export function EntreeCapturePage() {
           {busy ? 'Envoi…' : 'Prendre la photo'}
         </Button>
         {error && <p role="alert" className="text-error">{error}</p>}
+        {queued && <p role="status">Photo mise en attente — elle partira dès que le réseau revient. La confirmation se fera depuis la revue groupée.</p>}
       </main>
     </>
   );

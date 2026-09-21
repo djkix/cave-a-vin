@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BottomNav } from '../components/BottomNav';
+import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
 
 export function HomePage() {
@@ -7,6 +8,7 @@ export function HomePage() {
     <>
       <TopBar />
       <main className="page">
+        <OfflineQueueBanner />
         <section className="actions">
           <Link to="/entree" className="action action--in">
             <span className="material-symbols-outlined">qr_code_scanner</span>
