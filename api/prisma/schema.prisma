@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // node:22-alpine fournit OpenSSL 3. Sans ce binaryTarget, `prisma generate`
+  // installe le moteur « linux-musl » lié à OpenSSL 1.1 et le conteneur meurt au
+  // démarrage sur « libssl.so.1.1: No such file or directory ».
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
