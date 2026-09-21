@@ -13,9 +13,16 @@ jobs:
         env: { POSTGRES_USER: cave, POSTGRES_PASSWORD: cave, POSTGRES_DB: cave }
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U cave" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       DATABASE_URL: postgresql://cave:cave@localhost:5432/cave
+      REDIS_URL: redis://localhost:6379
       SESSION_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
+      BREAK_GLASS_EMAIL: ci@example.com
+      BREAK_GLASS_PASSWORD: ci-break-glass-password
     defaults: { run: { working-directory: api } }
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +32,11 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npx prisma generate
       - run: npm run lint
+      # Le lint ne type-checke pas : sans ceci, une erreur de type dans un point
+      # d'entrée, un module ou un contrôleur ne serait vue qu'au build de l'image.
+      - run: npx tsc --noEmit -p tsconfig.build.json
       - run: npm test
+      - run: npm run build
 
   web:
     runs-on: ubuntu-latest
