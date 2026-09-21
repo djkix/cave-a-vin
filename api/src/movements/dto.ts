@@ -19,3 +19,11 @@ export const createMovementSchema = z.object({
 });
 
 export type CreateMovementInput = z.infer<typeof createMovementSchema>;
+
+export const cancelMovementSchema = z.object({
+  idempotencyKey: z
+    .string({ invalid_type_error: 'idempotencyKey invalide', required_error: 'idempotencyKey invalide' })
+    .uuid('idempotencyKey invalide'),
+});
+
+export type CancelMovementInput = z.infer<typeof cancelMovementSchema>;

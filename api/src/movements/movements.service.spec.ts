@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { MovementsService } from './movements.service';
 
 function harness() {
@@ -48,6 +49,55 @@ describe('MovementsService', () => {
     const again = await h.service.createIn({ ...input, quantity: 99 });
     expect(again.created).toBe(false);
     expect(h.movements).toHaveLength(1);
+    expect((again.movement as unknown as { wine?: unknown }).wine).toBeUndefined();
+  });
+
+  it('is idempotent even when a concurrent replay wins the create race on idempotencyKey', async () => {
+    // findUnique's pre-check misses (no row yet), then create() loses the race to a
+    // concurrent request that inserted the same idempotencyKey first: Postgres throws
+    // P2002 instead of returning cleanly. The service must recover by re-reading the
+    // now-visible row, not bubble up a 500.
+    const wine = { id: 'w1', producer: 'Domaine Test', appellationRaw: 'Bandol', color: 'ROUGE', formatCl: 75, vintage: 2019 };
+    const racedMovement = {
+      id: 'raced-1',
+      wineId: 'w1',
+      delta: 6,
+      type: 'IN',
+      occurredAt: new Date(),
+      photoId: null,
+      priceUnitCents: null,
+      note: null,
+      idempotencyKey: 'k1',
+      reversesId: null,
+    };
+    let findUniqueCalls = 0;
+    let createCalls = 0;
+    const prisma = {
+      movement: {
+        findUnique: async () => {
+          findUniqueCalls += 1;
+          if (findUniqueCalls === 1) return null;
+          return { ...racedMovement, wine };
+        },
+        create: async () => {
+          createCalls += 1;
+          throw new Prisma.PrismaClientKnownRequestError('dup', {
+            code: 'P2002',
+            clientVersion: 'test',
+            meta: { target: ['idempotency_key'] },
+          });
+        },
+      },
+      $queryRaw: async () => [{ quantity: 6 }],
+    };
+    const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    const service = new MovementsService(prisma as any, matching as any);
+
+    const r = await service.createIn(input);
+    expect(r.created).toBe(false);
+    expect(r.movement.id).toBe('raced-1');
+    expect(createCalls).toBe(1);
+    expect(findUniqueCalls).toBe(2);
   });
 
   it('rejects a non-positive quantity', async () => {
@@ -71,5 +121,107 @@ describe('MovementsService', () => {
     const r = await h.service.createIn(input);
     await h.service.cancel(r.movement.id, 'cancel-1');
     await expect(h.service.cancel(r.movement.id, 'cancel-2')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('refuses to cancel a cancellation', async () => {
+    const h = harness();
+    const r = await h.service.createIn(input);
+    const c = await h.service.cancel(r.movement.id, 'cancel-1');
+    await expect(h.service.cancel(c.movement.id, 'cancel-2')).rejects.toBeInstanceOf(ConflictException);
+    await expect(h.service.cancel(c.movement.id, 'cancel-3')).rejects.toThrow(/annulation ne peut pas être annulée/i);
+  });
+
+  it('is idempotent on cancel even when a concurrent replay wins the create race on idempotencyKey', async () => {
+    const wine = { id: 'w1', producer: 'Domaine Test', appellationRaw: 'Bandol', color: 'ROUGE', formatCl: 75, vintage: 2019 };
+    const original = {
+      id: 'm1',
+      wineId: 'w1',
+      delta: 6,
+      type: 'IN',
+      occurredAt: new Date(),
+      photoId: null,
+      priceUnitCents: null,
+      note: null,
+      idempotencyKey: 'k1',
+      reversesId: null,
+    };
+    const racedReversal = {
+      id: 'raced-2',
+      wineId: 'w1',
+      delta: -6,
+      type: 'ADJUST',
+      occurredAt: new Date(),
+      photoId: null,
+      priceUnitCents: null,
+      note: 'Annulation du mouvement m1',
+      idempotencyKey: 'cancel-1',
+      reversesId: 'm1',
+    };
+    let idempotencyLookups = 0;
+    let createCalls = 0;
+    const prisma = {
+      movement: {
+        findUnique: async ({ where }: any) => {
+          if (where.id === 'm1') return { ...original, wine };
+          // idempotencyKey lookup: miss on the pre-check, hit once the racing create has landed
+          idempotencyLookups += 1;
+          if (idempotencyLookups === 1) return null;
+          return { ...racedReversal, wine };
+        },
+        findFirst: async () => null,
+        create: async () => {
+          createCalls += 1;
+          throw new Prisma.PrismaClientKnownRequestError('dup', {
+            code: 'P2002',
+            clientVersion: 'test',
+            meta: { target: ['idempotency_key'] },
+          });
+        },
+      },
+      $queryRaw: async () => [{ quantity: 0 }],
+    };
+    const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    const service = new MovementsService(prisma as any, matching as any);
+
+    const r = await service.cancel('m1', 'cancel-1');
+    expect(r.created).toBe(false);
+    expect(r.movement.id).toBe('raced-2');
+    expect(createCalls).toBe(1);
+  });
+
+  it('maps a concurrent double-cancel (racing on reversesId) to a 409, not a 500', async () => {
+    const wine = { id: 'w1', producer: 'Domaine Test', appellationRaw: 'Bandol', color: 'ROUGE', formatCl: 75, vintage: 2019 };
+    const original = {
+      id: 'm1',
+      wineId: 'w1',
+      delta: 6,
+      type: 'IN',
+      occurredAt: new Date(),
+      photoId: null,
+      priceUnitCents: null,
+      note: null,
+      idempotencyKey: 'k1',
+      reversesId: null,
+    };
+    const prisma = {
+      movement: {
+        findUnique: async ({ where }: any) => (where.id === 'm1' ? { ...original, wine } : null),
+        // both racing requests pass the pre-check: neither has inserted its reversal yet
+        findFirst: async () => null,
+        create: async () => {
+          throw new Prisma.PrismaClientKnownRequestError('dup', {
+            code: 'P2002',
+            clientVersion: 'test',
+            meta: { target: ['reverses_id'] },
+          });
+        },
+      },
+      $queryRaw: async () => [{ quantity: 6 }],
+    };
+    const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    const service = new MovementsService(prisma as any, matching as any);
+
+    await expect(service.cancel('m1', 'cancel-2')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.cancel('m1', 'cancel-3')).rejects.toThrow(/déjà été annulé/);
   });
 });

@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
-import { createMovementSchema } from './dto';
+import { cancelMovementSchema, createMovementSchema } from './dto';
 import { MovementResult, MovementsService } from './movements.service';
 
 @Controller('movements')
@@ -35,13 +35,14 @@ export class MovementsController {
   }
 
   @Post(':id/cancel')
-  cancel(@Param('id') id: string, @Body() body: { idempotencyKey?: string }) {
-    if (!body?.idempotencyKey) throw new BadRequestException('idempotencyKey requis');
-    return this.movements.cancel(id, body.idempotencyKey);
+  cancel(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = cancelMovementSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
+    return this.movements.cancel(id, parsed.data.idempotencyKey);
   }
 
   @Get('recent')
   recent(@Query('limit') limit?: string) {
-    return this.movements.recent(Math.min(Number(limit ?? 20) || 20, 100));
+    return this.movements.recent(Math.min(Math.max(Number(limit ?? 20) || 20, 1), 100));
   }
 }
