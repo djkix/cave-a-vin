@@ -58,6 +58,19 @@ listant que les analyses terminées.
   automatiquement au démarrage suivant du worker : les deux bouteilles perdues
   lors de l'incident sont récupérées sans action manuelle.
 
+## [1.1.0](https://github.com/djkix/cave-a-vin/compare/v1.0.0...v1.1.0) (2026-09-21)
+
+
+### Fonctionnalités
+
+* **analyse:** reporter l'analyse au lieu d'abandonner la photo ([b776bc3](https://github.com/djkix/cave-a-vin/commit/b776bc38b5e062169d8c7d0fecbb3012927d438e))
+* **interface:** afficher la version sur chaque écran ([81d0bd8](https://github.com/djkix/cave-a-vin/commit/81d0bd8632871ffab9bd0ac5358985824e0faaef))
+
+
+### Documentation
+
+* une seule section 1.0.0, résumé rédigé puis détail par commit ([77e7ccc](https://github.com/djkix/cave-a-vin/commit/77e7ccc1fa9fe439379537a8b2f409cfff5f32b3))
+
 ## 1.0.0 (2026-09-21)
 
 ### Résumé
