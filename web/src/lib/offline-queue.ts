@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { ApiError } from './api-client';
 
 export interface QueuedPhoto {
   id: string;
@@ -55,16 +56,26 @@ export async function removeFromQueue(id: string): Promise<void> {
 
 export async function flushQueue(upload: (blob: Blob) => Promise<unknown>): Promise<{ sent: number; failed: number }> {
   let sent = 0;
+  let failed = 0;
   for (const item of await listQueue()) {
     try {
       await upload(item.blob);
       await removeFromQueue(item.id);
       sent++;
-    } catch {
-      return { sent, failed: 1 };
+    } catch (e) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 403) {
+        // Deterministically rejected by the server (bad format, too large…): retrying
+        // won't help, and it must not block the rest of the queue.
+        await removeFromQueue(item.id);
+        failed++;
+        continue;
+      }
+      // Network failure or a session problem (401/403) or a 5xx: stop here, keep this
+      // item and everything after it for the next flush attempt.
+      return { sent, failed: failed + 1 };
     }
   }
-  return { sent, failed: 0 };
+  return { sent, failed };
 }
 
 export async function _resetForTests(): Promise<void> {

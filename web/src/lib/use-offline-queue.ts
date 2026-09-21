@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { uploadPhoto } from './api-client';
 import { flushQueue, queueStats } from './offline-queue';
 
@@ -10,19 +10,22 @@ export function notifyQueueChanged() {
 export function useOfflineQueue() {
   const [stats, setStats] = useState({ count: 0, bytes: 0 });
   const [flushing, setFlushing] = useState(false);
+  const inFlight = useRef(false);
 
   const refresh = useCallback(() => void queueStats().then(setStats), []);
 
   const flushNow = useCallback(async () => {
-    if (flushing || !navigator.onLine) return;
+    if (inFlight.current || !navigator.onLine) return;
+    inFlight.current = true;
     setFlushing(true);
     try {
       await flushQueue(uploadPhoto);
     } finally {
+      inFlight.current = false;
       setFlushing(false);
       notifyQueueChanged();
     }
-  }, [flushing]);
+  }, []);
 
   useEffect(() => {
     refresh();

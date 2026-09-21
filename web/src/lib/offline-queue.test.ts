@@ -1,3 +1,4 @@
+import { ApiError } from './api-client';
 import { enqueuePhoto, flushQueue, listQueue, queueStats, QueueFullError, _resetForTests } from './offline-queue';
 
 const blob = (size: number) => new Blob([new Uint8Array(size)], { type: 'image/jpeg' });
@@ -23,6 +24,34 @@ it('flushes in order, removes sent items and stops at the first failure', async 
   await enqueuePhoto(blob(2), 'single');
   await enqueuePhoto(blob(3), 'single');
   const upload = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue({});
+  const r = await flushQueue(upload);
+  expect(r).toEqual({ sent: 1, failed: 1 });
+  expect((await queueStats()).count).toBe(2);
+});
+
+it('skips a photo the server deterministically rejects and continues with the rest', async () => {
+  await enqueuePhoto(blob(1), 'single');
+  await enqueuePhoto(blob(2), 'single');
+  await enqueuePhoto(blob(3), 'single');
+  const upload = vi
+    .fn()
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new ApiError(400, 'Format d’image non pris en charge'))
+    .mockResolvedValue({});
+  const r = await flushQueue(upload);
+  expect(r).toEqual({ sent: 2, failed: 1 });
+  expect((await queueStats()).count).toBe(0);
+});
+
+it('stops and keeps the item on a session error', async () => {
+  await enqueuePhoto(blob(1), 'single');
+  await enqueuePhoto(blob(2), 'single');
+  await enqueuePhoto(blob(3), 'single');
+  const upload = vi
+    .fn()
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new ApiError(401, 'Connexion requise'))
+    .mockResolvedValue({});
   const r = await flushQueue(upload);
   expect(r).toEqual({ sent: 1, failed: 1 });
   expect((await queueStats()).count).toBe(2);

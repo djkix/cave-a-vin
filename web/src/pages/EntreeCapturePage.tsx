@@ -18,6 +18,7 @@ export function EntreeCapturePage() {
     if (!file) return;
     setBusy(true);
     setError(null);
+    setQueued(false);
     try {
       if (!navigator.onLine) throw new TypeError('offline');
       const { id } = await uploadPhoto(file);
