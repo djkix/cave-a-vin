@@ -3,6 +3,7 @@ import { AppUser } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { loadEnv } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+import { adminEmailsFromEnv } from './admin-emails';
 
 export interface GoogleProfile {
   sub: string;
@@ -16,37 +17,39 @@ export class AuthService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // ADMIN_EMAILS est la seule façon de désigner un administrateur : dérivé à
-  // chaque connexion, l'environnement reste la source de vérité (pas de
-  // dérive possible via un droit accordé puis oublié en base).
-  private adminEmails(): string[] {
-    return loadEnv()
-      .ADMIN_EMAILS.split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.length > 0);
+  // ADMIN_EMAILS est un plancher garanti, jamais un plafond : une adresse listée
+  // est toujours administrateur (le propriétaire ne peut jamais s'enfermer
+  // dehors), mais une promotion faite depuis /admin sur un compte absent de la
+  // liste reste durable d'une connexion à l'autre — on ne l'écrase jamais.
+  private resolveIsAdmin(email: string, currentIsAdmin: boolean): boolean {
+    return adminEmailsFromEnv().includes(email.toLowerCase()) || currentIsAdmin;
   }
 
   async findOrCreateGoogleUser(profile: GoogleProfile): Promise<AppUser> {
     const email = profile.email.toLowerCase();
-    const isAdmin = this.adminEmails().includes(email);
 
     const existing = await this.prisma.appUser.findUnique({ where: { googleSub: profile.sub } });
     let user: AppUser;
     if (existing) {
       user = await this.prisma.appUser.update({
         where: { id: existing.id },
-        data: { lastLoginAt: new Date(), isAdmin },
+        data: { lastLoginAt: new Date(), isAdmin: this.resolveIsAdmin(email, existing.isAdmin) },
       });
     } else {
       const byEmail = await this.prisma.appUser.findUnique({ where: { email } });
       if (byEmail && byEmail.googleSub === null) {
         user = await this.prisma.appUser.update({
           where: { id: byEmail.id },
-          data: { googleSub: profile.sub, displayName: profile.displayName, lastLoginAt: new Date(), isAdmin },
+          data: {
+            googleSub: profile.sub,
+            displayName: profile.displayName,
+            lastLoginAt: new Date(),
+            isAdmin: this.resolveIsAdmin(email, byEmail.isAdmin),
+          },
         });
       } else {
         user = await this.prisma.appUser.create({
-          data: { googleSub: profile.sub, email, displayName: profile.displayName, lastLoginAt: new Date(), isAdmin },
+          data: { googleSub: profile.sub, email, displayName: profile.displayName, lastLoginAt: new Date(), isAdmin: this.resolveIsAdmin(email, false) },
         });
       }
     }
@@ -64,7 +67,7 @@ export class AuthService {
     if (user.status === 'BLOCKED') return null;
     return this.prisma.appUser.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date(), isAdmin: this.adminEmails().includes(user.email.toLowerCase()) },
+      data: { lastLoginAt: new Date(), isAdmin: this.resolveIsAdmin(user.email, user.isAdmin) },
     });
   }
 

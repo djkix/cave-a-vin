@@ -12,6 +12,7 @@ describeIfInfra('api HTTP', () => {
   let agent: supertest.Agent;
   let email: string;
   let password: string;
+  let prisma: import('./prisma/prisma.service').PrismaService;
 
   beforeAll(async () => {
     // Doit précéder le premier loadEnv(), donc le premier import de app.module.
@@ -26,6 +27,7 @@ describeIfInfra('api HTTP', () => {
 
     const { AppModule } = await import('./app.module');
     const { setupSession } = await import('./auth/session.setup');
+    const { PrismaService } = await import('./prisma/prisma.service');
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -34,6 +36,7 @@ describeIfInfra('api HTTP', () => {
     sessionRedis = setupSession(app);
     await app.init();
     agent = supertest.agent(app.getHttpServer());
+    prisma = app.get(PrismaService);
   }, 120_000);
 
   afterAll(async () => {
@@ -75,15 +78,26 @@ describeIfInfra('api HTTP', () => {
     expect(res.headers['content-disposition']).toMatch(/attachment; filename="cave-\d{4}-\d{2}-\d{2}\.xlsx"/);
   });
 
-  it('lists accounts for the break-glass admin (ADMIN_EMAILS makes it administrator)', async () => {
+  it('lists accounts for the break-glass admin (ADMIN_EMAILS makes it administrator), never leaking passwordHash or googleSub', async () => {
     const res = await agent.get('/api/admin/users');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+    expect(JSON.stringify(res.body)).not.toContain('passwordHash');
+    expect(JSON.stringify(res.body)).not.toContain('googleSub');
   });
 
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);
+  });
+
+  it('refuses the admin listing to an authenticated but non-admin account', async () => {
+    // ADMIN_EMAILS reste un plancher garanti : ce flip direct en base simule un
+    // compte que l'environnement ne couvre pas (contrairement au compte de
+    // secours), sans passer par une vraie promotion/rétrogradation.
+    await prisma.$executeRaw`UPDATE app_user SET is_admin = false WHERE email = ${email.toLowerCase()}`;
+    const res = await agent.get('/api/admin/users');
+    expect(res.status).toBe(403);
   });
 
   // Garder ce cas en dernier : il épuise le quota de connexion locale.

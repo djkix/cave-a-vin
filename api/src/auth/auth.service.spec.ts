@@ -82,6 +82,26 @@ describe('AuthService', () => {
     expect(user.isAdmin).toBe(false);
   });
 
+  it('keeps a promotion made from /admin on a later login, even when the e-mail is absent from ADMIN_EMAILS', async () => {
+    const prisma = fakePrisma();
+    await prisma.appUser.create({ data: { email: 'promoted@example.com', googleSub: 'g-promoted', isAdmin: true } });
+    const service = new AuthService(prisma as any);
+
+    const user = await service.findOrCreateGoogleUser({ sub: 'g-promoted', email: 'promoted@example.com', displayName: 'Promoted' });
+
+    expect(user.isAdmin).toBe(true);
+  });
+
+  it('grants isAdmin for an ADMIN_EMAILS address even when the database still says false (ADMIN_EMAILS is a floor, not a ceiling)', async () => {
+    const prisma = fakePrisma();
+    await prisma.appUser.create({ data: { email: 'admin@example.com', googleSub: 'g-admin', isAdmin: false } });
+    const service = new AuthService(prisma as any);
+
+    const user = await service.findOrCreateGoogleUser({ sub: 'g-admin', email: 'admin@example.com', displayName: 'Admin' });
+
+    expect(user.isAdmin).toBe(true);
+  });
+
   it('sets lastLoginAt on a Google sign-in', async () => {
     const prisma = fakePrisma();
     const service = new AuthService(prisma as any);
