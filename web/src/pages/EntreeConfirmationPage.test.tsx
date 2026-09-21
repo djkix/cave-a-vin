@@ -1,10 +1,12 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as api from '../lib/api-client';
 import * as sse from '../lib/sse';
 import { EntreeConfirmationPage } from './EntreeConfirmationPage';
+
+afterEach(() => vi.restoreAllMocks());
 
 const extraction: api.WineExtraction = {
   producer: { value: 'Domaine Tempier', confidence: 0.98 }, cuvee: { value: 'La Tourtine', confidence: 0.95 },
@@ -51,4 +53,36 @@ it('shows the failure and a manual-entry fallback when extraction fails', async 
   mount();
   expect(await screen.findByText(/Plafond mensuel atteint/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Saisir à la main/ })).toBeInTheDocument();
+});
+
+it('shows a fetch error (404/offline) as a failure with a manual-entry fallback', async () => {
+  vi.spyOn(api, 'getPhoto').mockRejectedValue(new api.ApiError(404, 'Photo introuvable'));
+  mount();
+  expect(await screen.findByText(/Photo introuvable/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Saisir à la main/ })).toBeInTheDocument();
+});
+
+it('prefills the form for a photo already DONE at load, via the SSE snapshot', async () => {
+  vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'DONE', createdAt: '' });
+  vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation((_id, onEvent) => { onEvent({ status: 'DONE', extraction }); return () => {}; });
+  mount();
+  expect(await screen.findByDisplayValue('Domaine Tempier')).toBeInTheDocument();
+});
+
+it('sends a single movement on a rapid double tap of Confirmer', async () => {
+  vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'PENDING', createdAt: '' });
+  vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation((_id, onEvent) => { onEvent({ status: 'DONE', extraction }); return () => {}; });
+  const create = vi.spyOn(api, 'createMovement').mockImplementation(
+    () => new Promise((resolve) => {
+      setTimeout(() => resolve({ movement: { id: 'm1', delta: 6, type: 'IN', occurredAt: '' }, wine: { id: 'w1', producer: 'Domaine Tempier', appellationRaw: 'Bandol', color: 'ROUGE', formatCl: 75 }, stock: 6, created: true }), 20);
+    }),
+  );
+
+  mount();
+  await screen.findByDisplayValue('Domaine Tempier');
+  const button = screen.getByRole('button', { name: /Confirmer l’entrée/ });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+  expect(await screen.findByText(/Stock : 6/)).toBeInTheDocument();
 });

@@ -28,21 +28,36 @@ export function EntreeConfirmationPage() {
   const [price, setPrice] = useState('');
   const [result, setResult] = useState<MovementResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const [submitting, setSubmitting] = useState(false);
+  // One key per photo, not per value read inside the callback: a fresh photoId must get a fresh key.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const idempotencyKey = useMemo(() => crypto.randomUUID(), [photoId]);
 
   useEffect(() => {
+    let cancelled = false;
     let unsub = () => {};
-    void getPhoto(photoId).then((p) => {
-      setStatus(p.status);
-      setErrorMessage(p.errorMessage ?? null);
-      if (p.status === 'DONE' || p.status === 'FAILED') return;
-      unsub = subscribePhotoEvents(photoId, (e) => {
-        setStatus(e.status);
-        setErrorMessage(e.errorMessage ?? null);
-        if (e.extraction) setExtraction(e.extraction);
+    void getPhoto(photoId)
+      .then((p) => {
+        if (cancelled) return;
+        setStatus(p.status);
+        setErrorMessage(p.errorMessage ?? null);
+        if (p.status === 'FAILED') return;
+        unsub = subscribePhotoEvents(photoId, (e) => {
+          if (cancelled) return;
+          setStatus(e.status);
+          setErrorMessage(e.errorMessage ?? null);
+          if (e.extraction) setExtraction(e.extraction);
+        });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setStatus('FAILED');
+        setErrorMessage(e instanceof Error ? e.message : 'Photo introuvable');
       });
-    });
-    return () => unsub();
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, [photoId]);
 
   useEffect(() => {
@@ -55,6 +70,8 @@ export function EntreeConfirmationPage() {
   }, [extraction]);
 
   async function confirm() {
+    if (submitting) return;
+    setSubmitting(true);
     setSubmitError(null);
     try {
       const r = await createMovement({
@@ -67,6 +84,8 @@ export function EntreeConfirmationPage() {
       setResult(r);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : 'Écriture impossible');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -77,7 +96,7 @@ export function EntreeConfirmationPage() {
         <main className="page">
           <section className="card">
             <h2>{result.wine.producer}</h2>
-            <p className="num">+{result.movement.delta} bouteilles · Stock : {result.stock}</p>
+            <p className="num">+{result.movement.delta} bouteille{result.movement.delta > 1 ? 's' : ''} · Stock : {result.stock}</p>
           </section>
           <Button variant="dark" onClick={() => navigate('/entree')}>Rentrer un autre vin</Button>
           <Button variant="outline" onClick={() => navigate('/')}>Retour à l’accueil</Button>
@@ -123,9 +142,9 @@ export function EntreeConfirmationPage() {
             </details>
             {submitError && <p role="alert" className="text-error">{submitError}</p>}
             <div className="dock">
-              <Button variant="dark" onClick={confirm} disabled={!draft.producer || !draft.appellationRaw}>
+              <Button variant="dark" onClick={confirm} disabled={submitting || !draft.producer || !draft.appellationRaw}>
                 <span className="material-symbols-outlined">check_circle</span>
-                Confirmer l’entrée (+{quantity} bouteille{quantity > 1 ? 's' : ''})
+                {submitting ? 'Enregistrement…' : `Confirmer l’entrée (+${quantity} bouteille${quantity > 1 ? 's' : ''})`}
               </Button>
               <span className="dock__hint">Écrit un mouvement IN · annulable depuis le journal</span>
             </div>

@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Controller, Get, HttpCode, Param, Post, Res, UploadedFile, UseGuards, UseInterceptors,
+  BadRequestException, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -34,7 +34,8 @@ export class PhotosController {
   }
 
   @Get(':id/image')
-  async image(@Param('id') id: string, @Res() res: Response) {
+  async image(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+    await this.photos.findById(id);
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'private, max-age=86400');
     res.send(await this.photos.readNormalized(id));
