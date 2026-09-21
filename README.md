@@ -56,6 +56,14 @@ idempotence de bout en bout (empreinte de contenu par photo, clé d'idempotence 
 mouvement, un seul mouvement d'entrée par photo) et plafond mensuel de dépense
 pour l'API de vision.
 
+**Comptes et administration.** L'inscription est libre : n'importe quel compte
+Google se connecte et a immédiatement accès complet à l'application. Le
+propriétaire désigne un ou plusieurs administrateurs via `ADMIN_EMAILS`, et
+bloque ensuite les comptes indésirables depuis l'espace `/admin` (liste des
+comptes, blocage/réactivation, promotion/retrait des droits d'administration).
+Un administrateur ne peut pas modifier son propre compte, pour ne jamais perdre
+l'accès à l'administration par erreur.
+
 ## Architecture et ports
 
 | Service | Rôle | Port | Exposition |
@@ -135,6 +143,7 @@ openssl rand -hex 32
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | valeurs de l'étape 3 |
 | `GOOGLE_CALLBACK_URL` | `https://cave.djkix.ovh/api/auth/google/callback`, **identique** à l'URI déclaré chez Google |
 | `BREAK_GLASS_EMAIL` / `BREAK_GLASS_PASSWORD` | compte local de secours (mot de passe de 12 caractères minimum) ; laisser vide pour n'en créer aucun |
+| `ADMIN_EMAILS` | adresses administratrices, séparées par des virgules, en minuscules ; seule façon de désigner un administrateur (voir étape 7) |
 | `GEMINI_API_KEY` | clé Google AI Studio |
 | `GEMINI_MODEL` | `gemini-3.5-flash` |
 | `GEMINI_MONTHLY_CAP_CENTS` | plafond mensuel approximatif en centimes (`500` = ~5 €) |
@@ -178,19 +187,25 @@ curl -s http://localhost:3100/api/health
 La réponse attendue est `{"status":"ok"}`. En cas d'échec :
 `docker compose logs api --tail 50`.
 
-### 7. Autoriser les adresses du foyer
+### 7. Désigner un administrateur
 
-Étape **obligatoire** : le sous-domaine est public, donc sans liste blanche
-n'importe quel titulaire d'un compte Google pourrait se créer un accès. Une
-adresse absente de `allowed_email` est refusée et renvoyée sur
-`/login?error=unauthorized`, sans création de compte.
+Le sous-domaine est public : depuis cette évolution, l'inscription est **libre**
+— n'importe quel titulaire d'un compte Google peut se connecter et obtient un
+accès complet immédiatement. C'est un choix assumé du propriétaire, qui bloque
+ensuite les comptes indésirables au lieu de les filtrer à l'entrée.
+
+La seule façon de désigner un administrateur est la variable `ADMIN_EMAILS` du
+`.env` (adresses séparées par des virgules, en minuscules) : au moins la vôtre,
+pour pouvoir ouvrir l'espace d'administration après le premier déploiement.
 
 ```bash
-cd /opt/cave-a-vin && docker compose exec postgres psql -U cave -d cave -c "insert into allowed_email(email) values ('vous@gmail.com');"
+ADMIN_EMAILS=vous@gmail.com
 ```
 
-Les adresses doivent être saisies **en minuscules** : la comparaison se fait sur
-l'adresse Google normalisée en minuscules.
+Une fois connecté avec cette adresse, l'espace **Administration** (lien sur
+l'accueil, ou `/admin`) liste tous les comptes créés et permet de bloquer un
+compte indésirable, de le réactiver, ou de promouvoir/retirer d'autres
+administrateurs. Un administrateur ne peut pas modifier son propre compte.
 
 ### 8. Configurer Nginx Proxy Manager
 
@@ -287,12 +302,32 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
   réglage se comporte donc comme un nombre maximum de photos par mois.
 - **Compte de secours** : `BREAK_GLASS_EMAIL` / `BREAK_GLASS_PASSWORD` vides =
   connexion Google uniquement.
+- **Blocage de compte manuel** : il n'y a pas de modération automatique ; un
+  administrateur doit bloquer un compte indésirable depuis `/admin`. Le blocage
+  prend effet dès la requête suivante (la session en cours cesse de
+  fonctionner), il n'attend pas une prochaine connexion.
 - **Sortie de stock par photo, apogée et cote iDealwine** : lot 2.
 
 ## Journal des modifications
 
 Le détail par version est dans [`CHANGELOG.md`](CHANGELOG.md) ; voici la version
 courante.
+
+### Non publié
+
+**Fonctionnalités**
+
+- Inscription libre : n'importe quel compte Google obtient un accès complet
+  immédiat, sans liste blanche préalable.
+- Espace d'administration (`/admin`) : liste des comptes, blocage/réactivation,
+  promotion/retrait des droits d'administration ; désignation du ou des
+  premiers administrateurs par `ADMIN_EMAILS`.
+
+**Sécurité**
+
+- La liste blanche `allowed_email` n'est plus le point de contrôle des accès ;
+  le contrôle se fait désormais sur le statut du compte (`ACTIVE`/`BLOCKED`),
+  et un blocage coupe la session en cours dès la requête suivante.
 
 ### 1.0.0 — 21 septembre 2026
 

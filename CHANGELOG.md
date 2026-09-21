@@ -5,6 +5,24 @@ récente en premier. Le projet suit le [versionnage sémantique](https://semver.
 Ce journal est repris dans le [README](README.md#journal-des-modifications) pour
 la version courante.
 
+## Non publié
+
+### Fonctionnalités
+
+- Inscription libre : n'importe quel compte Google obtient désormais un accès
+  complet immédiat, sans liste blanche préalable.
+- Espace d'administration (`/admin`) : liste des comptes, blocage/réactivation,
+  promotion/retrait des droits d'administration ; désignation du ou des
+  premiers administrateurs par la variable `ADMIN_EMAILS`.
+
+### Sécurité
+
+- La liste blanche `allowed_email` n'est plus le point de contrôle des accès :
+  elle n'est plus lue par l'authentification (la table reste en base, sans
+  suppression). Le contrôle se fait désormais sur le statut du compte
+  (`ACTIVE`/`BLOCKED`) ; un blocage coupe la session en cours dès la requête
+  suivante, pas seulement la prochaine connexion.
+
 ## 1.0.0 — 21 septembre 2026
 
 Première version déployable : lot 0 (socle) et lot 1 (entrée de stock par photo)
