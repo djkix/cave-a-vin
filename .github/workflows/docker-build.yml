@@ -13,7 +13,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    concurrency: { group: "docker-build-${{ matrix.image }}", cancel-in-progress: false }
+    # La référence fait partie du groupe, sinon la construction de l'image taguée
+    # d'une publication et celle de `latest` sur main se disputent la même file :
+    # un seul travail peut y attendre, et un troisième pousse le travail en
+    # attente à l'annulation. C'est ce qui a laissé `cave-a-vin-web:1.1.0`
+    # manquante à la publication de la 1.1.0, alors que l'api était déjà publiée.
+    concurrency: { group: "docker-build-${{ matrix.image }}-${{ inputs.tag || github.ref }}", cancel-in-progress: false }
     strategy:
       matrix:
         include:

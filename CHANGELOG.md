@@ -9,6 +9,18 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## Non publié
+
+### Intégration continue
+
+- **Publication des images fiabilisée** : la référence Git fait désormais partie
+  du groupe de concurrence de la construction des images. Sans cela, la
+  construction de l'image taguée d'une publication et celle de `latest` sur
+  `main` se disputaient la même file d'attente — un seul travail peut y
+  patienter, un troisième pousse celui en attente à l'annulation. C'est ce qui a
+  laissé l'image `cave-a-vin-web:1.1.0` manquante à la publication de la 1.1.0
+  (l'api, elle, était déjà publiée) ; elle a été republiée à la main.
+
 ## [1.1.0](https://github.com/djkix/cave-a-vin/compare/v1.0.0...v1.1.0) (2026-09-21)
 
 ### Résumé
