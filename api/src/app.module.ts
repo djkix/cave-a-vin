@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { AdminModule } from './admin/admin.module';
 import { AppellationsModule } from './appellations/appellations.module';
 import { AuthModule } from './auth/auth.module';
 import { ExportModule } from './export/export.module';
@@ -17,6 +18,7 @@ import { WinesModule } from './wines/wines.module';
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
     PrismaModule,
     AuthModule,
+    AdminModule,
     AppellationsModule,
     WinesModule,
     PhotosModule,

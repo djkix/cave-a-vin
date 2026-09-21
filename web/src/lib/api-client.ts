@@ -28,12 +28,28 @@ export interface Me {
   id: string;
   email: string;
   displayName: string | null;
+  isAdmin: boolean;
+  status: 'ACTIVE' | 'BLOCKED';
 }
 
 export const getMe = () => apiFetch<Me>('/auth/me');
 export const localLogin = (email: string, password: string) =>
   apiFetch<Me>('/auth/local-login', { method: 'POST', body: JSON.stringify({ email, password }) });
 export const logout = () => apiFetch<{ ok: true }>('/auth/logout', { method: 'POST' });
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  displayName: string | null;
+  status: 'ACTIVE' | 'BLOCKED';
+  isAdmin: boolean;
+  isBreakGlass: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+export const getAdminUsers = () => apiFetch<AdminUser[]>('/admin/users');
+export const updateAdminUser = (id: string, patch: { status?: AdminUser['status']; isAdmin?: boolean }) =>
+  apiFetch<AdminUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
 export type WineColor = 'ROUGE' | 'BLANC' | 'ROSE' | 'PETILLANT';
 export interface ExtractedField<T> { value: T | null; confidence: number }

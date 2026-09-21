@@ -6,7 +6,9 @@ import { localLogin } from '../lib/api-client';
 // Messages posés par l'api quand le retour Google échoue (OAuthRedirectFilter,
 // `?error=session`) : la navigation revient ici, il faut dire pourquoi.
 const REDIRECT_ERRORS: Record<string, string> = {
-  unauthorized: 'Cette adresse Google n’est pas autorisée. Demandez à être ajoutée à la liste blanche.',
+  // OAuthRedirectFilter renvoie ce code pour tout ForbiddenException/UnauthorizedException
+  // côté connexion Google, y compris un compte bloqué depuis l'espace d'administration.
+  unauthorized: 'Connexion refusée. Si votre compte a été bloqué, contactez l’administrateur.',
   session: 'La session n’a pas pu être créée. Réessayez.',
 };
 

@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from './components/RequireAuth';
+import { AdminPage } from './pages/AdminPage';
 import { CampagneCapturePage } from './pages/CampagneCapturePage';
 import { CampagneReviewPage } from './pages/CampagneReviewPage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
           { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
           { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
           { path: '/journal', element: <JournalPage /> },
+          { path: '/admin', element: <AdminPage /> },
           // Derrière RequireAuth : une URL inconnue commence par demander la session,
           // comme n'importe quelle page de l'application.
           { path: '*', element: <NotFoundPage /> },

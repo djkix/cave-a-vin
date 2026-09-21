@@ -10,9 +10,9 @@ function mount(entry: string) {
   );
 }
 
-it('explains that a Google address is not whitelisted', () => {
+it('explains that the connection was refused (blocked account or otherwise)', () => {
   mount('/login?error=unauthorized');
-  expect(screen.getByRole('alert')).toHaveTextContent('Cette adresse Google n’est pas autorisée. Demandez à être ajoutée à la liste blanche.');
+  expect(screen.getByRole('alert')).toHaveTextContent('Connexion refusée. Si votre compte a été bloqué, contactez l’administrateur.');
 });
 
 it('explains that the session could not be created', () => {

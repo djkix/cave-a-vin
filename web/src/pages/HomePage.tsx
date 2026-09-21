@@ -4,11 +4,13 @@ import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
-import { getRecentMovements } from '../lib/api-client';
+import { getMe, getRecentMovements } from '../lib/api-client';
 import { MovementRow } from './JournalPage';
 
 export function HomePage() {
   const movements = useQuery({ queryKey: ['movements', 'recent'], queryFn: () => getRecentMovements(3) });
+  // Même clé que RequireAuth : réutilise la session déjà en cache, aucun appel réseau en plus.
+  const me = useQuery({ queryKey: ['me'], queryFn: getMe });
   return (
     <>
       <TopBar />
@@ -40,6 +42,7 @@ export function HomePage() {
           {movements.data?.length === 0 && <p className="centered">Aucun mouvement pour l’instant.</p>}
         </div>
         <Link to="/journal" className="btn btn--link">Voir le journal</Link>
+        {me.data?.isAdmin && <Link to="/admin" className="btn btn--link">Administration</Link>}
       </main>
       <BottomNav />
     </>
