@@ -110,6 +110,9 @@ export class PhotosService {
     return this.prisma.photo.findMany({
       where: { status: 'DONE', movements: { none: {} } },
       orderBy: { createdAt: 'asc' },
+      // La revue groupée est un écran de téléphone : au-delà de 200 fiches la
+      // réponse (extractions JSON incluses) devient inutilisable.
+      take: 200,
     });
   }
 }

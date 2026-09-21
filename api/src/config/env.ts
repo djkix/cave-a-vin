@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+// `docker compose` hands the whole `.env` to the api and the worker, and `.env.example`
+// ships the optional secrets as empty strings. An empty string is "not set", not an
+// invalid value: without this the schema would reject it and the container would
+// crash-loop on boot.
+const emptyToUndefined = <T extends z.ZodTypeAny>(s: T) => z.preprocess((v) => (v === '' ? undefined : v), s);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3000),
@@ -14,15 +20,19 @@ const schema = z.object({
   GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   GEMINI_MONTHLY_CAP_CENTS: z.coerce.number().int().default(500),
   PHOTO_STORAGE_DIR: z.string().default('./data/photos'),
-  BREAK_GLASS_EMAIL: z.string().email().optional(),
-  BREAK_GLASS_PASSWORD: z.string().min(12).optional(),
+  BREAK_GLASS_EMAIL: emptyToUndefined(z.string().email().optional()),
+  BREAK_GLASS_PASSWORD: emptyToUndefined(z.string().min(12).optional()),
 });
 
 export type Env = z.infer<typeof schema>;
 
+export function parseEnv(source: NodeJS.ProcessEnv): Env {
+  return schema.parse(source);
+}
+
 let cached: Env | undefined;
 
 export function loadEnv(): Env {
-  if (!cached) cached = schema.parse(process.env);
+  cached ??= parseEnv(process.env);
   return cached;
 }

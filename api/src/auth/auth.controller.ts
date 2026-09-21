@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UnauthorizedException, UseFilters, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AppUser } from '@prisma/client';
 import { Request, Response } from 'express';
 import { loadEnv } from '../config/env';
 import { AuthService } from './auth.service';
 import { AuthenticatedGuard } from './authenticated.guard';
 import { CurrentUser } from './current-user.decorator';
+import { OAuthRedirectFilter } from './oauth-redirect.filter';
 
 @Controller('auth')
 export class AuthController {
@@ -17,6 +19,7 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
+  @UseFilters(OAuthRedirectFilter)
   googleCallback(@Req() req: Request, @Res() res: Response) {
     req.logIn(req.user as AppUser, (err) => {
       if (err) return res.redirect(`${loadEnv().WEB_ORIGIN}/login?error=session`);
@@ -24,7 +27,11 @@ export class AuthController {
     });
   }
 
+  // 5 tentatives par minute et par IP : le compte de secours est protégé par un
+  // seul mot de passe, il ne doit pas pouvoir être attaqué en force brute.
   @Post('local-login')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async localLogin(@Body() body: { email: string; password: string }, @Req() req: Request) {
     const user = await this.auth.verifyLocalLogin(body.email ?? '', body.password ?? '');
     if (!user) throw new UnauthorizedException('Identifiants invalides');

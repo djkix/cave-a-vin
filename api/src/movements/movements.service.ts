@@ -63,6 +63,19 @@ export class MovementsService {
           return { movement, wine: racedWine, stock: await this.stockOf(raced.wineId), created: false };
         }
       }
+      // Une photo ne crédite le stock qu'une fois (index partiel idx_movement_photo_in) :
+      // une seconde confirmation de la même photo — deux téléphones, ou un envoi en
+      // double qui ramène sur une fiche déjà validée — renvoie le premier mouvement.
+      if (isUniqueViolation(e, 'photo')) {
+        const already = await this.prisma.movement.findFirst({
+          where: { photoId: input.photoId ?? null, type: 'IN' },
+          include: { wine: true },
+        });
+        if (already) {
+          const { wine: alreadyWine, ...movement } = already;
+          return { movement, wine: alreadyWine, stock: await this.stockOf(already.wineId), created: false };
+        }
+      }
       throw e;
     }
   }

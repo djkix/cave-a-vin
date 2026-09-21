@@ -7,7 +7,11 @@ import { loadEnv } from '../config/env';
 
 const logger = new Logger('Session');
 
-export function setupSession(app: INestApplication) {
+/**
+ * Renvoie le client Redis du magasin de sessions : il est créé hors du cycle de vie
+ * Nest, `app.close()` ne le ferme donc pas — les tests doivent le fermer eux-mêmes.
+ */
+export function setupSession(app: INestApplication): Redis {
   const env = loadEnv();
   const client = new Redis(env.REDIS_URL);
   client.on('error', (err) => logger.error(`Redis (sessions) : ${err.message}`, err.stack));
@@ -28,4 +32,5 @@ export function setupSession(app: INestApplication) {
   );
   app.use(passport.initialize());
   app.use(passport.session());
+  return client;
 }

@@ -14,10 +14,12 @@ function fakes() {
     },
   };
   const appellations = {
-    resolve: async (raw: string) =>
-      raw.toLowerCase().includes('bandol')
-        ? { kind: 'exact' as const, id: 'ap-bandol', canonicalName: 'Bandol', similarity: 0.95 }
-        : { kind: 'none' as const, raw },
+    resolve: async (raw: string) => {
+      const needle = raw.toLowerCase();
+      if (needle.includes('bandol')) return { kind: 'exact' as const, id: 'ap-bandol', canonicalName: 'Bandol', similarity: 0.95 };
+      if (needle.includes('chateauneuf')) return { kind: 'fuzzy' as const, id: 'ap-cdp', canonicalName: 'Châteauneuf-du-Pape', similarity: 0.6 };
+      return { kind: 'none' as const, raw };
+    },
   };
   return { prisma, appellations, wines };
 }
@@ -40,6 +42,13 @@ describe('WineMatchingService.matchOrCreate', () => {
     const second = await s.matchOrCreate({ ...draft, producer: 'TEMPIER' });
     expect(second.created).toBe(false);
     expect(second.wine.id).toBe(first.wine.id);
+  });
+
+  it('links a fuzzy match to the appellation without rewriting the label', async () => {
+    const f = fakes();
+    const r = await new WineMatchingService(f.prisma as any, f.appellations as any).matchOrCreate({ ...draft, appellationRaw: 'Chateauneuf' });
+    expect(r.wine.appellationId).toBe('ap-cdp');
+    expect(r.wine.appellationRaw).toBe('Chateauneuf');
   });
 
   it('keeps the raw appellation when nothing matches', async () => {

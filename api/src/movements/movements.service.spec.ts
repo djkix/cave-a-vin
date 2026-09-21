@@ -100,6 +100,55 @@ describe('MovementsService', () => {
     expect(findUniqueCalls).toBe(2);
   });
 
+  it('returns the first movement when the same photo is confirmed twice', async () => {
+    // idx_movement_photo_in : une photo ne crédite le stock qu'une fois. La seconde
+    // confirmation (autre téléphone, ou retour sur une fiche déjà validée) porte une
+    // idempotencyKey neuve, c'est donc l'index sur photo_id qui la rattrape.
+    const wine = { id: 'w1', producer: 'Domaine Test', appellationRaw: 'Bandol', color: 'ROUGE', formatCl: 75, vintage: 2019 };
+    const firstMovement = {
+      id: 'm-first',
+      wineId: 'w1',
+      delta: 6,
+      type: 'IN',
+      occurredAt: new Date(),
+      photoId: 'ph1',
+      priceUnitCents: null,
+      note: null,
+      idempotencyKey: 'k-first',
+      reversesId: null,
+    };
+    let createCalls = 0;
+    const findFirstArgs: any[] = [];
+    const prisma = {
+      movement: {
+        findUnique: async () => null,
+        findFirst: async (args: any) => {
+          findFirstArgs.push(args);
+          return { ...firstMovement, wine };
+        },
+        create: async () => {
+          createCalls += 1;
+          throw new Prisma.PrismaClientKnownRequestError('dup', {
+            code: 'P2002',
+            clientVersion: 'test',
+            meta: { target: ['photo_id'] },
+          });
+        },
+      },
+      $queryRaw: async () => [{ quantity: 6 }],
+    };
+    const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    const service = new MovementsService(prisma as any, matching as any);
+
+    const r = await service.createIn({ ...input, idempotencyKey: 'k-second', photoId: 'ph1' });
+    expect(r.created).toBe(false);
+    expect(r.movement.id).toBe('m-first');
+    expect(r.stock).toBe(6);
+    expect(createCalls).toBe(1);
+    expect(findFirstArgs[0].where).toEqual({ photoId: 'ph1', type: 'IN' });
+    expect((r.movement as unknown as { wine?: unknown }).wine).toBeUndefined();
+  });
+
   it('rejects a non-positive quantity', async () => {
     const h = harness();
     await expect(h.service.createIn({ ...input, quantity: 0 })).rejects.toThrow(/quantité/i);

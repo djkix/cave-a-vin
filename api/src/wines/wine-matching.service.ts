@@ -13,7 +13,10 @@ export class WineMatchingService {
 
   async matchOrCreate(draft: WineDraft): Promise<{ wine: Wine; created: boolean; appellation: AppellationMatch }> {
     const appellation = await this.appellations.resolve(draft.appellationRaw);
-    const appellationRaw = appellation.kind === 'none' ? draft.appellationRaw.trim() : appellation.canonicalName;
+    // Seule une correspondance `exact` (similarité >= 0,8) autorise à réécrire le
+    // libellé : un `fuzzy` (0,5–0,8) rattache le vin à l'appellation sans jamais
+    // remplacer silencieusement ce que l'étiquette dit.
+    const appellationRaw = appellation.kind === 'exact' ? appellation.canonicalName : draft.appellationRaw.trim();
     const matchKey = computeMatchKey({ ...draft, appellationRaw });
 
     const existing = await this.prisma.wine.findUnique({ where: { matchKey } });

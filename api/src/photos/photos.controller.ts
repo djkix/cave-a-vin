@@ -2,6 +2,7 @@ import {
   BadRequestException, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { parseExtraction } from '../vision/extraction-schema';
@@ -14,8 +15,13 @@ const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export class PhotosController {
   constructor(private readonly photos: PhotosService) {}
 
+  // 30 photos par minute et par IP : large pour une campagne au téléphone (une prise
+  // toutes les deux secondes), assez bas pour qu'un flush de file emballé ou un script
+  // ne sature ni sharp ni le quota Gemini.
   @Post()
   @HttpCode(202)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
   async upload(@UploadedFile() file?: Express.Multer.File) {
     if (!file) throw new BadRequestException('Fichier « file » manquant');
