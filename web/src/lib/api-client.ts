@@ -6,9 +6,9 @@ export class ApiError extends Error {
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
+    ...init,
     credentials: 'include',
     headers: init.body instanceof FormData ? init.headers : { 'Content-Type': 'application/json', ...init.headers },
-    ...init,
   });
   if (!res.ok) {
     let message = res.statusText;

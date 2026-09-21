@@ -15,4 +15,18 @@ describe('apiFetch', () => {
     await expect(apiFetch('/auth/me')).rejects.toMatchObject({ status: 401, message: 'Connexion requise' });
     await expect(apiFetch('/auth/me')).rejects.toBeInstanceOf(ApiError);
   });
+
+  it('conserve les en-têtes personnalisés tout en ajoutant Content-Type JSON', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    await apiFetch('/x', { method: 'POST', headers: { 'X-Foo': 'bar' }, body: '{}' });
+    const init = fetchSpy.mock.calls[0][1];
+    expect(init?.headers).toEqual({ 'X-Foo': 'bar', 'Content-Type': 'application/json' });
+  });
+
+  it("n'ajoute pas de Content-Type pour un corps FormData", async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    await apiFetch('/upload', { method: 'POST', body: new FormData() });
+    const init = fetchSpy.mock.calls[0][1];
+    expect(init?.headers).toBeUndefined();
+  });
 });
