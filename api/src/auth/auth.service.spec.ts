@@ -2,13 +2,19 @@ import { ForbiddenException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service';
 
+// AuthService.adminEmails() lit ADMIN_EMAILS via loadEnv(), qui exige un
+// environnement complet même dans ce test unitaire à faux Prisma. loadEnv()
+// met l'environnement en cache au premier appel pour tout le process : on le
+// fixe donc une bonne fois avant le premier test plutôt que de le modifier en
+// cours de fichier, où le second réglage serait ignoré.
+process.env.DATABASE_URL ??= 'postgresql://postgres:dev@localhost:5432/cave';
+process.env.SESSION_SECRET ??= 'a'.repeat(32);
+process.env.ADMIN_EMAILS ??= 'admin@example.com';
+
 function fakePrisma() {
   const users = new Map<string, any>();
-  const allowed = new Set<string>();
   return {
-    allowed,
     users,
-    allowedEmail: { findUnique: async ({ where }: any) => (allowed.has(where.email) ? { email: where.email } : null) },
     appUser: {
       findUnique: async ({ where }: any) => {
         for (const u of users.values()) {
@@ -17,7 +23,7 @@ function fakePrisma() {
         return null;
       },
       create: async ({ data }: any) => {
-        const u = { id: `u${users.size + 1}`, ...data };
+        const u = { id: `u${users.size + 1}`, status: 'ACTIVE', isAdmin: false, ...data };
         users.set(u.id, u);
         return u;
       },
@@ -31,17 +37,16 @@ function fakePrisma() {
 }
 
 describe('AuthService', () => {
-  it('refuses a Google account whose email is not whitelisted', async () => {
+  it('creates a Google account for any e-mail (inscription libre) and gives immediate access', async () => {
     const prisma = fakePrisma();
     const service = new AuthService(prisma as any);
-    await expect(
-      service.findOrCreateGoogleUser({ sub: '123', email: 'x@example.com', displayName: 'X' }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    const user = await service.findOrCreateGoogleUser({ sub: '123', email: 'x@example.com', displayName: 'X' });
+    expect(user.email).toBe('x@example.com');
+    expect(user.status).toBe('ACTIVE');
   });
 
-  it('creates then reuses a whitelisted Google user, keyed by sub', async () => {
+  it('creates then reuses a Google user, keyed by sub', async () => {
     const prisma = fakePrisma();
-    prisma.allowed.add('franck@example.com');
     const service = new AuthService(prisma as any);
     const first = await service.findOrCreateGoogleUser({ sub: '123', email: 'franck@example.com', displayName: 'Franck' });
     const second = await service.findOrCreateGoogleUser({ sub: '123', email: 'new@example.com', displayName: 'Franck' });
@@ -50,7 +55,6 @@ describe('AuthService', () => {
 
   it('links a Google sign-in to an existing local account with the same e-mail (no google_sub yet)', async () => {
     const prisma = fakePrisma();
-    prisma.allowed.add('owner@example.com');
     const preexisting = await prisma.appUser.create({
       data: { email: 'owner@example.com', isBreakGlass: true, passwordHash: 'hash', googleSub: null },
     });
@@ -64,6 +68,38 @@ describe('AuthService', () => {
     expect(prisma.users.size).toBe(1);
   });
 
+  it('marks a user admin when its e-mail is in ADMIN_EMAILS, re-derived on every login', async () => {
+    const prisma = fakePrisma();
+    const service = new AuthService(prisma as any);
+    const user = await service.findOrCreateGoogleUser({ sub: '1', email: 'admin@example.com', displayName: 'Admin' });
+    expect(user.isAdmin).toBe(true);
+  });
+
+  it('does not mark a user admin when its e-mail is absent from ADMIN_EMAILS', async () => {
+    const prisma = fakePrisma();
+    const service = new AuthService(prisma as any);
+    const user = await service.findOrCreateGoogleUser({ sub: '2', email: 'nobody@example.com', displayName: 'Nobody' });
+    expect(user.isAdmin).toBe(false);
+  });
+
+  it('sets lastLoginAt on a Google sign-in', async () => {
+    const prisma = fakePrisma();
+    const service = new AuthService(prisma as any);
+    const user = await service.findOrCreateGoogleUser({ sub: '1', email: 'a@example.com', displayName: 'A' });
+    expect(user.lastLoginAt).toBeInstanceOf(Date);
+  });
+
+  it('refuses a blocked Google account after updating lastLoginAt, without ever handing out a session', async () => {
+    const prisma = fakePrisma();
+    await prisma.appUser.create({ data: { email: 'blocked@example.com', googleSub: 'g1', status: 'BLOCKED' } });
+    const service = new AuthService(prisma as any);
+    await expect(
+      service.findOrCreateGoogleUser({ sub: 'g1', email: 'blocked@example.com', displayName: 'Blocked' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    const stored = [...prisma.users.values()][0];
+    expect(stored.lastLoginAt).toBeInstanceOf(Date);
+  });
+
   it('verifies the break-glass password with argon2', async () => {
     const prisma = fakePrisma();
     const hash = await argon2.hash('correct horse battery');
@@ -71,5 +107,13 @@ describe('AuthService', () => {
     const service = new AuthService(prisma as any);
     expect(await service.verifyLocalLogin('bg@example.com', 'wrong')).toBeNull();
     expect((await service.verifyLocalLogin('bg@example.com', 'correct horse battery'))?.email).toBe('bg@example.com');
+  });
+
+  it('refuses a blocked local (break-glass) account even with the right password', async () => {
+    const prisma = fakePrisma();
+    const hash = await argon2.hash('correct horse battery');
+    await prisma.appUser.create({ data: { email: 'bg@example.com', isBreakGlass: true, passwordHash: hash, status: 'BLOCKED' } });
+    const service = new AuthService(prisma as any);
+    expect(await service.verifyLocalLogin('bg@example.com', 'correct horse battery')).toBeNull();
   });
 });

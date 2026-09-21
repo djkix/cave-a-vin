@@ -18,6 +18,7 @@ describeIfInfra('api HTTP', () => {
     process.env.SESSION_SECRET ??= 'e2e-secret-e2e-secret-e2e-secret-e2e-secret';
     process.env.BREAK_GLASS_EMAIL ??= 'e2e@example.com';
     process.env.BREAK_GLASS_PASSWORD ??= 'e2e-break-glass-password';
+    process.env.ADMIN_EMAILS ??= process.env.BREAK_GLASS_EMAIL;
     process.env.GEMINI_API_KEY ??= 'invalid';
     process.env.WEB_ORIGIN ??= 'http://localhost:5173';
     email = process.env.BREAK_GLASS_EMAIL;
@@ -74,6 +75,18 @@ describeIfInfra('api HTTP', () => {
     expect(res.headers['content-disposition']).toMatch(/attachment; filename="cave-\d{4}-\d{2}-\d{2}\.xlsx"/);
   });
 
+  it('lists accounts for the break-glass admin (ADMIN_EMAILS makes it administrator)', async () => {
+    const res = await agent.get('/api/admin/users');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('refuses the admin listing without a session', async () => {
+    const res = await supertest(app.getHttpServer()).get('/api/admin/users');
+    expect(res.status).toBe(401);
+  });
+
+  // Garder ce cas en dernier : il épuise le quota de connexion locale.
   it('rate-limits brute force on the break-glass login', async () => {
     let last = 0;
     for (let i = 0; i < 6; i++) {

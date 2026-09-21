@@ -48,6 +48,6 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthenticatedGuard)
   me(@CurrentUser() user: AppUser) {
-    return { id: user.id, email: user.email, displayName: user.displayName };
+    return { id: user.id, email: user.email, displayName: user.displayName, isAdmin: user.isAdmin, status: user.status };
   }
 }

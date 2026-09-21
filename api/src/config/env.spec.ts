@@ -31,4 +31,9 @@ describe('parseEnv', () => {
   it('rejects a missing session secret', () => {
     expect(() => parseEnv({ DATABASE_URL: minimal.DATABASE_URL })).toThrow();
   });
+
+  it('defaults ADMIN_EMAILS to an empty string when absent', () => {
+    const env = parseEnv(minimal);
+    expect(env.ADMIN_EMAILS).toBe('');
+  });
 });

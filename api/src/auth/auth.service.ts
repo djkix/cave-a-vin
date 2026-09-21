@@ -16,31 +16,56 @@ export class AuthService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  // ADMIN_EMAILS est la seule façon de désigner un administrateur : dérivé à
+  // chaque connexion, l'environnement reste la source de vérité (pas de
+  // dérive possible via un droit accordé puis oublié en base).
+  private adminEmails(): string[] {
+    return loadEnv()
+      .ADMIN_EMAILS.split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 0);
+  }
+
   async findOrCreateGoogleUser(profile: GoogleProfile): Promise<AppUser> {
-    const existing = await this.prisma.appUser.findUnique({ where: { googleSub: profile.sub } });
-    if (existing) return existing;
-
     const email = profile.email.toLowerCase();
-    const allowed = await this.prisma.allowedEmail.findUnique({ where: { email } });
-    if (!allowed) throw new ForbiddenException('Adresse non autorisée');
+    const isAdmin = this.adminEmails().includes(email);
 
-    const byEmail = await this.prisma.appUser.findUnique({ where: { email } });
-    if (byEmail && byEmail.googleSub === null) {
-      return this.prisma.appUser.update({
-        where: { id: byEmail.id },
-        data: { googleSub: profile.sub, displayName: profile.displayName },
+    const existing = await this.prisma.appUser.findUnique({ where: { googleSub: profile.sub } });
+    let user: AppUser;
+    if (existing) {
+      user = await this.prisma.appUser.update({
+        where: { id: existing.id },
+        data: { lastLoginAt: new Date(), isAdmin },
       });
+    } else {
+      const byEmail = await this.prisma.appUser.findUnique({ where: { email } });
+      if (byEmail && byEmail.googleSub === null) {
+        user = await this.prisma.appUser.update({
+          where: { id: byEmail.id },
+          data: { googleSub: profile.sub, displayName: profile.displayName, lastLoginAt: new Date(), isAdmin },
+        });
+      } else {
+        user = await this.prisma.appUser.create({
+          data: { googleSub: profile.sub, email, displayName: profile.displayName, lastLoginAt: new Date(), isAdmin },
+        });
+      }
     }
 
-    return this.prisma.appUser.create({
-      data: { googleSub: profile.sub, email, displayName: profile.displayName },
-    });
+    // Le refus vient après la mise à jour : la date de dernière tentative
+    // reste juste, mais un compte bloqué n'obtient jamais de session.
+    if (user.status === 'BLOCKED') throw new ForbiddenException('Compte bloqué');
+    return user;
   }
 
   async verifyLocalLogin(email: string, password: string): Promise<AppUser | null> {
     const user = await this.prisma.appUser.findUnique({ where: { email: email.toLowerCase() } });
     if (!user || !user.isBreakGlass || !user.passwordHash) return null;
-    return (await argon2.verify(user.passwordHash, password)) ? user : null;
+    if (!(await argon2.verify(user.passwordHash, password))) return null;
+    if (user.status === 'BLOCKED') return null;
+    return this.prisma.appUser.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), isAdmin: this.adminEmails().includes(user.email.toLowerCase()) },
+    });
   }
 
   async ensureBreakGlassAccount(): Promise<void> {

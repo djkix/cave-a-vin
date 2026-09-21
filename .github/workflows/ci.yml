@@ -23,6 +23,7 @@ jobs:
       SESSION_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
       BREAK_GLASS_EMAIL: ci@example.com
       BREAK_GLASS_PASSWORD: ci-break-glass-password
+      ADMIN_EMAILS: ci@example.com
     defaults: { run: { working-directory: api } }
     steps:
       - uses: actions/checkout@v4
