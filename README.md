@@ -61,8 +61,16 @@ Google se connecte et a immédiatement accès complet à l'application. Le
 propriétaire désigne un ou plusieurs administrateurs via `ADMIN_EMAILS`, et
 bloque ensuite les comptes indésirables depuis l'espace `/admin` (liste des
 comptes, blocage/réactivation, promotion/retrait des droits d'administration).
-Un administrateur ne peut pas modifier son propre compte, pour ne jamais perdre
-l'accès à l'administration par erreur.
+`ADMIN_EMAILS` est un **plancher garanti, jamais un plafond** : une adresse qui
+y figure est administratrice même si la base dit le contraire (le propriétaire
+ne peut jamais s'enfermer dehors), et ces comptes-là ne sont ni blocables ni
+rétrogradables depuis `/admin` — seul le `.env` le peut. À l'inverse, une
+promotion accordée depuis l'interface à un compte absent d'`ADMIN_EMAILS` est
+durable : elle survit aux connexions suivantes, jamais écrasée par
+l'environnement. Un administrateur ne peut pas non plus modifier son propre
+compte, pour ne jamais perdre l'accès à l'administration par erreur. Un
+blocage prend effet dès la requête suivante, y compris sur une session déjà
+ouverte : il n'attend pas une prochaine connexion.
 
 ## Architecture et ports
 
@@ -197,6 +205,11 @@ ensuite les comptes indésirables au lieu de les filtrer à l'entrée.
 La seule façon de désigner un administrateur est la variable `ADMIN_EMAILS` du
 `.env` (adresses séparées par des virgules, en minuscules) : au moins la vôtre,
 pour pouvoir ouvrir l'espace d'administration après le premier déploiement.
+C'est un plancher garanti, pas un plafond : un compte listé ici reste
+administrateur quoi qu'il arrive et **ne peut pas être bloqué ni rétrogradé
+depuis `/admin`** (l'interface refuse l'action) — seule une modification de ce
+fichier le peut. À l'inverse, promouvoir depuis `/admin` un compte qui n'est
+pas dans `ADMIN_EMAILS` reste valable durablement, connexion après connexion.
 
 ```bash
 ADMIN_EMAILS=vous@gmail.com
@@ -321,13 +334,22 @@ courante.
   immédiat, sans liste blanche préalable.
 - Espace d'administration (`/admin`) : liste des comptes, blocage/réactivation,
   promotion/retrait des droits d'administration ; désignation du ou des
-  premiers administrateurs par `ADMIN_EMAILS`.
+  premiers administrateurs par `ADMIN_EMAILS`, qui agit comme un plancher
+  garanti (jamais un plafond) — ces comptes-là ne sont ni blocables ni
+  rétrogradables depuis l'interface, et une promotion faite dans l'interface
+  sur un autre compte est durable.
 
 **Sécurité**
 
 - La liste blanche `allowed_email` n'est plus le point de contrôle des accès ;
   le contrôle se fait désormais sur le statut du compte (`ACTIVE`/`BLOCKED`),
   et un blocage coupe la session en cours dès la requête suivante.
+- Correctifs de revue avant mise en production : la liste des comptes
+  n'expose plus `passwordHash` ni `googleSub` ; un compte configuré comme
+  administrateur via `ADMIN_EMAILS` ne peut plus être bloqué ou rétrogradé
+  depuis `/admin` (risque de verrouillage total) ; un compte bloqué en session
+  ouverte est désormais redirigé vers l'écran de connexion au lieu d'un faux
+  message « serveur injoignable ».
 
 ### 1.0.0 — 21 septembre 2026
 

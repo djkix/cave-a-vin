@@ -14,6 +14,11 @@ la version courante.
 - Espace d'administration (`/admin`) : liste des comptes, blocage/réactivation,
   promotion/retrait des droits d'administration ; désignation du ou des
   premiers administrateurs par la variable `ADMIN_EMAILS`.
+- `ADMIN_EMAILS` est un plancher garanti, jamais un plafond : une adresse qui y
+  figure reste administratrice même si la base dit le contraire, et ces
+  comptes-là ne sont ni blocables ni rétrogradables depuis `/admin` (seul le
+  `.env` le peut). À l'inverse, une promotion accordée depuis l'interface à un
+  compte absent d'`ADMIN_EMAILS` est durable, connexion après connexion.
 
 ### Sécurité
 
@@ -21,7 +26,15 @@ la version courante.
   elle n'est plus lue par l'authentification (la table reste en base, sans
   suppression). Le contrôle se fait désormais sur le statut du compte
   (`ACTIVE`/`BLOCKED`) ; un blocage coupe la session en cours dès la requête
-  suivante, pas seulement la prochaine connexion.
+  suivante, pas seulement la prochaine connexion, y compris via `/auth/me`
+  côté web (redirection vers l'écran de connexion au lieu d'un faux message
+  « serveur injoignable »).
+- Correctifs de revue avant mise en production : `GET /api/admin/users` et la
+  réponse du `PATCH` n'exposent plus `passwordHash` (hachage argon2 du compte
+  de secours) ni `googleSub`, désormais restreints par une projection
+  explicite (`select`) ; un compte configuré comme administrateur via
+  `ADMIN_EMAILS` ne peut plus être bloqué ou rétrogradé depuis `/admin`, ce qui
+  aurait pu couper tout accès administrateur sans intervention SQL directe.
 
 ## 1.0.0 — 21 septembre 2026
 
