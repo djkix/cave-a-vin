@@ -23,7 +23,7 @@ export class ExportService {
     ]);
     const stockByWine = new Map(stockRows.map((r) => [r.wine_id, Number(r.quantity)]));
     const lastPrice = new Map<string, number>();
-    for (const m of [...movements].reverse()) if (m.priceUnitCents != null) lastPrice.set(m.wineId, m.priceUnitCents);
+    for (const m of [...movements].reverse()) if (m.type === 'IN' && m.priceUnitCents != null) lastPrice.set(m.wineId, m.priceUnitCents);
 
     const inStock = wines.filter((w) => {
       const q = stockByWine.get(w.id) ?? 0;
@@ -95,6 +95,7 @@ export class ExportService {
     for (const a of appellations) {
       ref.addRow({ name: a.canonicalName, region: a.region ?? '', colors: a.allowedColors.map((c) => COLOR_LABEL[c]).join(', '), gmin: a.guardMinYears, gmax: a.guardMaxYears });
     }
+    ref.autoFilter = { from: 'A1', to: 'E1' };
     ref.getRow(1).font = { bold: true };
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());

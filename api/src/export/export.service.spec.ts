@@ -38,6 +38,9 @@ describe('ExportService.buildWorkbook', () => {
     expect(rowCount).toBe(1);
     expect(wb.getWorksheet('Mouvements')!.rowCount).toBe(4);
     expect(prisma.exportLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'u1', rowCount: 1 }) }));
+    expect(stock.autoFilter).toBeTruthy();
+    expect(wb.getWorksheet('Mouvements')!.autoFilter).toBeTruthy();
+    expect(wb.getWorksheet('Référence')!.autoFilter).toBeTruthy();
   });
 
   it('filters Stock by colour', async () => {
