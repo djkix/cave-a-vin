@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -60,6 +60,40 @@ it('shows a fetch error (404/offline) as a failure with a manual-entry fallback'
   mount();
   expect(await screen.findByText(/Photo introuvable/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Saisir à la main/ })).toBeInTheDocument();
+});
+
+it('annonce un report, sans échec, quand le worker a remis la photo en attente', async () => {
+  vi.spyOn(api, 'getPhoto').mockResolvedValue({
+    id: 'p1',
+    status: 'PENDING',
+    errorMessage: 'Analyse reportée : service Gemini momentanément saturé, reprise automatique',
+    createdAt: '',
+  });
+  vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation(() => () => {});
+  mount();
+  expect(await screen.findByText(/service Gemini momentanément saturé/)).toBeInTheDocument();
+  expect(screen.getByText('Analyse reportée')).toBeInTheDocument();
+  expect(screen.queryByText(/Lecture impossible/)).not.toBeInTheDocument();
+  // Les deux sorties : partir en laissant la photo en file, ou saisir tout de suite.
+  expect(screen.getByRole('button', { name: /Terminer, j’attends l’analyse/ })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Saisir à la main/ })).toBeInTheDocument();
+});
+
+it('libère l’écran au bout de vingt secondes d’attente sans nouvelle', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'PROCESSING', createdAt: '' });
+    vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation(() => () => {});
+    mount();
+    expect(await screen.findByText(/Analyse de l’étiquette en cours/)).toBeInTheDocument();
+    await act(async () => {
+      vi.advanceTimersByTime(20_000);
+    });
+    expect(screen.getByText('Analyse reportée')).toBeInTheDocument();
+    expect(screen.getByText(/Ta photo est enregistrée sur le serveur/)).toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('falls back to manual entry when the event stream drops', async () => {

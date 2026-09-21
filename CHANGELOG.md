@@ -9,6 +9,48 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## Non publié
+
+### Résumé
+
+Analyse des photos différée et jamais bloquante. En production, deux premiers
+scans ont échoué sur un `503 Service Unavailable` de l'API Gemini (« This model
+is currently experiencing high demand ») : le worker ne retentait que trois fois
+en six secondes, les trois tentatives tombaient dans la même vague de
+congestion, et la photo passait en échec définitif. L'image restait stockée sur
+le volume Docker mais n'apparaissait plus nulle part, la revue groupée ne
+listant que les analyses terminées.
+
+### Fonctionnalités
+
+- **Report au lieu de l'échec** : une indisponibilité passagère (429, 500, 502,
+  503, 504, coupure réseau, plafond mensuel atteint) remet la photo en attente
+  avec un motif lisible, au lieu de la marquer en échec.
+- **Réessais patients** : délai exponentiel de 30 s à 15 minutes, sur environ
+  1 000 tentatives, là où l'ancienne politique abandonnait au bout de six
+  secondes.
+- **Échec immédiat des erreurs définitives** : une sortie de modèle
+  inexploitable ou une clé d'API invalide coupe la file tout de suite
+  (`UnrecoverableError`) et propose la saisie manuelle, sans occuper la file
+  pendant des jours.
+- **Reprise au démarrage du worker** : les photos en attente dont le travail a
+  disparu avec Redis sont remises en file. Un redémarrage de la pile ne laisse
+  plus de photo stockée sans personne pour l'analyser.
+- **Compteur d'attente** : bandeau « N photos en attente d'analyse » avec le
+  motif du dernier report, sur l'accueil et dans la revue groupée.
+- **Écran d'entrée unitaire non bloquant** : au bout de vingt secondes, ou dès
+  que le worker signale un report, l'écran annonce « Analyse reportée », explique
+  que la photo est enregistrée, et propose de partir ou de saisir à la main. Une
+  coupure du flux d'événements affiche désormais ce report plutôt qu'un échec de
+  lecture, puisque l'analyse continue côté serveur.
+
+### Corrections
+
+- Les photos déjà en échec pour une raison passagère sont remises en attente par
+  la migration `20260925000000_photo_deferred_retry`, puis reprises
+  automatiquement au démarrage suivant du worker : les deux bouteilles perdues
+  lors de l'incident sont récupérées sans action manuelle.
+
 ## 1.0.0 (2026-09-21)
 
 ### Résumé

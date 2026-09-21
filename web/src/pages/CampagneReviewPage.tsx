@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { AnalysisQueueBanner } from '../components/AnalysisQueueBanner';
 import { Button } from '../components/Button';
 import { LOW_CONFIDENCE } from '../components/ConfidenceBadge';
 import { EditableField } from '../components/EditableField';
@@ -86,6 +87,7 @@ export function CampagneReviewPage() {
       <TopBar title="Revue groupée" back="/entree/campagne" />
       <main className="page" style={{ paddingBottom: 'calc(var(--size-bottomnav-height) + var(--size-action-height) + var(--space-lg))' }}>
         <OfflineQueueBanner />
+        <AnalysisQueueBanner hideLink />
         {result && (
           <p role="status" className={`badge ${result.some((x) => x.ok) ? 'badge--ok' : 'badge--warn'}`}>
             {result.filter((x) => x.ok).length} fiche{result.filter((x) => x.ok).length > 1 ? 's' : ''} validée{result.filter((x) => x.ok).length > 1 ? 's' : ''}

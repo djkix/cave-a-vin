@@ -22,6 +22,14 @@ function shortError(message: string): string {
   return message.length > MAX_ERROR_CHARS ? `${message.slice(0, MAX_ERROR_CHARS)}…` : message;
 }
 
+/**
+ * Au-delà de ce délai, l'analyse est réputée reportée : la photo est enregistrée
+ * côté serveur et sera reprise automatiquement, donc rien ne justifie de garder
+ * quelqu'un devant un écran d'attente. Vingt secondes laissent passer une lecture
+ * normale (deux à cinq secondes) sans faire patienter pendant une panne.
+ */
+const DEFER_NOTICE_MS = 20_000;
+
 export function EntreeConfirmationPage() {
   const { photoId = '' } = useParams();
   const navigate = useNavigate();
@@ -29,6 +37,7 @@ export function EntreeConfirmationPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [extraction, setExtraction] = useState<WineExtraction | null>(null);
   const [manual, setManual] = useState(false);
+  const [late, setLate] = useState(false);
   const [draft, setDraft] = useState<WineDraft>(EMPTY);
   const [confidences, setConfidences] = useState<Partial<Record<keyof WineDraft, number>>>({});
   const [quantity, setQuantity] = useState(1);
@@ -58,12 +67,14 @@ export function EntreeConfirmationPage() {
             setErrorMessage(e.errorMessage ?? null);
             if (e.extraction) setExtraction(e.extraction);
           },
-          // Flux SSE coupé (réseau, redémarrage de l'api) : sans ça l'écran reste
-          // bloqué sur « Analyse en cours… » indéfiniment.
+          // Flux SSE coupé (réseau, redémarrage de l'api) : l'analyse continue
+          // côté serveur, seule la notification est perdue. On bascule donc sur
+          // l'écran de report, qui dit la vérité — la photo est en file — plutôt
+          // que d'annoncer un échec de lecture.
           () => {
             if (cancelled) return;
-            setStatus('FAILED');
-            setErrorMessage('Connexion au serveur interrompue — réessayez ou saisissez à la main.');
+            setLate(true);
+            setErrorMessage('Connexion au serveur interrompue — l’analyse se poursuit côté serveur.');
           },
         );
       })
@@ -76,6 +87,14 @@ export function EntreeConfirmationPage() {
       cancelled = true;
       unsub();
     };
+  }, [photoId]);
+
+  // Minuteur posé une fois par photo, et non à chaque changement d'état : le
+  // passage PENDING → PROCESSING ne doit pas relancer le compte à rebours.
+  useEffect(() => {
+    setLate(false);
+    const timer = setTimeout(() => setLate(true), DEFER_NOTICE_MS);
+    return () => clearTimeout(timer);
   }, [photoId]);
 
   useEffect(() => {
@@ -123,7 +142,13 @@ export function EntreeConfirmationPage() {
     );
   }
 
-  const waiting = !manual && (status === 'PENDING' || status === 'PROCESSING');
+  const pending = status === 'PENDING' || status === 'PROCESSING';
+  // Report annoncé soit parce que le worker l'a écrit sur la photo (un 503 de
+  // Gemini remet la photo en PENDING avec son motif), soit parce que l'attente
+  // dépasse DEFER_NOTICE_MS. Dans les deux cas la photo est enregistrée et sera
+  // reprise : l'écran le dit et libère l'utilisateur.
+  const deferred = !manual && pending && (late || errorMessage !== null);
+  const waiting = !manual && pending && !deferred;
   const failed = !manual && status === 'FAILED';
 
   return (
@@ -135,6 +160,26 @@ export function EntreeConfirmationPage() {
           <section className="card">
             <p>Analyse de l’étiquette en cours…</p>
             <div className="progress"><span /></div>
+          </section>
+        )}
+        {deferred && (
+          <section className="card" role="status">
+            <p style={{ margin: 0, fontWeight: 600 }}>Analyse reportée</p>
+            <p style={{ margin: 'var(--space-xs) 0 var(--space-md)' }}>
+              {errorMessage ?? 'Le service de lecture d’étiquette est momentanément occupé.'}
+              <br />
+              <small>
+                Ta photo est enregistrée sur le serveur. Elle sera analysée automatiquement dès que le service répond, puis tu la
+                valideras dans la revue groupée — rien n’est perdu si tu quittes cet écran.
+              </small>
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+              <Button variant="dark" onClick={() => navigate('/')}>
+                <Icon name="check_circle" />
+                Terminer, j’attends l’analyse
+              </Button>
+              <Button variant="outline" onClick={() => setManual(true)}>Saisir à la main</Button>
+            </div>
           </section>
         )}
         {failed && (
