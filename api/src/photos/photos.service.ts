@@ -1,9 +1,11 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Photo, Prisma } from '@prisma/client';
+import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
+import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData } from '../queue/extraction.queue';
 import { ImageNormalizationService } from './image-normalization.service';
 
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
@@ -24,6 +26,7 @@ export class PhotosService {
     private readonly prisma: PrismaService,
     private readonly normalization: ImageNormalizationService,
     @Inject(PHOTO_STORAGE_DIR) private readonly dir: string,
+    @Inject(EXTRACTION_QUEUE_TOKEN) private readonly queue: Pick<Queue<ExtractionJobData>, 'add'>,
   ) {}
 
   async ingest(input: Buffer, mimeType: string): Promise<{ photo: Photo; duplicate: boolean }> {
@@ -52,6 +55,7 @@ export class PhotosService {
       const photo = await this.prisma.photo.create({
         data: { id, contentHash, storagePath: normalizedPath, mimeType: 'image/jpeg' },
       });
+      await this.queue.add('extract', { photoId: photo.id }, { jobId: photo.id });
       return { photo, duplicate: false };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {

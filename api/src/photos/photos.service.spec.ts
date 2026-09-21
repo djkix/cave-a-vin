@@ -28,24 +28,28 @@ describe('PhotosService.ingest', () => {
 
   it('stores original + normalized and creates a PENDING row', async () => {
     const prisma = fakePrisma();
-    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir);
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#000' } }).jpeg().toBuffer();
     const { photo, duplicate } = await service.ingest(img, 'image/jpeg');
     expect(duplicate).toBe(false);
     expect(photo.status).toBe('PENDING');
     expect(existsSync(join(dir, 'original', `${photo.id}.jpg`))).toBe(true);
     expect(existsSync(join(dir, 'normalized', `${photo.id}.jpg`))).toBe(true);
+    expect(queue.add).toHaveBeenCalledWith('extract', { photoId: photo.id }, { jobId: photo.id });
   });
 
   it('returns the existing row for the same bytes', async () => {
     const prisma = fakePrisma();
-    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir);
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 50, height: 50, channels: 3, background: '#111' } }).jpeg().toBuffer();
     const a = await service.ingest(img, 'image/jpeg');
     const b = await service.ingest(img, 'image/jpeg');
     expect(b.duplicate).toBe(true);
     expect(b.photo.id).toBe(a.photo.id);
     expect(prisma.photos).toHaveLength(1);
+    expect(queue.add).toHaveBeenCalledTimes(1);
   });
 
   it('recovers from a concurrent duplicate create (P2002) by cleaning up files and returning the existing row', async () => {
@@ -76,7 +80,8 @@ describe('PhotosService.ingest', () => {
         findMany: async () => [],
       },
     };
-    const service = new PhotosService(prisma as any, new ImageNormalizationService(), raceDir);
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), raceDir, queue as any);
     const img = await sharp({ create: { width: 30, height: 30, channels: 3, background: '#222' } }).jpeg().toBuffer();
     const result = await service.ingest(img, 'image/jpeg');
     expect(result.duplicate).toBe(true);
@@ -84,12 +89,15 @@ describe('PhotosService.ingest', () => {
     expect(createCalls).toBe(1);
     expect(readdirSync(join(raceDir, 'original'))).toHaveLength(0);
     expect(readdirSync(join(raceDir, 'normalized'))).toHaveLength(0);
+    expect(queue.add).not.toHaveBeenCalled();
   });
 
   it('rejects an unreadable image with a BadRequestException and creates no row', async () => {
     const prisma = fakePrisma();
-    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir);
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     await expect(service.ingest(Buffer.from('not an image'), 'image/jpeg')).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.photos).toHaveLength(0);
+    expect(queue.add).not.toHaveBeenCalled();
   });
 });
