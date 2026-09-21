@@ -1,7 +1,8 @@
 import {
-  BadRequestException, Controller, Get, HttpCode, Param, Post, UploadedFile, UseGuards, UseInterceptors,
+  BadRequestException, Controller, Get, HttpCode, Param, Post, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { PhotosService } from './photos.service';
 
@@ -30,5 +31,12 @@ export class PhotosController {
   @Get(':id')
   one(@Param('id') id: string) {
     return this.photos.findById(id);
+  }
+
+  @Get(':id/image')
+  async image(@Param('id') id: string, @Res() res: Response) {
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.send(await this.photos.readNormalized(id));
   }
 }
