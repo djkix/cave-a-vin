@@ -2,14 +2,13 @@ import { ForbiddenException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service';
 
-// AuthService.adminEmails() lit ADMIN_EMAILS via loadEnv(), qui exige un
-// environnement complet même dans ce test unitaire à faux Prisma. loadEnv()
-// met l'environnement en cache au premier appel pour tout le process : on le
-// fixe donc une bonne fois avant le premier test plutôt que de le modifier en
-// cours de fichier, où le second réglage serait ignoré.
+// ADMIN_EMAILS est imposé, pas complété : l'intégration continue définit sa
+// propre valeur pour la spec HTTP, qui écraserait le scénario de ce fichier si
+// on se contentait de `??=`. adminEmailsFromEnv() relit process.env à chaque
+// appel, cette affectation est donc bien celle qui compte.
 process.env.DATABASE_URL ??= 'postgresql://postgres:dev@localhost:5432/cave';
 process.env.SESSION_SECRET ??= 'a'.repeat(32);
-process.env.ADMIN_EMAILS ??= 'admin@example.com';
+process.env.ADMIN_EMAILS = 'admin@example.com';
 
 function fakePrisma() {
   const users = new Map<string, any>();

@@ -2,12 +2,12 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AppUser } from '@prisma/client';
 import { AdminService } from './admin.service';
 
-// AdminService lit ADMIN_EMAILS via adminEmailsFromEnv() (loadEnv), qui met
-// l'environnement en cache pour tout le fichier au premier appel : fixé une
-// bonne fois avant le premier test, comme dans auth.service.spec.ts.
+// ADMIN_EMAILS est imposé et non complété, pour la même raison que dans
+// auth.service.spec.ts : la valeur du job d'intégration continue écraserait
+// sinon le scénario de ce fichier.
 process.env.DATABASE_URL ??= 'postgresql://postgres:dev@localhost:5432/cave';
 process.env.SESSION_SECRET ??= 'a'.repeat(32);
-process.env.ADMIN_EMAILS ??= 'owner@example.com';
+process.env.ADMIN_EMAILS = 'owner@example.com';
 
 function fakePrisma() {
   const users = new Map<string, any>();
