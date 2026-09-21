@@ -120,3 +120,37 @@ describe('PhotosService.ingest', () => {
     expect(readdirSync(join(dir, 'normalized')).some((f) => f.startsWith(deletedId))).toBe(false);
   });
 });
+
+describe('PhotosService.queueStatus', () => {
+  function service(rows: { createdAt: Date; errorMessage: string | null }[]) {
+    const prisma = {
+      photo: {
+        count: jest.fn(async () => rows.length),
+        findFirst: jest.fn(async ({ where, orderBy }: any) => {
+          const candidates = where.errorMessage ? rows.filter((r) => r.errorMessage !== null) : rows;
+          const sorted = [...candidates].sort((a, b) =>
+            orderBy.createdAt === 'asc' ? a.createdAt.getTime() - b.createdAt.getTime() : b.createdAt.getTime() - a.createdAt.getTime(),
+          );
+          return sorted[0] ?? null;
+        }),
+      },
+    };
+    return new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+  }
+
+  it('annonce une file vide quand tout est analysé', async () => {
+    expect(await service([]).queueStatus()).toEqual({ waiting: 0, oldestWaitingAt: null, lastReason: null });
+  });
+
+  it('compte les photos en attente, donne la plus ancienne et le dernier motif de report', async () => {
+    const old = new Date('2026-09-21T10:00:00Z');
+    const recent = new Date('2026-09-21T12:00:00Z');
+    const status = await service([
+      { createdAt: old, errorMessage: null },
+      { createdAt: recent, errorMessage: 'Analyse reportée : service Gemini momentanément saturé, reprise automatique' },
+    ]).queueStatus();
+    expect(status.waiting).toBe(2);
+    expect(status.oldestWaitingAt).toEqual(old);
+    expect(status.lastReason).toContain('saturé');
+  });
+});

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { AnalysisQueueBanner } from '../components/AnalysisQueueBanner';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
@@ -16,6 +17,7 @@ export function HomePage() {
       <TopBar />
       <main className="page">
         <OfflineQueueBanner />
+        <AnalysisQueueBanner />
         <section className="actions">
           <Link to="/entree" className="action action--in">
             <Icon name="qr_code_scanner" />

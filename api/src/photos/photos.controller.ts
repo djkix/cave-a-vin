@@ -30,6 +30,13 @@ export class PhotosController {
     return { id: photo.id, status: photo.status, duplicate };
   }
 
+  // Déclaré avant `@Get(':id')` : sinon « queue-status » serait pris pour un
+  // identifiant de photo.
+  @Get('queue-status')
+  queueStatus() {
+    return this.photos.queueStatus();
+  }
+
   @Get('pending-review')
   async pendingReview() {
     const photos = await this.photos.listPendingReview();

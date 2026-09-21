@@ -106,6 +106,26 @@ export class PhotosService {
     return readFile(join(this.dir, 'normalized', `${id}.jpg`));
   }
 
+  /**
+   * État de la file d'analyse, pour que l'utilisateur sache que ses photos sont
+   * stockées et attendent leur tour. Sans ce compteur, une photo reportée est
+   * invisible : elle n'apparaît ni dans la revue groupée (qui ne liste que les
+   * analyses terminées) ni dans le journal, et elle passe pour perdue.
+   */
+  async queueStatus(): Promise<{ waiting: number; oldestWaitingAt: Date | null; lastReason: string | null }> {
+    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] } };
+    const [waiting, oldest, lastDeferred] = await Promise.all([
+      this.prisma.photo.count({ where }),
+      this.prisma.photo.findFirst({ where, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
+      this.prisma.photo.findFirst({
+        where: { ...where, errorMessage: { not: null } },
+        orderBy: { createdAt: 'desc' },
+        select: { errorMessage: true },
+      }),
+    ]);
+    return { waiting, oldestWaitingAt: oldest?.createdAt ?? null, lastReason: lastDeferred?.errorMessage ?? null };
+  }
+
   listPendingReview(): Promise<Photo[]> {
     return this.prisma.photo.findMany({
       where: { status: 'DONE', movements: { none: {} } },

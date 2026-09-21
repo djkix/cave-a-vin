@@ -38,6 +38,22 @@ suivant, sans confirmation unitaire. Un écran de revue groupée liste ensuite l
 fiches extraites, les moins fiables en premier, et une seule validation crée tous
 les mouvements.
 
+**Analyse différée, jamais bloquante.** L'analyse ne dépend pas de la
+disponibilité de l'API de vision. Dès qu'une photo est reçue, elle est stockée
+sur le serveur ; si le service de lecture est saturé, injoignable ou à quota
+(erreurs 429, 500, 502, 503, 504, coupure réseau, plafond mensuel atteint), la
+photo **retourne en attente au lieu d'échouer** et le worker la reprend
+automatiquement — 30 s, 1 min, 2, 4, 8, puis toutes les 15 minutes, pendant une
+dizaine de jours si nécessaire. Un bandeau « N photos en attente d'analyse »,
+avec le motif du dernier report, reste visible sur l'accueil et dans la revue
+groupée. L'écran d'entrée unitaire n'attend jamais plus de vingt secondes : il
+annonce le report et propose de partir ou de saisir la fiche à la main. À
+l'inverse, une erreur dont un réessai ne changera rien (étiquette inexploitable,
+clé d'API invalide) échoue immédiatement et propose la saisie manuelle, sans
+occuper la file. Au démarrage, le worker remet en file les photos en attente que
+Redis aurait oubliées : une photo reçue n'est jamais perdue, même après un
+redémarrage de la pile.
+
 **Hors ligne.** La cave est souvent un sous-sol sans réseau : les photos sont
 mises en file dans le navigateur (20 photos ou 50 Mo maximum) et envoyées dès que
 l'application est rouverte avec du réseau. Un compteur « N photos en attente »
@@ -319,12 +335,33 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
   administrateur doit bloquer un compte indésirable depuis `/admin`. Le blocage
   prend effet dès la requête suivante (la session en cours cesse de
   fonctionner), il n'attend pas une prochaine connexion.
+- **Réessai borné dans le temps** : une photo reportée est reprise pendant
+  environ dix jours (1 000 tentatives au plafond de 15 minutes). Au-delà, elle
+  passe en échec et attend une saisie manuelle — un travail qui ne meurt jamais
+  finirait par masquer une panne réelle.
+- **Pas de relance manuelle d'une analyse** : il n'y a pas de bouton
+  « réanalyser » sur une photo en échec définitif ; la saisie manuelle prend le
+  relais, et reprendre la photo crée simplement une nouvelle entrée.
 - **Sortie de stock par photo, apogée et cote iDealwine** : lot 2.
 
 ## Journal des modifications
 
 Le détail par version, avec le lien vers chaque commit, est dans
-[`CHANGELOG.md`](CHANGELOG.md) ; voici la version publiée.
+[`CHANGELOG.md`](CHANGELOG.md) ; voici la version publiée et ce qui attend
+publication.
+
+### Non publié
+
+**Analyse des photos différée et jamais bloquante.** Une indisponibilité
+passagère du service de vision (429, 500, 502, 503, 504, coupure réseau,
+plafond mensuel atteint) remet la photo en attente au lieu de la marquer en
+échec, et le worker la reprend de 30 s à 15 minutes d'intervalle pendant une
+dizaine de jours. Les erreurs définitives, elles, échouent immédiatement et
+proposent la saisie manuelle. Le worker remet en file au démarrage les photos
+que Redis a oubliées, un bandeau compte les photos en attente avec le motif du
+dernier report, et l'écran d'entrée unitaire n'attend plus indéfiniment. La
+migration `20260925000000_photo_deferred_retry` récupère les photos déjà
+abandonnées à tort.
 
 ### 1.0.0 — 21 septembre 2026
 

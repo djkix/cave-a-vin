@@ -70,6 +70,10 @@ export function uploadPhoto(file: File | Blob) {
   return apiFetch<{ id: string; status: string; duplicate: boolean }>('/photos', { method: 'POST', body: form });
 }
 export const getPhoto = (id: string) => apiFetch<PhotoDto>(`/photos/${id}`);
+
+/** Photos stockées qui attendent encore leur analyse, avec le motif du dernier report. */
+export interface PhotoQueueStatus { waiting: number; oldestWaitingAt: string | null; lastReason: string | null }
+export const getPhotoQueueStatus = () => apiFetch<PhotoQueueStatus>('/photos/queue-status');
 export const createMovement = (input: CreateMovementInput) =>
   apiFetch<MovementResult>('/movements', { method: 'POST', body: JSON.stringify(input) });
 
