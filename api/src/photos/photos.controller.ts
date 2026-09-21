@@ -5,7 +5,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { PhotosService } from './photos.service';
 
-const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/heic', 'image/webp']);
+const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 @Controller('photos')
 @UseGuards(AuthenticatedGuard)

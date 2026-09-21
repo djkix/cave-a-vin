@@ -1,6 +1,8 @@
-import { mkdtempSync, existsSync } from 'node:fs';
+import { BadRequestException } from '@nestjs/common';
+import { mkdtempSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Prisma } from '@prisma/client';
 import sharp from 'sharp';
 import { ImageNormalizationService } from './image-normalization.service';
 import { PhotosService } from './photos.service';
@@ -44,5 +46,50 @@ describe('PhotosService.ingest', () => {
     expect(b.duplicate).toBe(true);
     expect(b.photo.id).toBe(a.photo.id);
     expect(prisma.photos).toHaveLength(1);
+  });
+
+  it('recovers from a concurrent duplicate create (P2002) by cleaning up files and returning the existing row', async () => {
+    const raceDir = mkdtempSync(join(tmpdir(), 'cave-photos-race-'));
+    const existingRow = {
+      id: 'raced-id',
+      contentHash: 'raced-hash',
+      status: 'PENDING',
+      createdAt: new Date(),
+      storagePath: 'normalized/raced-id.jpg',
+      mimeType: 'image/jpeg',
+    };
+    let findUniqueCalls = 0;
+    let createCalls = 0;
+    const prisma = {
+      photo: {
+        findUnique: async () => {
+          findUniqueCalls += 1;
+          return findUniqueCalls === 1 ? null : existingRow;
+        },
+        create: async () => {
+          createCalls += 1;
+          throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+            code: 'P2002',
+            clientVersion: 'test',
+          });
+        },
+        findMany: async () => [],
+      },
+    };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), raceDir);
+    const img = await sharp({ create: { width: 30, height: 30, channels: 3, background: '#222' } }).jpeg().toBuffer();
+    const result = await service.ingest(img, 'image/jpeg');
+    expect(result.duplicate).toBe(true);
+    expect(result.photo).toBe(existingRow);
+    expect(createCalls).toBe(1);
+    expect(readdirSync(join(raceDir, 'original'))).toHaveLength(0);
+    expect(readdirSync(join(raceDir, 'normalized'))).toHaveLength(0);
+  });
+
+  it('rejects an unreadable image with a BadRequestException and creates no row', async () => {
+    const prisma = fakePrisma();
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir);
+    await expect(service.ingest(Buffer.from('not an image'), 'image/jpeg')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.photos).toHaveLength(0);
   });
 });
