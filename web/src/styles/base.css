@@ -21,6 +21,10 @@ h1, h2, h3, .serif { font-family: var(--font-serif); font-weight: 500; margin: 0
   border-bottom: 1px solid var(--color-outline-subtle);
 }
 .topbar__title { font-size: 20px; color: var(--color-primary); }
+/* Poussée à droite de la barre, assez discrète pour ne pas concurrencer le titre
+   mais toujours lisible : l'empreinte de commit d'une image `latest` peut
+   allonger le libellé, d'où le retour à la ligne interdit. */
+.topbar__version { margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--color-secondary); white-space: nowrap; }
 .topbar__logo, .topbar__back { color: var(--color-primary); display: inline-flex; width: var(--size-touch-target); height: var(--size-touch-target); align-items: center; justify-content: center; }
 
 .bottomnav {
@@ -63,6 +67,7 @@ h1, h2, h3, .serif { font-family: var(--font-serif); font-weight: 500; margin: 0
 .login__logo { font-size: 48px; color: var(--color-primary); }
 .login__title { font-size: 28px; color: var(--color-primary); }
 .login__form { display: flex; flex-direction: column; gap: var(--space-sm); width: min(100%, 360px); }
+.login__version { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--color-secondary); margin: 0; }
 .login__form label { display: flex; flex-direction: column; gap: var(--space-xs); font-size: 14px; color: var(--color-secondary); }
 input, select { min-height: var(--size-touch-target); padding: 0 var(--space-md); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md); background: var(--color-surface-lowest); font: 400 16px var(--font-sans); color: var(--color-on-surface); }
 

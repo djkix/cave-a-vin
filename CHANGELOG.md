@@ -44,6 +44,13 @@ listant que les analyses terminées.
   coupure du flux d'événements affiche désormais ce report plutôt qu'un échec de
   lecture, puisque l'analyse continue côté serveur.
 
+- **Version affichée en permanence** : en haut à droite de chaque écran et sur
+  l'écran de connexion. `VITE_APP_VERSION` était déjà injectée dans l'image web
+  par l'intégration continue, mais n'était affichée nulle part. Une image
+  `latest` construite depuis `main` affiche désormais la version suivie de
+  l'empreinte du commit (`1.0.0+ab12cd3`), pour ne pas faire passer des
+  changements non publiés pour la dernière version publiée.
+
 ### Corrections
 
 - Les photos déjà en échec pour une raison passagère sont remises en attente par

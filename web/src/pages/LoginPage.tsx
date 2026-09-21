@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { localLogin } from '../lib/api-client';
+import { APP_VERSION } from '../lib/version';
 
 // Messages posés par l'api quand le retour Google échoue (OAuthRedirectFilter,
 // `?error=session`) : la navigation revient ici, il faut dire pourquoi.
@@ -56,6 +57,10 @@ export function LoginPage() {
           <button type="submit" className="btn btn--dark">Connexion</button>
         </form>
       )}
+      {/* L'écran de connexion n'a pas de barre de titre : la version y est
+          répétée pour qu'elle reste lisible avant même d'être connecté, quand on
+          cherche justement à savoir ce qui tourne sur le serveur. */}
+      <p className="login__version" aria-label={`Version ${APP_VERSION}`}>v{APP_VERSION}</p>
     </main>
   );
 }

@@ -31,8 +31,13 @@ jobs:
           elif [ "${{ github.ref_type }}" = "tag" ]; then TAG="${{ github.ref_name }}";
           else TAG=""; fi
           echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+          # Le libellé affiché dans l'application. Pour une image taguée c'est le
+          # numéro de version publié ; pour une image `latest` construite depuis
+          # main, ce numéro suivi de l'empreinte du commit — sinon l'application
+          # annoncerait la dernière version publiée alors qu'elle fait tourner des
+          # changements non publiés.
           if [ -n "$TAG" ]; then echo "display=${TAG#v}" >> "$GITHUB_OUTPUT";
-          else echo "display=$(python3 -c "import json; print(json.load(open('.release-please-manifest.json'))['.'])")" >> "$GITHUB_OUTPUT"; fi
+          else echo "display=$(python3 -c "import json; print(json.load(open('.release-please-manifest.json'))['.'])")+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"; fi
       - id: meta
         uses: docker/metadata-action@v5
         with:

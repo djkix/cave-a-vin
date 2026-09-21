@@ -54,6 +54,14 @@ occuper la file. Au démarrage, le worker remet en file les photos en attente qu
 Redis aurait oubliées : une photo reçue n'est jamais perdue, même après un
 redémarrage de la pile.
 
+**Version affichée en permanence.** Le numéro de version est visible en haut à
+droite de chaque écran, et sur l'écran de connexion avant même de s'identifier —
+indispensable dans une PWA installée, où aucune barre d'adresse ne dit ce qui
+tourne. Une image publiée affiche son numéro (`1.0.0`) ; une image `latest`
+construite depuis `main` affiche ce numéro suivi de l'empreinte du commit
+(`1.0.0+ab12cd3`), pour ne jamais faire passer des changements non publiés pour
+la dernière version ; une construction locale affiche `dev`.
+
 **Hors ligne.** La cave est souvent un sous-sol sans réseau : les photos sont
 mises en file dans le navigateur (20 photos ou 50 Mo maximum) et envoyées dès que
 l'application est rouverte avec du réseau. Un compteur « N photos en attente »
@@ -362,6 +370,9 @@ que Redis a oubliées, un bandeau compte les photos en attente avec le motif du
 dernier report, et l'écran d'entrée unitaire n'attend plus indéfiniment. La
 migration `20260925000000_photo_deferred_retry` récupère les photos déjà
 abandonnées à tort.
+
+**Version affichée en permanence** en haut à droite de chaque écran et sur
+l'écran de connexion, avec l'empreinte du commit pour une image `latest`.
 
 ### 1.0.0 — 21 septembre 2026
 
