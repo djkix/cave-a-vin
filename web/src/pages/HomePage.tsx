@@ -27,7 +27,7 @@ export function HomePage() {
           </button>
         </section>
         <Link to="/entree/campagne" className="btn btn--outline">
-          Mode campagne (reprise de l'existant)
+          Mode campagne (reprise de la cave)
         </Link>
       </main>
       <BottomNav />

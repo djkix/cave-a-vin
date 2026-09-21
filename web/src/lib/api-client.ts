@@ -42,7 +42,7 @@ export interface WineExtraction {
   vintage: ExtractedField<number>; color: ExtractedField<WineColor>; formatCl: ExtractedField<number>;
   bottlesPerCase: ExtractedField<number>; globalConfidence: number;
 }
-export interface PhotoDto { id: string; status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED'; rawExtraction?: unknown; errorMessage?: string | null; createdAt: string }
+export interface PhotoDto { id: string; status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED'; rawExtraction?: unknown; extraction?: WineExtraction | null; errorMessage?: string | null; createdAt: string }
 export interface WineDraft { producer: string; cuvee?: string | null; appellationRaw: string; vintage?: number | null; color: WineColor; formatCl: number }
 export interface CreateMovementInput { idempotencyKey: string; photoId?: string | null; wine: WineDraft; quantity: number; priceUnitCents?: number | null; note?: string | null }
 export interface MovementResult { movement: { id: string; delta: number; type: string; occurredAt: string }; wine: WineDraft & { id: string }; stock: number; created: boolean }
@@ -56,3 +56,8 @@ export function uploadPhoto(file: File | Blob) {
 export const getPhoto = (id: string) => apiFetch<PhotoDto>(`/photos/${id}`);
 export const createMovement = (input: CreateMovementInput) =>
   apiFetch<MovementResult>('/movements', { method: 'POST', body: JSON.stringify(input) });
+
+export const getPendingReviewPhotos = () => apiFetch<PhotoDto[]>('/photos/pending-review');
+export type BulkResult = Array<{ ok: true; idempotencyKey: string; result: MovementResult } | { ok: false; idempotencyKey: string; error: string }>;
+export const createMovementsBulk = (items: CreateMovementInput[]) =>
+  apiFetch<BulkResult>('/movements/bulk', { method: 'POST', body: JSON.stringify(items) });

@@ -4,6 +4,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
+import { parseExtraction } from '../vision/extraction-schema';
 import { PhotosService } from './photos.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -24,8 +25,9 @@ export class PhotosController {
   }
 
   @Get('pending-review')
-  pendingReview() {
-    return this.photos.listPendingReview();
+  async pendingReview() {
+    const photos = await this.photos.listPendingReview();
+    return photos.map((p) => ({ ...p, extraction: p.rawExtraction ? parseExtraction(p.rawExtraction) : null }));
   }
 
   @Get(':id')

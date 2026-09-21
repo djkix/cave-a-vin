@@ -1,5 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from './components/RequireAuth';
+import { CampagneCapturePage } from './pages/CampagneCapturePage';
+import { CampagneReviewPage } from './pages/CampagneReviewPage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
 import { HomePage } from './pages/HomePage';
@@ -12,6 +14,8 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <HomePage /> },
       { path: '/entree', element: <EntreeCapturePage /> },
+      { path: '/entree/campagne', element: <CampagneCapturePage /> },
+      { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
       { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
     ],
   },
