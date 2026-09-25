@@ -11,8 +11,28 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## Non publié
 
+### Corrections
+
+- **La sauvegarde de la base n'avait jamais tourné en production.** Le service
+  `db-backup` montait `./ops/pg_backup.sh` depuis l'hôte, alors que la stack est
+  créée dans Dockge à partir du seul `docker-compose.yml`, sans cloner le dépôt.
+  Docker a donc créé un dossier vide à la place du script ; `/bin/sh` n'y
+  exécutait rien, sortait avec le code 0, et `restart: unless-stopped` relançait
+  le conteneur en boucle — près de 6 000 redémarrages, sans un seul dump. Le
+  script est désormais écrit dans le YAML lui-même, la stack n'a plus besoin
+  d'aucun fichier du dépôt, et le conteneur annonce son réglage au démarrage puis
+  chaque dump écrit dans ses logs.
+- **Documentation de déploiement alignée sur Dockge** : création de la stack par
+  collage du YAML (ou téléchargement du seul fichier), chemin
+  `/opt/stacks/cave-a-vin`, mise à jour sans `git pull`, et commande de
+  vérification de la sauvegarde.
+
 ### Intégration continue
 
+- **Stack autonome vérifiée à chaque commit** : un job démarre `postgres` et
+  `db-backup` dans un dossier qui ne contient que le `docker-compose.yml` et le
+  `.env`, comme Dockge, et exige un vrai dump PostgreSQL et un conteneur toujours
+  vivant sans redémarrage. Ce job échouait contre l'ancien YAML.
 - **Publication des images fiabilisée** : la référence Git fait désormais partie
   du groupe de concurrence de la construction des images. Sans cela, la
   construction de l'image taguée d'une publication et celle de `latest` sur

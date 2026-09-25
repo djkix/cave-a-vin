@@ -118,14 +118,28 @@ Une VM ou un LXC avec 2 vCPU, 4 Go de RAM et 40 Go de disque suffit. Docker et l
 plugin Compose installés ; le Nginx Proxy Manager existant doit pouvoir joindre
 cette machine sur le réseau local.
 
-### 2. Cloner le dépôt
+### 2. Créer la stack
+
+La stack est **autonome** : le `docker-compose.yml` et son `.env` suffisent,
+aucun autre fichier du dépôt n'est nécessaire sur l'hôte (les images portent le
+code, et le script de sauvegarde est écrit dans le YAML lui-même). L'intégration
+continue le vérifie à chaque commit en démarrant la stack dans un dossier qui ne
+contient que ces deux fichiers.
+
+**Avec Dockge** (le cas de ce serveur) : créer une stack `cave-a-vin`, coller le
+contenu de [`docker-compose.yml`](docker-compose.yml) dans l'éditeur et celui du
+`.env` (étape 4) dans le panneau des variables. Dockge range la stack dans
+`/opt/stacks/cave-a-vin/`.
+
+**En ligne de commande**, l'équivalent :
 
 ```bash
-git clone https://github.com/djkix/cave-a-vin.git /opt/cave-a-vin
+mkdir -p /opt/stacks/cave-a-vin && cd /opt/stacks/cave-a-vin
+curl -fsSLO https://raw.githubusercontent.com/djkix/cave-a-vin/main/docker-compose.yml
+curl -fsSL -o .env https://raw.githubusercontent.com/djkix/cave-a-vin/main/.env.example
 ```
 
-Le dépôt doit être présent sur l'hôte : Compose monte `./ops/pg_backup.sh` et
-écrit les sauvegardes dans `./backups`.
+Les sauvegardes sont écrites dans `./backups`, à côté du YAML.
 
 ### 3. Créer le client OAuth Google
 
@@ -151,7 +165,7 @@ L'export étant un simple téléchargement, l'application n'a besoin d'aucun acc
 ### 4. Renseigner le `.env`
 
 ```bash
-cp /opt/cave-a-vin/.env.example /opt/cave-a-vin/.env
+cd /opt/stacks/cave-a-vin && nano .env
 ```
 
 Générer les deux secrets :
@@ -193,19 +207,22 @@ echo <PAT> | docker login ghcr.io -u djkix --password-stdin
 ```
 
 ```bash
-cd /opt/cave-a-vin && docker compose pull
+cd /opt/stacks/cave-a-vin && docker compose pull
 ```
 
-… soit construire les images sur place, ce qui évite toute authentification :
+… soit construire les images sur place, ce qui évite toute authentification.
+C'est le seul cas où le dépôt complet est nécessaire sur l'hôte, puisque la
+construction part des sources :
 
 ```bash
-cd /opt/cave-a-vin && docker compose build
+git clone https://github.com/djkix/cave-a-vin.git /opt/stacks/cave-a-vin-src
+cd /opt/stacks/cave-a-vin-src && docker compose build
 ```
 
 ### 6. Démarrer
 
 ```bash
-cd /opt/cave-a-vin && docker compose up -d
+cd /opt/stacks/cave-a-vin && docker compose up -d
 ```
 
 Le conteneur `api` applique les migrations Prisma puis charge le référentiel des
@@ -273,7 +290,7 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
 Les images sont republiées automatiquement à chaque fusion sur `main`.
 
 ```bash
-cd /opt/cave-a-vin && git pull && docker compose pull && docker compose up -d
+cd /opt/stacks/cave-a-vin && docker compose pull && docker compose up -d
 ```
 
 Si les images sont construites localement, remplacer `docker compose pull` par
@@ -289,8 +306,17 @@ fusionner la demande de version proposée par release-please puis renseigner
 complet. Les dumps utilisent `--clean --if-exists`, ils se restaurent par-dessus
 un schéma existant.
 
+Pour vérifier que la sauvegarde tourne vraiment — le conteneur annonce son
+réglage au démarrage puis chaque dump écrit :
+
 ```bash
-cd /opt/cave-a-vin && gunzip -c backups/cave-<date>.sql.gz | docker compose exec -T postgres psql -U cave -d cave
+cd /opt/stacks/cave-a-vin && docker compose logs db-backup --tail=5 && ls -la backups/
+```
+
+Restauration :
+
+```bash
+cd /opt/stacks/cave-a-vin && gunzip -c backups/cave-<date>.sql.gz | docker compose exec -T postgres psql -U cave -d cave
 ```
 
 Les photos vivent dans le volume `photo_data` : à synchroniser vers le NAS chaque
@@ -355,7 +381,18 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
 ## Journal des modifications
 
 Le détail par version, avec le lien vers chaque commit, est dans
-[`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
+[`CHANGELOG.md`](CHANGELOG.md) ; voici ce qui attend publication, puis les
+versions publiées.
+
+### Non publié
+
+**La sauvegarde de la base tourne enfin.** Le service `db-backup` dépendait d'un
+script du dépôt monté depuis l'hôte, absent d'une stack créée dans Dockge : il
+redémarrait en boucle sans jamais produire de dump. Le script est désormais écrit
+dans le `docker-compose.yml`, la stack est autonome, et l'intégration continue
+le vérifie à chaque commit en exigeant un vrai dump. La documentation de
+déploiement décrit maintenant la création par Dockge. La construction des images
+d'une publication ne peut plus être annulée par un push concurrent.
 
 ### 1.1.0 — 21 septembre 2026
 

@@ -85,9 +85,46 @@ services:
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
     volumes:
-      - ./ops/pg_backup.sh:/usr/local/bin/pg_backup.sh:ro
       - ${BACKUP_DIR:-./backups}:/backups
-    entrypoint: ["/bin/sh", "/usr/local/bin/pg_backup.sh"]
+    # Le script est écrit ici même, et non monté depuis le dépôt : Dockge crée la
+    # stack à partir de ce seul fichier, sans cloner le dépôt. Un fichier monté
+    # absent de l'hôte devient un dossier vide dans le conteneur, `sh` n'y
+    # exécute rien, sort avec le code 0, et la sauvegarde ne tourne jamais — ce
+    # qui s'est produit en production. Les `$$` sont des `$` échappés pour
+    # Docker Compose, qui interpréterait sinon les variables à sa place.
+    #
+    # Dump quotidien, jamais un fichier tronqué : le nom définitif n'apparaît
+    # qu'après un pg_dump ET un gzip réussis. Le dump est fait avec --clean
+    # --if-exists, il se restaure donc par-dessus un schéma existant.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /backups
+        echo "sauvegarde : un dump toutes les $${BACKUP_INTERVAL_SECONDS} s, conservation $${BACKUP_RETENTION_DAYS} jours"
+        while true; do
+          ts=$$(date +%Y%m%d-%H%M%S)
+          raw="/backups/cave-$${ts}.sql.part"
+          tmp="/backups/cave-$${ts}.sql.gz.tmp"
+          final="/backups/cave-$${ts}.sql.gz"
+          # busybox ash n'a pas PIPESTATUS : on dumpe d'abord, on compresse
+          # ensuite, afin de tester chaque code de retour séparément.
+          if pg_dump --clean --if-exists > "$$raw"; then
+            if gzip -c "$$raw" > "$$tmp"; then
+              rm -f "$$raw"
+              mv "$$tmp" "$$final"
+              echo "sauvegarde écrite : $$final"
+            else
+              rm -f "$$raw" "$$tmp"
+              echo "sauvegarde échouée : compression impossible" >&2
+            fi
+          else
+            rm -f "$$raw"
+            echo "sauvegarde échouée : pg_dump en erreur" >&2
+          fi
+          find /backups -name 'cave-*.sql.gz' -mtime "+$${BACKUP_RETENTION_DAYS}" -delete
+          sleep "$${BACKUP_INTERVAL_SECONDS}"
+        done
     depends_on:
       postgres: { condition: service_healthy }
     networks: [internal]
