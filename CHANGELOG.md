@@ -41,6 +41,23 @@ tout premiers lots sont en anglais ; les suivants sont en français.
   laissé l'image `cave-a-vin-web:1.1.0` manquante à la publication de la 1.1.0
   (l'api, elle, était déjà publiée) ; elle a été republiée à la main.
 
+## [1.1.1](https://github.com/djkix/cave-a-vin/compare/v1.1.0...v1.1.1) (2026-09-25)
+
+
+### Corrections
+
+* **sauvegarde:** stack autonome, sans fichier du dépôt à côté du YAML ([#4](https://github.com/djkix/cave-a-vin/issues/4)) ([1a18c88](https://github.com/djkix/cave-a-vin/commit/1a18c886d938d30c455a8f0e9d053aedbd805776))
+
+
+### Documentation
+
+* une seule section 1.1.0, résumé rédigé puis détail par commit ([994f6da](https://github.com/djkix/cave-a-vin/commit/994f6daea71c398efe2b69696840b02c502a7cd0))
+
+
+### Intégration continue
+
+* isoler par référence la file de construction des images ([e450cd9](https://github.com/djkix/cave-a-vin/commit/e450cd9ea883c777bc590aa121efe7271319e01c))
+
 ## [1.1.0](https://github.com/djkix/cave-a-vin/compare/v1.0.0...v1.1.0) (2026-09-21)
 
 ### Résumé
