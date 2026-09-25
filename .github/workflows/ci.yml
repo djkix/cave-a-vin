@@ -50,3 +50,39 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # Dockge crée une stack à partir du seul docker-compose.yml et de son .env,
+  # sans cloner le dépôt. Ce job reproduit exactement cette situation : si un
+  # service dépend d'un fichier du dépôt monté depuis l'hôte, Docker monte un
+  # dossier vide à la place et le service échoue en silence — c'est ainsi que la
+  # sauvegarde n'a jamais tourné en production, en redémarrant en boucle avec le
+  # code 0. Le job exige donc un vrai dump, pas seulement un conteneur démarré.
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stack autonome — sauvegarde réelle sans aucun fichier du dépôt
+        run: |
+          stack="$RUNNER_TEMP/stack"
+          mkdir -p "$stack"
+          cp docker-compose.yml "$stack/"
+          cp .env.example "$stack/.env"
+          cd "$stack"
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-password/' .env
+          docker compose config -q
+          docker compose up -d postgres db-backup
+          for i in $(seq 1 45); do
+            ls backups/cave-*.sql.gz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker compose logs db-backup
+          ls -la backups/
+          dump=$(ls backups/cave-*.sql.gz | head -1)
+          gunzip -c "$dump" | grep -q "PostgreSQL database dump"
+          # Toujours vivant après le premier dump : le script attend l'intervalle
+          # suivant au lieu de sortir (une sortie relancerait la boucle).
+          test "$(docker compose ps db-backup --format '{{.State}}')" = running
+          test "$(docker inspect --format '{{.RestartCount}}' "$(docker compose ps -q db-backup)")" = 0
+      - if: always()
+        run: cd "$RUNNER_TEMP/stack" && docker compose down -v
