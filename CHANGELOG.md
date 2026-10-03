@@ -9,7 +9,15 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
-## Non publié
+## [1.1.1](https://github.com/djkix/cave-a-vin/compare/v1.1.0...v1.1.1) (2026-10-03)
+
+### Résumé
+
+Version corrective. La sauvegarde de la base n'avait jamais tourné en
+production : la stack, créée dans Dockge à partir du seul YAML, montait un
+script absent de l'hôte, et le conteneur redémarrait en boucle sans produire de
+dump. La stack est désormais autonome et l'intégration continue le vérifie à
+chaque commit. La publication des images est aussi fiabilisée.
 
 ### Corrections
 
@@ -41,8 +49,7 @@ tout premiers lots sont en anglais ; les suivants sont en français.
   laissé l'image `cave-a-vin-web:1.1.0` manquante à la publication de la 1.1.0
   (l'api, elle, était déjà publiée) ; elle a été republiée à la main.
 
-## [1.1.1](https://github.com/djkix/cave-a-vin/compare/v1.1.0...v1.1.1) (2026-09-25)
-
+### Détail par commit
 
 ### Corrections
 

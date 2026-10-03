@@ -381,10 +381,12 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
 ## Journal des modifications
 
 Le détail par version, avec le lien vers chaque commit, est dans
-[`CHANGELOG.md`](CHANGELOG.md) ; voici ce qui attend publication, puis les
-versions publiées.
+[`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
-### Non publié
+### 1.1.1 — 3 octobre 2026
+
+Publiée ([v1.1.1](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.1)),
+images `ghcr.io/djkix/cave-a-vin-api:1.1.1` et `-web:1.1.1`.
 
 **La sauvegarde de la base tourne enfin.** Le service `db-backup` dépendait d'un
 script du dépôt monté depuis l'hôte, absent d'une stack créée dans Dockge : il
