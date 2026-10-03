@@ -11,6 +11,17 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.1.2](https://github.com/djkix/cave-a-vin/compare/v1.1.1...v1.1.2) (2026-10-03)
 
+### Résumé
+
+Version de documentation uniquement, sans changement de code : réunion des
+sections du changelog de la 1.1.1. Elle a mis en évidence une boucle — chaque
+mise à jour de la documentation ouvrait une nouvelle demande de version vide.
+Depuis, seuls les commits de fonctionnalité (`feat`), de correction (`fix`) et
+de performance (`perf`) déclenchent une version ; la documentation,
+l'intégration continue et la maintenance sont décrites dans le résumé rédigé
+quand elles comptent.
+
+### Détail par commit
 
 ### Documentation
 

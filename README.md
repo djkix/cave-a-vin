@@ -383,6 +383,13 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.1.2 — 3 octobre 2026
+
+Version de documentation uniquement ([v1.1.2](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.2)),
+sans changement de code. Désormais, seuls les commits de fonctionnalité, de
+correction et de performance déclenchent une nouvelle version : la mise à jour
+de la documentation n'ouvre plus de version vide.
+
 ### 1.1.1 — 3 octobre 2026
 
 Publiée ([v1.1.1](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.1)),
