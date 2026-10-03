@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.1.2](https://github.com/djkix/cave-a-vin/compare/v1.1.1...v1.1.2) (2026-10-03)
+
+
+### Documentation
+
+* une seule section 1.1.1, résumé rédigé puis détail par commit ([582a2ec](https://github.com/djkix/cave-a-vin/commit/582a2eca5a801b9dcc6f0486b088ed8662e3bf8a))
+
 ## [1.1.1](https://github.com/djkix/cave-a-vin/compare/v1.1.0...v1.1.1) (2026-10-03)
 
 ### Résumé
