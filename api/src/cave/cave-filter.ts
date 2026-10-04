@@ -19,7 +19,7 @@ export interface CaveFilter {
 }
 
 /** Tous les mots cherchés doivent apparaître, sans accents ni casse, dans producteur, cuvée ou appellation. */
-export function filterCave(rows: CaveRow[], filter: CaveFilter): CaveRow[] {
+export function filterCave<T extends CaveRow>(rows: T[], filter: CaveFilter): T[] {
   const words = normalizeLabel(filter.q ?? '').split(' ').filter(Boolean);
   return rows.filter((r) => {
     if (!filter.includeEmpty && r.quantity <= 0) return false;

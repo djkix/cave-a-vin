@@ -9,6 +9,42 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## Non publié
+
+### Résumé
+
+Le lot 2b estime l'apogée de chaque vin millésimé par des règles — garde de
+l'appellation, cas des rosés, ajustements par appellation et par couleur,
+qualité du millésime — recalculées à chaque lecture, jamais stockées. Une
+correction manuelle par vin reste toujours prioritaire.
+
+### Fonctionnalités
+
+- **Estimation par règles** : fourchette `[millésime + garde min × f ;
+  millésime + garde max × f]`, garde choisie par priorité (ajustement
+  appellation + couleur, rosé 1-3 ans, ajustement appellation entière, garde du
+  référentiel), facteur `f` selon la qualité du millésime (grand 1,2, moyen
+  1,0, faible 0,85 ; un millésime non qualifié compte pour moyen).
+- **Fiche vin** : bloc Apogée (fourchette, badge de confiance, statut « Trop
+  jeune », « À boire », « À boire vite » ou « Apogée passée »), message et
+  saisie manuelle proposée quand aucune estimation n'est possible (non
+  millésimé, appellation non reconnue, garde inconnue), *Corriger* (deux
+  années, toujours prioritaire sur les règles) et *Revenir à l'estimation*.
+- **Onglet Cave** : mention courte par ligne (« À boire 2024-2036 », « Trop
+  jeune (2027) », « À boire vite », « Apogée passée »).
+- **Administration** (réservée aux administrateurs) : qualité des millésimes
+  par région, gardes ajustables par appellation (toutes couleurs ou une
+  couleur), retrait possible, effet immédiat sur toutes les fiches ; l'écran
+  des gardes rappelle que les rosés se gardent 1 à 3 ans sauf ajustement
+  « Rosé », et qu'un ajustement « Toutes couleurs » ne s'applique pas à eux.
+- **Export Excel** : colonnes *Apogée min*, *Apogée max*, *Confiance* dans la
+  feuille `Stock`, mise en évidence des lignes dont l'apogée est passée.
+- **Migration** `20261005000000_lot2b_apogee` : tables `vintage_quality` et
+  `guard_override`, avec deux index uniques partiels écrits à la main
+  (`idx_guard_override_all_colors`, `idx_guard_override_color`) pour que le
+  référentiel, rechargé à chaque démarrage de l'api, n'écrase jamais les
+  ajustements de garde.
+
 ## [1.2.0](https://github.com/djkix/cave-a-vin/compare/v1.1.2...v1.2.0) (2026-10-04)
 
 ### Résumé

@@ -6,11 +6,11 @@ tout moment l'état complet de la cave. Application auto-hébergée en Docker,
 utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
-- **État** : lot 0 + lot 1 + lot 2a livrés — socle, entrée de stock par photo
-  (Gemini), mode campagne, file hors ligne, journal et export Excel, onglet
-  Cave, fiche vin et sortie de stock (par la liste ou par photo).
-- **À venir** : estimation de l'apogée (lot 2b), cote iDealwine (lot 2c). Voir
-  `cahier-des-charges.md`.
+- **État** : lot 0, lot 1, lot 2a et lot 2b livrés — socle, entrée de stock par
+  photo (Gemini), mode campagne, file hors ligne, journal et export Excel,
+  onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
+  estimation de l'apogée par règles avec correction manuelle par vin.
+- **À venir** : cote iDealwine (lot 2c). Voir `cahier-des-charges.md`.
 
 ## Sommaire
 
@@ -102,9 +102,34 @@ reste visible.
 annulables en un tap. Une annulation écrit un mouvement inverse : rien n'est
 jamais supprimé, l'historique reste vrai.
 
+**Apogée.** Une fourchette de buvabilité est estimée par règles pour chaque vin
+millésimé, **recalculée à la lecture** (jamais stockée, donc jamais périmée) :
+`[millésime + garde min × f ; millésime + garde max × f]`, où la garde vient,
+par ordre de priorité, d'un ajustement pour l'appellation et la couleur, du cas
+particulier des rosés (1 à 3 ans), d'un ajustement pour l'appellation entière,
+ou de la garde du référentiel ; le facteur `f` vaut 1,2 pour un grand
+millésime, 0,85 pour un millésime faible et **1,0 par défaut** (millésime
+« moyen », tant qu'il n'a pas été qualifié). La fiche vin affiche la fourchette,
+un badge de confiance (*Saisie* en cas de correction manuelle, *Confiance
+moyenne* si le millésime est qualifié, *Confiance faible* sinon) et un statut
+(« Trop jeune », « À boire », « À boire vite », « Apogée passée depuis… ») ;
+quand aucune estimation n'est possible (vin non millésimé, appellation non
+reconnue, garde inconnue), la raison s'affiche avec une saisie manuelle
+proposée. *Corriger* permet à tout compte actif de fixer deux années, qui
+priment alors toujours sur les règles ; *Revenir à l'estimation* efface la
+correction. L'onglet *Cave* porte une mention courte par ligne (« À boire
+2024-2036 », « Trop jeune (2027) », « À boire vite », « Apogée passée »).
+Réservée aux administrateurs, l'**administration des règles** (espace
+Administration) permet de qualifier le millésime d'une région (grand / moyen /
+faible) et d'ajuster la garde d'une appellation (pour toutes les couleurs ou
+une seule) ; les changements s'appliquent immédiatement partout, sur toutes
+les fiches concernées.
+
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`) et un filtre
-optionnel par couleur.
+optionnel par couleur. La feuille `Stock` ajoute *Apogée min*, *Apogée max* et
+*Confiance* après *Millésime* ; une ligne dont l'apogée est déjà passée est
+mise en évidence par une teinte d'alerte.
 
 **Garde-fous.** Stock jamais négatif (contrainte en base), **même sous
 concurrence** : le déclencheur verrouille désormais la ligne du vin avant de
@@ -386,12 +411,12 @@ cd web && npm ci && npm run dev
 Tests : `cd api && npm test` (les suites qui touchent la base s'activent quand
 `DATABASE_URL` est défini) et `cd web && npm test`.
 
-Les trois index uniques partiels (`idx_movement_reverses_id`,
-`idx_movement_photo_in`, `idx_movement_photo_out`) et la fonction de
-déclencheur `check_stock_non_negative` ne sont pas exprimables dans le schéma
-Prisma : créer les futures migrations avec `npx prisma migrate dev
---create-only` et conserver ce SQL écrit à la main, sinon Prisma proposera de
-le supprimer.
+Les index uniques partiels (`idx_movement_reverses_id`,
+`idx_movement_photo_in`, `idx_movement_photo_out`, `idx_guard_override_all_colors`,
+`idx_guard_override_color`) et la fonction de déclencheur
+`check_stock_non_negative` ne sont pas exprimables dans le schéma Prisma :
+créer les futures migrations avec `npx prisma migrate dev --create-only` et
+conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 
 ## Limites
 
@@ -418,7 +443,13 @@ le supprimer.
 - **La reconnaissance ne départage pas seule deux millésimes** quand l'année
   n'est pas lisible sur l'étiquette : la sortie par photo propose alors le
   choix sur vignettes plutôt que de deviner.
-- **Apogée et cote iDealwine** : lot 2b et lot 2c, restent à venir.
+- **Qualité des millésimes non pré-remplie** : tant qu'une région n'a pas été
+  qualifiée depuis l'administration, tous ses millésimes comptent pour
+  « moyen » (facteur 1,0).
+- **Pas d'estimation d'apogée pour les vins non millésimés** : la fiche
+  l'indique et ne propose que la saisie manuelle.
+- **Vue « à boire cette année » et alertes** : lot 3, reste à venir. **Cote
+  iDealwine** : lot 2c, reste à venir.
 - **Après « Annuler »**, le panneau de sortie de la fiche vin reste sur
   « Sortie annulée » jusqu'à ce qu'on quitte la page (pas de retour
   automatique à l'écran de sortie).
@@ -427,6 +458,19 @@ le supprimer.
 
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
+
+### Non publié
+
+**L'apogée : une fourchette de buvabilité estimée par règles, recalculée à
+chaque lecture.** Fiche vin (fourchette, confiance, statut, correction
+manuelle par vin qui prime toujours), mention courte dans l'onglet Cave,
+colonnes *Apogée min*, *Apogée max* et *Confiance* dans l'export Excel (apogées
+passées mises en évidence), administration réservée aux administrateurs pour
+qualifier le millésime d'une région et ajuster la garde d'une appellation
+(l'écran rappelle que les rosés se gardent 1 à 3 ans sauf ajustement « Rosé »,
+qu'un ajustement « Toutes couleurs » ne s'applique pas à eux).
+Migration `20261005000000_lot2b_apogee` (tables `vintage_quality`,
+`guard_override`).
 
 ### 1.2.0 — 4 octobre 2026
 

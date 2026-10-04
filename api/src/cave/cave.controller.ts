@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { manualApogeeSchema } from '../apogee/dto';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { inventorySchema } from '../movements/dto';
 import { MovementsService } from '../movements/movements.service';
@@ -41,5 +42,17 @@ export class CaveController {
   @Get('photos/:id/exit-candidates')
   exitCandidates(@Param('id', ParseUUIDPipe) id: string) {
     return this.cave.exitCandidates(id);
+  }
+
+  @Put('wines/:id/apogee')
+  setApogee(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const parsed = manualApogeeSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
+    return this.cave.setManualApogee(id, parsed.data);
+  }
+
+  @Delete('wines/:id/apogee')
+  clearApogee(@Param('id', ParseUUIDPipe) id: string) {
+    return this.cave.clearManualApogee(id);
   }
 }

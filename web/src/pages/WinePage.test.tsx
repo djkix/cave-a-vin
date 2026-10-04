@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as api from '../lib/api-client';
 import { WinePage } from './WinePage';
 
@@ -125,4 +125,33 @@ it('ne propose pas de sortie pour un vin déjà épuisé', async () => {
   mount();
   await screen.findByRole('heading', { name: /Domaine Tempier/ });
   expect(screen.queryByRole('button', { name: /Sortir/ })).not.toBeInTheDocument();
+});
+
+it('referme la correction d’apogée en cours quand on change de vin', async () => {
+  const apogee: api.Apogee = { min: 2024, max: 2030, confidence: 'FAIBLE', status: 'A_BOIRE', reason: null, source: 'REGLE' };
+  const detailWithApogee = { ...detail, wine: { ...detail.wine, apogee } };
+  const detail2 = { ...detail, wine: { ...detail.wine, id: 'w2', producer: 'Domaine Tempier 2', apogee } };
+  vi.spyOn(api, 'getWine').mockImplementation((id: string) => Promise.resolve(id === 'w2' ? detail2 : detailWithApogee));
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // Vin déjà visité auparavant : ses données sont déjà en cache, donc la fiche
+  // ne repasse pas par l'état de chargement en changeant de vin — exactement
+  // le cas où l'état du formulaire de correction pourrait survivre au bascule.
+  qc.setQueryData(['wine', 'w2'], detail2);
+  render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/cave/w1']}>
+        <Link to="/cave/w2">suivant</Link>
+        <Routes>
+          <Route path="/cave/:wineId" element={<WinePage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Corriger' }));
+  await userEvent.clear(screen.getByLabelText('Année de début'));
+  await userEvent.type(screen.getByLabelText('Année de début'), '2099');
+  expect(screen.getByLabelText('Année de début')).toHaveValue('2099');
+  await userEvent.click(screen.getByRole('link', { name: 'suivant' }));
+  await screen.findByRole('heading', { name: /Domaine Tempier 2/ });
+  expect(screen.queryByLabelText('Année de début')).not.toBeInTheDocument();
 });

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ApogeeBlock } from '../components/ApogeeBlock';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { SortieConfirmation } from '../components/SortieConfirmation';
@@ -79,6 +80,11 @@ export function WinePage() {
             <p className="num" style={{ fontSize: 22, margin: 0 }}>{wine.quantity} en stock</p>
           </div>
         </section>
+
+        {/* Clé distincte de celle de SortieConfirmation : deux enfants du même
+            <main> partageant la même clé troublent la réconciliation de React
+            (avertissement « two children with the same key », rendu dupliqué). */}
+        <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} />
 
         <SortieConfirmation key={wine.id} wine={wine} />
 

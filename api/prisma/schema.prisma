@@ -36,41 +36,48 @@ enum PhotoPurpose {
   EXIT
 }
 
+enum VintageQualityLevel {
+  GRAND
+  MOYEN
+  FAIBLE
+}
+
 enum AccountStatus {
   ACTIVE
   BLOCKED
 }
 
 model Appellation {
-  id            String      @id @default(uuid())
-  canonicalName String      @unique @map("canonical_name")
-  region        String?
-  allowedColors WineColor[] @map("allowed_colors")
-  guardMinYears Int?        @map("guard_min_years")
-  guardMaxYears Int?        @map("guard_max_years")
-  wines         Wine[]
+  id             String          @id @default(uuid())
+  canonicalName  String          @unique @map("canonical_name")
+  region         String?
+  allowedColors  WineColor[]     @map("allowed_colors")
+  guardMinYears  Int?            @map("guard_min_years")
+  guardMaxYears  Int?            @map("guard_max_years")
+  wines          Wine[]
+  guardOverrides GuardOverride[]
 
   @@map("appellation")
 }
 
 model Wine {
-  id             String       @id @default(uuid())
-  matchKey       String       @unique @map("match_key")
-  producer       String
-  cuvee          String?
-  appellationId  String?      @map("appellation_id")
-  appellation    Appellation? @relation(fields: [appellationId], references: [id])
-  appellationRaw String       @map("appellation_raw")
-  vintage        Int?
-  color          WineColor
-  formatCl       Int          @default(75) @map("format_cl")
-  apogeeMin      Int?         @map("apogee_min")
-  apogeeMax      Int?         @map("apogee_max")
-  apogeeSource   String?      @map("apogee_source")
-  idealwineRef   String?      @map("idealwine_ref")
-  referencePhotoId String?    @map("reference_photo_id")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  movements      Movement[]
+  id               String       @id @default(uuid())
+  matchKey         String       @unique @map("match_key")
+  producer         String
+  cuvee            String?
+  appellationId    String?      @map("appellation_id")
+  appellation      Appellation? @relation(fields: [appellationId], references: [id])
+  appellationRaw   String       @map("appellation_raw")
+  vintage          Int?
+  color            WineColor
+  formatCl         Int          @default(75) @map("format_cl")
+  apogeeMin        Int?         @map("apogee_min")
+  apogeeMax        Int?         @map("apogee_max")
+  apogeeSource     String?      @map("apogee_source")
+  idealwineRef     String?      @map("idealwine_ref")
+  referencePhotoId String?      @map("reference_photo_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  movements        Movement[]
 
   @@map("wine")
 }
@@ -94,18 +101,18 @@ model Movement {
 }
 
 model Photo {
-  id            String      @id @default(uuid())
-  contentHash   String      @unique @map("content_hash")
-  storagePath   String      @map("storage_path")
-  mimeType      String      @default("image/jpeg") @map("mime_type")
-  status        PhotoStatus @default(PENDING)
+  id            String       @id @default(uuid())
+  contentHash   String       @unique @map("content_hash")
+  storagePath   String       @map("storage_path")
+  mimeType      String       @default("image/jpeg") @map("mime_type")
+  status        PhotoStatus  @default(PENDING)
   purpose       PhotoPurpose @default(ENTRY)
-  rawExtraction Json?       @map("raw_extraction")
+  rawExtraction Json?        @map("raw_extraction")
   model         String?
-  latencyMs     Int?        @map("latency_ms")
-  costCents     Int?        @map("cost_cents")
-  errorMessage  String?     @map("error_message")
-  createdAt     DateTime    @default(now()) @map("created_at")
+  latencyMs     Int?         @map("latency_ms")
+  costCents     Int?         @map("cost_cents")
+  errorMessage  String?      @map("error_message")
+  createdAt     DateTime     @default(now()) @map("created_at")
   movements     Movement[]
 
   @@map("photo")
@@ -142,4 +149,30 @@ model ExportLog {
   rowCount    Int      @map("row_count")
 
   @@map("export_log")
+}
+
+/// Qualité d'un millésime pour une région. Absent = non qualifié (facteur 1,0).
+model VintageQuality {
+  region    String
+  year      Int
+  quality   VintageQualityLevel
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  @@id([region, year])
+  @@map("vintage_quality")
+}
+
+/// Ajustement de garde posé par un administrateur. Vit hors de la ligne
+/// `appellation`, que le rechargement du référentiel réécrit à chaque démarrage.
+/// `color` vide = toutes couleurs. Unicité par index partiels (migration).
+model GuardOverride {
+  id            String      @id @default(uuid())
+  appellationId String      @map("appellation_id")
+  appellation   Appellation @relation(fields: [appellationId], references: [id], onDelete: Cascade)
+  color         WineColor?
+  guardMinYears Int         @map("guard_min_years")
+  guardMaxYears Int         @map("guard_max_years")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@map("guard_override")
 }
