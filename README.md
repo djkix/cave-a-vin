@@ -459,7 +459,10 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
-### Non publié
+### 1.3.0 — 4 octobre 2026
+
+Publiée ([v1.3.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.3.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.3.0` et `-web:1.3.0`.
 
 **L'apogée : une fourchette de buvabilité estimée par règles, recalculée à
 chaque lecture.** Fiche vin (fourchette, confiance, statut, correction

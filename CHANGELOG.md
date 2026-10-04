@@ -9,7 +9,7 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
-## Non publié
+## [1.3.0](https://github.com/djkix/cave-a-vin/compare/v1.2.0...v1.3.0) (2026-10-04)
 
 ### Résumé
 
@@ -45,8 +45,7 @@ correction manuelle par vin reste toujours prioritaire.
   référentiel, rechargé à chaque démarrage de l'api, n'écrase jamais les
   ajustements de garde.
 
-## [1.3.0](https://github.com/djkix/cave-a-vin/compare/v1.2.0...v1.3.0) (2026-10-04)
-
+### Détail par commit
 
 ### Fonctionnalités
 
