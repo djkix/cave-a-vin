@@ -64,9 +64,10 @@ export interface CreateMovementInput { idempotencyKey: string; photoId?: string 
 export interface MovementResult { movement: { id: string; delta: number; type: string; occurredAt: string }; wine: WineDraft & { id: string }; stock: number; created: boolean }
 export interface PhotoEvent { status: PhotoDto['status']; extraction?: WineExtraction; errorMessage?: string | null }
 
-export function uploadPhoto(file: File | Blob) {
+export function uploadPhoto(file: File | Blob, purpose: 'ENTRY' | 'EXIT' = 'ENTRY') {
   const form = new FormData();
   form.append('file', file, 'photo.jpg');
+  form.append('purpose', purpose);
   return apiFetch<{ id: string; status: string; duplicate: boolean }>('/photos', { method: 'POST', body: form });
 }
 export const getPhoto = (id: string) => apiFetch<PhotoDto>(`/photos/${id}`);
@@ -96,3 +97,37 @@ export function exportUrl(filter: { color?: WineColor; region?: string } = {}) {
   const s = q.toString();
   return `/api/export.xlsx${s ? `?${s}` : ''}`;
 }
+
+export interface CaveRow {
+  id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null;
+  color: WineColor; formatCl: number; referencePhotoId: string | null; quantity: number;
+}
+export function getCave(filter: { q?: string; color?: WineColor; includeEmpty?: boolean }) {
+  const q = new URLSearchParams();
+  if (filter.q) q.set('q', filter.q);
+  if (filter.color) q.set('color', filter.color);
+  if (filter.includeEmpty) q.set('includeEmpty', 'true');
+  const s = q.toString();
+  return apiFetch<CaveRow[]>(`/cave${s ? `?${s}` : ''}`);
+}
+
+export interface WineDetail {
+  wine: CaveRow;
+  movements: Array<{ id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null }>;
+}
+export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
+
+export const createOut = (input: { idempotencyKey: string; wineId: string; quantity: number; photoId?: string | null }) =>
+  apiFetch<MovementResult>('/movements/out', { method: 'POST', body: JSON.stringify(input) });
+
+export interface InventoryResult { movement: { id: string } | null; stock: number; delta: number; created: boolean }
+export const postInventory = (wineId: string, input: { idempotencyKey: string; counted: number }) =>
+  apiFetch<InventoryResult>(`/wines/${wineId}/inventory`, { method: 'POST', body: JSON.stringify(input) });
+
+export interface ExitRead { producer: string | null; cuvee: string | null; appellation: string | null; vintage: number | null }
+export interface ExitCandidate { wine: Omit<CaveRow, 'quantity' | 'referencePhotoId'>; quantity: number; referencePhotoId: string | null; score: number }
+export type ExitCandidatesResponse =
+  | { status: 'PENDING' | 'PROCESSING' }
+  | { status: 'FAILED'; errorMessage: string | null }
+  | { status: 'DONE'; outcome: 'UNIQUE' | 'SEVERAL' | 'NONE'; read: ExitRead; candidates: ExitCandidate[] };
+export const getExitCandidates = (photoId: string) => apiFetch<ExitCandidatesResponse>(`/photos/${photoId}/exit-candidates`);

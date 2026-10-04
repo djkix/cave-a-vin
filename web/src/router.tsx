@@ -3,6 +3,7 @@ import { RequireAuth } from './components/RequireAuth';
 import { AdminPage } from './pages/AdminPage';
 import { CampagneCapturePage } from './pages/CampagneCapturePage';
 import { CampagneReviewPage } from './pages/CampagneReviewPage';
+import { CavePage } from './pages/CavePage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
 import { NotFoundPage, RouteErrorPage } from './pages/ErrorPages';
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
           { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
           { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
           { path: '/journal', element: <JournalPage /> },
+          { path: '/cave', element: <CavePage /> },
           { path: '/admin', element: <AdminPage /> },
           // Derrière RequireAuth : une URL inconnue commence par demander la session,
           // comme n'importe quelle page de l'application.
