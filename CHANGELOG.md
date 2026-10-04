@@ -75,6 +75,30 @@ physique.
   entrée, elle redevient une photo d'entrée (si elle n'a servi à aucun
   mouvement) et apparaît dans la revue groupée au lieu de rester invisible.
 
+## [1.2.0](https://github.com/djkix/cave-a-vin/compare/v1.1.2...v1.2.0) (2026-10-04)
+
+
+### Fonctionnalités
+
+* **cave:** fiche vin, sortie par la liste et inventaire physique ([690fff1](https://github.com/djkix/cave-a-vin/commit/690fff1fdb980f28f75a10b205529a03b0fa70db))
+* **cave:** liste, fiche vin, inventaire et candidats de sortie ([5f78f57](https://github.com/djkix/cave-a-vin/commit/5f78f5712685db7c45e3d3b82bd270e8fa1c5e74))
+* **cave:** onglet Cave avec recherche, filtre et vignettes ([ab8c546](https://github.com/djkix/cave-a-vin/commit/ab8c5465904ddba59b1b87b6a80187d3bd3f2f7b))
+* **photos:** photos de sortie, file courte et tenues hors de la revue ([45f3808](https://github.com/djkix/cave-a-vin/commit/45f3808dff8b227cb9df65f12e677ca803aa8749))
+* **sortie:** classer les vins en stock face à l'étiquette lue ([55c210a](https://github.com/djkix/cave-a-vin/commit/55c210aaf23ec3861f8a92204dc8ff9707786dcc))
+* **sortie:** sortie de stock, inventaire physique et photo de référence ([15bb07f](https://github.com/djkix/cave-a-vin/commit/15bb07f90c0f8d0d5c12b0b954c5ade47fa821e6))
+* **sortie:** sortie par photo avec choix sur vignettes et repli sur la cave ([19b0a53](https://github.com/djkix/cave-a-vin/commit/19b0a536104cc37fddf162df2efe9ddb5d0367f2))
+
+
+### Corrections
+
+* **cave:** conserver le résultat de la sortie après le rafraîchissement du stock ([c38722d](https://github.com/djkix/cave-a-vin/commit/c38722d92f97215597e4f01c54f4254327b627bb))
+* **cave:** couleur affichée par ligne, vignette jamais cassée au chargement ([14a474c](https://github.com/djkix/cave-a-vin/commit/14a474c5c020351d8e430099898c8452eed8ae9f))
+* **photos:** rendre à l'entrée une photo de sortie inutilisée envoyée à nouveau en entrée ([4c63708](https://github.com/djkix/cave-a-vin/commit/4c637082f04308c921c790bc54292e8643db8108))
+* **sortie:** photo réutilisée, « Déjà sortie », résultat figé, format et inventaire borné ([10c1f2a](https://github.com/djkix/cave-a-vin/commit/10c1f2ac84bb44745201727c6c05ae5f8733a348))
+* **sortie:** réessayer l'envoi de la photo et revenir sur le choix du millésime ([4711ecc](https://github.com/djkix/cave-a-vin/commit/4711ecc8f81a921b5e6576b2568b570989015f62))
+* **sortie:** verrou déterministe testé, messages en français, clés protégées ([9976b59](https://github.com/djkix/cave-a-vin/commit/9976b591bdcb002aa309ceef6f0cd22de2350312))
+* **stock:** verrouiller le vin avant de vérifier le stock, une sortie par photo ([33c05d3](https://github.com/djkix/cave-a-vin/commit/33c05d3fb7df19cdbf9e41e871dbc96883efade2))
+
 ## [1.1.2](https://github.com/djkix/cave-a-vin/compare/v1.1.1...v1.1.2) (2026-10-03)
 
 ### Résumé
