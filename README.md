@@ -428,7 +428,10 @@ le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
-### Non publié
+### 1.2.0 — 4 octobre 2026
+
+Publiée ([v1.2.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.2.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.2.0` et `-web:1.2.0`.
 
 **Le lot 2a boucle le cycle du stock : on peut désormais sortir ce qu'on a
 rentré.** Onglet *Cave* (recherche sans accents, filtre couleur, vins

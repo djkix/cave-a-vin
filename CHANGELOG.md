@@ -9,7 +9,7 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
-## Non publié
+## [1.2.0](https://github.com/djkix/cave-a-vin/compare/v1.1.2...v1.2.0) (2026-10-04)
 
 ### Résumé
 
@@ -75,8 +75,7 @@ physique.
   entrée, elle redevient une photo d'entrée (si elle n'a servi à aucun
   mouvement) et apparaît dans la revue groupée au lieu de rester invisible.
 
-## [1.2.0](https://github.com/djkix/cave-a-vin/compare/v1.1.2...v1.2.0) (2026-10-04)
-
+### Détail par commit
 
 ### Fonctionnalités
 
