@@ -51,7 +51,9 @@ export const inventorySchema = z.object({
   counted: z
     .number({ required_error: 'Nombre de bouteilles invalide', invalid_type_error: 'Nombre de bouteilles invalide' })
     .int('Nombre de bouteilles entier attendu')
-    .min(0, 'Le nombre de bouteilles ne peut pas être négatif'),
+    .min(0, 'Le nombre de bouteilles ne peut pas être négatif')
+    // Au-delà, la colonne INTEGER déborde et la base répondrait par une erreur 500.
+    .max(100000, 'Nombre de bouteilles trop élevé'),
 });
 
 export type InventoryInput = z.infer<typeof inventorySchema>;

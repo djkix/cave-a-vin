@@ -64,7 +64,11 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
   if (result) {
     return (
       <section className="card" role="status">
-        <p style={{ margin: 0, fontWeight: 600 }}>Sorti — il en reste {result.stock}</p>
+        {/* created: false — le serveur a rejoué une sortie déjà écrite (double tap,
+            même photo) : rien n'a bougé à l'instant, on ne prétend pas le contraire. */}
+        <p style={{ margin: 0, fontWeight: 600 }}>
+          {result.created ? 'Sorti' : 'Déjà sortie'} — il en reste {result.stock}
+        </p>
         <Button variant="link" onClick={annuler} disabled={busy} aria-label="Annuler la sortie">Annuler</Button>
         {error && <p role="alert" className="text-error">{error}</p>}
       </section>

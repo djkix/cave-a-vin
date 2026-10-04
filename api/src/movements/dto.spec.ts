@@ -46,3 +46,16 @@ describe('inventorySchema', () => {
     expect(messages.join(' ')).not.toMatch(/required/i);
   });
 });
+
+describe('inventorySchema — borne haute', () => {
+  it('refuse en français un compte démesuré qui déborderait la colonne', () => {
+    const result = inventorySchema.safeParse({ idempotencyKey: '11111111-1111-1111-1111-111111111111', counted: 3_000_000_000 });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.map((i) => i.message)).toContain('Nombre de bouteilles trop élevé');
+  });
+
+  it('accepte 100 000 bouteilles', () => {
+    expect(inventorySchema.safeParse({ idempotencyKey: '11111111-1111-1111-1111-111111111111', counted: 100000 }).success).toBe(true);
+  });
+});

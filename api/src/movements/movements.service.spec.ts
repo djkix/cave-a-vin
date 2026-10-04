@@ -326,6 +326,43 @@ describe('MovementsService.createOut', () => {
     expect(second.stock).toBe(5);
   });
 
+  it('refuse en 409 une photo qui a déjà servi à sortir un autre vin, sans débiter', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    h.movements.push({ id: 'm-autre', wineId: 'w2', delta: -1, type: 'OUT', occurredAt: new Date(), photoId: 'p-exit', idempotencyKey: 'o-autre', reversesId: null });
+    await expect(h.service.createOut({ ...out, idempotencyKey: 'o2', photoId: 'p-exit' })).rejects.toThrow(
+      new ConflictException('Cette photo a déjà servi à sortir un autre vin — annulez d’abord cette sortie'),
+    );
+    expect(h.movements.filter((m) => m.wineId === 'w1' && m.type === 'OUT')).toHaveLength(0);
+  });
+
+  it('écrit une nouvelle sortie, sans photo, quand la sortie de cette photo a été annulée (même vin)', async () => {
+    const h = harness();
+    await h.service.createIn(input); // stock 6
+    const first = await h.service.createOut({ ...out, photoId: 'p-exit' }); // 5
+    await h.service.cancel(first.movement.id, 'c1'); // 6
+    const again = await h.service.createOut({ ...out, idempotencyKey: 'o2', photoId: 'p-exit' });
+    expect(again.created).toBe(true);
+    expect(again.movement.id).not.toBe(first.movement.id);
+    expect(again.movement.photoId).toBeNull();
+    expect(again.stock).toBe(5);
+  });
+
+  it('écrit une nouvelle sortie quand la photo avait servi à un autre vin puis été annulée', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    h.movements.push({ id: 'm-autre', wineId: 'w2', delta: -1, type: 'OUT', occurredAt: new Date(), photoId: 'p-exit', idempotencyKey: 'o-autre', reversesId: null });
+    h.movements.push({ id: 'm-annul', wineId: 'w2', delta: 1, type: 'ADJUST', occurredAt: new Date(), photoId: null, idempotencyKey: 'c-autre', reversesId: 'm-autre' });
+    const r = await h.service.createOut({ ...out, idempotencyKey: 'o2', photoId: 'p-exit' });
+    expect(r.created).toBe(true);
+    expect(r.movement).toMatchObject({ wineId: 'w1', type: 'OUT', delta: -1, photoId: null });
+    expect(r.stock).toBe(5);
+    // Un double tap sur cette nouvelle sortie (même clé) la rejoue sans redébiter.
+    const replay = await h.service.createOut({ ...out, idempotencyKey: 'o2', photoId: 'p-exit' });
+    expect(replay.created).toBe(false);
+    expect(replay.stock).toBe(5);
+  });
+
   it('refuse une quantité nulle ou négative', async () => {
     const h = harness();
     await expect(h.service.createOut({ ...out, quantity: 0 })).rejects.toBeInstanceOf(BadRequestException);

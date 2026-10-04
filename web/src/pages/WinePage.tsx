@@ -15,6 +15,8 @@ function plural(n: number) {
   return `${n} bouteille${Math.abs(n) > 1 ? 's' : ''}`;
 }
 
+const MAX_COUNTED = 100_000;
+
 export function WinePage() {
   const { wineId = '' } = useParams();
   const qc = useQueryClient();
@@ -42,7 +44,9 @@ export function WinePage() {
   if (!detail.data) return <TopBar title="Fiche vin" back="/cave" />;
 
   const { wine, movements } = detail.data;
-  const parsed = /^\d+$/.test(counted) ? Number(counted) : null;
+  // Même borne que l'API : au-delà, la colonne INTEGER déborderait.
+  const tooMany = /^\d+$/.test(counted) && Number(counted) > MAX_COUNTED;
+  const parsed = /^\d+$/.test(counted) && !tooMany ? Number(counted) : null;
   const delta = parsed === null ? null : parsed - wine.quantity;
 
   async function saveInventory() {
@@ -90,7 +94,7 @@ export function WinePage() {
                 Bouteilles comptées
                 <input inputMode="numeric" value={counted} onChange={(e) => setCounted(e.target.value.trim())} />
               </label>
-              <p>{delta === null ? 'Saisis un nombre entier' : delta === 0 ? 'Stock déjà juste' : `${delta > 0 ? '+' : '−'}${plural(Math.abs(delta))}`}</p>
+              <p>{tooMany ? 'Nombre de bouteilles trop élevé' : delta === null ? 'Saisis un nombre entier' : delta === 0 ? 'Stock déjà juste' : `${delta > 0 ? '+' : '−'}${plural(Math.abs(delta))}`}</p>
               {inventoryError && <p role="alert" className="text-error">{inventoryError}</p>}
               <Button variant="dark" onClick={saveInventory} disabled={saving || delta === null || delta === 0}>Enregistrer l’inventaire</Button>
               <Button variant="link" onClick={() => setCounting(false)}>Abandonner</Button>

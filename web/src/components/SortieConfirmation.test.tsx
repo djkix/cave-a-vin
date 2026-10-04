@@ -72,3 +72,22 @@ it('annule la sortie depuis le message de résultat', async () => {
   await waitFor(() => expect(cancel).toHaveBeenCalledWith('m1', expect.stringMatching(/^[0-9a-f-]{36}$/)));
   expect(await screen.findByText('Sortie annulée — 3 en stock')).toBeInTheDocument();
 });
+
+it('dit « Déjà sortie » quand le serveur rejoue une sortie existante, et garde Annuler', async () => {
+  vi.spyOn(api, 'createOut').mockResolvedValue({ ...result(2), created: false });
+  mount({ photoId: 'px' });
+  await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
+  expect(await screen.findByText('Déjà sortie — il en reste 2')).toBeInTheDocument();
+  expect(screen.queryByText(/^Sorti —/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Annuler la sortie' })).toBeInTheDocument();
+});
+
+it('affiche le refus d’une photo qui a déjà sorti un autre vin, sans rien annoncer de sorti', async () => {
+  vi.spyOn(api, 'createOut').mockRejectedValue(
+    new api.ApiError(409, 'Cette photo a déjà servi à sortir un autre vin — annulez d’abord cette sortie'),
+  );
+  mount({ photoId: 'px' });
+  await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Cette photo a déjà servi à sortir un autre vin — annulez d’abord cette sortie');
+  expect(screen.queryByText(/^(Sorti|Déjà sortie) —/)).not.toBeInTheDocument();
+});

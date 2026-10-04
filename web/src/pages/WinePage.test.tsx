@@ -63,6 +63,19 @@ it('refuse un compte négatif ou décimal', async () => {
   expect(screen.getByRole('button', { name: 'Enregistrer l’inventaire' })).toBeDisabled();
 });
 
+it('refuse un compte au-delà de 100 000 bouteilles', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+  const inventory = vi.spyOn(api, 'postInventory');
+  mount();
+  await userEvent.click(await screen.findByRole('button', { name: 'Corriger le stock' }));
+  await userEvent.clear(screen.getByLabelText('Bouteilles comptées'));
+  await userEvent.type(screen.getByLabelText('Bouteilles comptées'), '100001');
+  expect(screen.getByText('Nombre de bouteilles trop élevé')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Enregistrer l’inventaire' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’inventaire' }));
+  expect(inventory).not.toHaveBeenCalled();
+});
+
 it('montre « Vin introuvable » pour un identifiant inconnu', async () => {
   vi.spyOn(api, 'getWine').mockRejectedValue(new api.ApiError(404, 'Vin introuvable'));
   mount();
