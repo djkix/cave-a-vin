@@ -3,12 +3,16 @@ import { RequireAuth } from './components/RequireAuth';
 import { AdminPage } from './pages/AdminPage';
 import { CampagneCapturePage } from './pages/CampagneCapturePage';
 import { CampagneReviewPage } from './pages/CampagneReviewPage';
+import { CavePage } from './pages/CavePage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
 import { NotFoundPage, RouteErrorPage } from './pages/ErrorPages';
 import { HomePage } from './pages/HomePage';
 import { JournalPage } from './pages/JournalPage';
 import { LoginPage } from './pages/LoginPage';
+import { SortieCapturePage } from './pages/SortieCapturePage';
+import { SortieResolutionPage } from './pages/SortieResolutionPage';
+import { WinePage } from './pages/WinePage';
 
 export const router = createBrowserRouter([
   {
@@ -27,6 +31,10 @@ export const router = createBrowserRouter([
           { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
           { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
           { path: '/journal', element: <JournalPage /> },
+          { path: '/cave', element: <CavePage /> },
+          { path: '/cave/:wineId', element: <WinePage /> },
+          { path: '/sortie', element: <SortieCapturePage /> },
+          { path: '/sortie/:photoId', element: <SortieResolutionPage /> },
           { path: '/admin', element: <AdminPage /> },
           // Derrière RequireAuth : une URL inconnue commence par demander la session,
           // comme n'importe quelle page de l'application.

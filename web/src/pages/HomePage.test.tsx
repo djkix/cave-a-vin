@@ -6,7 +6,7 @@ import { HomePage } from './HomePage';
 
 afterEach(() => vi.restoreAllMocks());
 
-it('propose Rentrer et marque Sortir comme bientôt disponible', () => {
+it('propose Rentrer et Sortir', () => {
   vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -16,6 +16,6 @@ it('propose Rentrer et marque Sortir comme bientôt disponible', () => {
     </QueryClientProvider>,
   );
   expect(screen.getByRole('link', { name: /Rentrer du vin/ })).toHaveAttribute('href', '/entree');
-  expect(screen.getByRole('button', { name: /Sortir une bouteille/ })).toBeDisabled();
-  expect(screen.getByText(/Bientôt/)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /Sortir une bouteille/ })).toHaveAttribute('href', '/sortie');
+  expect(screen.queryByText(/Bientôt/)).not.toBeInTheDocument();
 });

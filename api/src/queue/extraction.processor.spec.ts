@@ -63,6 +63,14 @@ describe('ExtractionProcessor.process', () => {
       expect(h.photo.status).toBe('FAILED');
       expect(h.photo.errorMessage).toContain('abandon après 1000 tentatives');
     });
+
+    it('annonce l’abandon d’une photo de sortie après ses deux tentatives', async () => {
+      const h = harness({ visionError: GEMINI_503 });
+      h.photo.purpose = 'EXIT';
+      await expect(h.processor.process('p1', true)).rejects.toBe(GEMINI_503);
+      expect(h.photo.status).toBe('FAILED');
+      expect(h.photo.errorMessage).toContain('abandon après 2 tentatives');
+    });
   });
 
   describe('erreur définitive — échec immédiat pour proposer la saisie manuelle', () => {

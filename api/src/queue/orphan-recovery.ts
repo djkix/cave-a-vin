@@ -10,7 +10,8 @@ const LIVE_STATES = new Set(['waiting', 'delayed', 'active', 'prioritized', 'wai
 
 export interface OrphanRecoveryPrisma {
   photo: {
-    findMany(args: unknown): Promise<{ id: string }[]>;
+    findMany(args: unknown): Promise<{ id: string; purpose?: 'ENTRY' | 'EXIT' }[]>;
+    update(args: unknown): Promise<unknown>;
   };
 }
 
@@ -34,12 +35,18 @@ export async function requeueOrphanPhotos(
 ): Promise<number> {
   const photos = await prisma.photo.findMany({
     where: { status: { in: ['PENDING', 'PROCESSING'] } },
-    select: { id: true },
+    select: { id: true, purpose: true },
     orderBy: { createdAt: 'asc' },
   });
 
   let requeued = 0;
-  for (const { id } of photos) {
+  for (const { id, purpose } of photos) {
+    // Une photo de sortie n'a de valeur que tant que l'utilisateur est devant la
+    // bouteille : après un redémarrage, la sortie s'est faite autrement.
+    if (purpose === 'EXIT') {
+      await prisma.photo.update({ where: { id }, data: { status: 'FAILED', errorMessage: 'Photo de sortie abandonnée au redémarrage' } });
+      continue;
+    }
     const job = await queue.getJob(id);
     if (job) {
       const state = await job.getState();

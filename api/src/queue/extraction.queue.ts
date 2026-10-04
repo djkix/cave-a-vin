@@ -1,4 +1,5 @@
-import { Queue } from 'bullmq';
+import { PhotoPurpose } from '@prisma/client';
+import { JobsOptions, Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { loadEnv } from '../config/env';
 
@@ -38,6 +39,19 @@ const MAX_DELAY_MS = 15 * 60_000;
  */
 export function extractionBackoffDelay(attemptsMade: number): number {
   return Math.min(FIRST_DELAY_MS * 2 ** Math.max(0, attemptsMade - 1), MAX_DELAY_MS);
+}
+
+/**
+ * Une photo de sortie n'est jamais reportée : l'utilisateur est devant la
+ * bouteille et sort par la liste si l'analyse tarde. Deux tentatives rapprochées
+ * couvrent un raté réseau ponctuel ; au-delà, la photo passe en échec et
+ * l'écran bascule sur la recherche dans la cave.
+ */
+export const EXIT_ATTEMPTS = 2;
+export const EXIT_RETRY_DELAY_MS = 3000;
+
+export function jobOptionsFor(purpose: PhotoPurpose): JobsOptions {
+  return purpose === 'EXIT' ? { attempts: EXIT_ATTEMPTS, backoff: { type: 'fixed', delay: EXIT_RETRY_DELAY_MS } } : {};
 }
 
 export function createExtractionQueue(): Queue<ExtractionJobData> {

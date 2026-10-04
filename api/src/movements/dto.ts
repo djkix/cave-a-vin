@@ -27,3 +27,33 @@ export const cancelMovementSchema = z.object({
 });
 
 export type CancelMovementInput = z.infer<typeof cancelMovementSchema>;
+
+export const createOutSchema = z.object({
+  idempotencyKey: z
+    .string({ required_error: 'idempotencyKey invalide', invalid_type_error: 'idempotencyKey invalide' })
+    .uuid('idempotencyKey invalide'),
+  wineId: z
+    .string({ required_error: 'Vin invalide', invalid_type_error: 'Vin invalide' })
+    .uuid('Vin invalide'),
+  quantity: z
+    .number({ required_error: 'La quantité doit être positive', invalid_type_error: 'La quantité doit être positive' })
+    .int('La quantité doit être positive')
+    .positive('La quantité doit être positive'),
+  photoId: z.string({ invalid_type_error: 'Photo invalide' }).uuid('Photo invalide').nullish(),
+});
+
+export type CreateOutInput = z.infer<typeof createOutSchema>;
+
+export const inventorySchema = z.object({
+  idempotencyKey: z
+    .string({ required_error: 'idempotencyKey invalide', invalid_type_error: 'idempotencyKey invalide' })
+    .uuid('idempotencyKey invalide'),
+  counted: z
+    .number({ required_error: 'Nombre de bouteilles invalide', invalid_type_error: 'Nombre de bouteilles invalide' })
+    .int('Nombre de bouteilles entier attendu')
+    .min(0, 'Le nombre de bouteilles ne peut pas être négatif')
+    // Au-delà, la colonne INTEGER déborde et la base répondrait par une erreur 500.
+    .max(100000, 'Nombre de bouteilles trop élevé'),
+});
+
+export type InventoryInput = z.infer<typeof inventorySchema>;

@@ -1,9 +1,18 @@
 import { requeueOrphanPhotos } from './orphan-recovery';
 
-function harness(photos: { id: string }[], jobs: Record<string, { state: string; removable?: boolean }> = {}) {
+function harness(photos: { id: string; purpose?: 'ENTRY' | 'EXIT' }[], jobs: Record<string, { state: string; removable?: boolean }> = {}) {
   const added: string[] = [];
   const removed: string[] = [];
-  const prisma = { photo: { findMany: jest.fn(async () => photos) } };
+  const updated: { id: string; data: any }[] = [];
+  const prisma = {
+    photo: {
+      findMany: jest.fn(async () => photos),
+      update: jest.fn(async ({ where, data }: any) => {
+        updated.push({ id: where.id, data });
+        return {};
+      }),
+    },
+  };
   const queue = {
     getJob: jest.fn(async (id: string) => {
       const job = jobs[id];
@@ -21,7 +30,7 @@ function harness(photos: { id: string }[], jobs: Record<string, { state: string;
       return {} as never;
     }),
   };
-  return { prisma, queue, added, removed };
+  return { prisma, queue, added, removed, updated };
 }
 
 describe('requeueOrphanPhotos', () => {
@@ -34,7 +43,9 @@ describe('requeueOrphanPhotos', () => {
   it('ne cherche que les photos en attente ou en cours', async () => {
     const h = harness([]);
     await requeueOrphanPhotos(h.prisma, h.queue as never);
-    expect(h.prisma.photo.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: { in: ['PENDING', 'PROCESSING'] } } }));
+    expect(h.prisma.photo.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: { in: ['PENDING', 'PROCESSING'] } }, select: { id: true, purpose: true } }),
+    );
   });
 
   it.each(['waiting', 'delayed', 'active', 'prioritized'])('laisse tranquille une photo dont le travail est %s', async (state) => {
@@ -70,5 +81,12 @@ describe('requeueOrphanPhotos', () => {
     const messages: string[] = [];
     expect(await requeueOrphanPhotos(h.prisma, h.queue as never, (m) => messages.push(m))).toBe(0);
     expect(messages).toEqual([]);
+  });
+
+  it('abandonne une photo de sortie restée en attente au lieu de la remettre en file', async () => {
+    const h = harness([{ id: 'p1', purpose: 'EXIT' }, { id: 'p2', purpose: 'ENTRY' }]);
+    expect(await requeueOrphanPhotos(h.prisma, h.queue as never)).toBe(1);
+    expect(h.added).toEqual(['p2']);
+    expect(h.updated).toEqual([{ id: 'p1', data: { status: 'FAILED', errorMessage: 'Photo de sortie abandonnée au redémarrage' } }]);
   });
 });

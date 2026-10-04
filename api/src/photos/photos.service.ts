@@ -1,11 +1,11 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { Photo, Prisma } from '@prisma/client';
+import { Photo, PhotoPurpose, Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
-import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData } from '../queue/extraction.queue';
+import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
 import { ImageNormalizationService } from './image-normalization.service';
 
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
@@ -32,10 +32,10 @@ export class PhotosService {
     @Inject(EXTRACTION_QUEUE_TOKEN) private readonly queue: Pick<Queue<ExtractionJobData>, 'add'>,
   ) {}
 
-  async ingest(input: Buffer, mimeType: string): Promise<{ photo: Photo; duplicate: boolean }> {
+  async ingest(input: Buffer, mimeType: string, purpose: PhotoPurpose = 'ENTRY'): Promise<{ photo: Photo; duplicate: boolean }> {
     const contentHash = createHash('sha256').update(input).digest('hex');
     const existing = await this.prisma.photo.findUnique({ where: { contentHash } });
-    if (existing) return { photo: existing, duplicate: true };
+    if (existing) return { photo: await this.reclaimForEntry(existing, purpose), duplicate: true };
 
     let buffer: Buffer;
     try {
@@ -57,20 +57,20 @@ export class PhotosService {
     let photo: Photo;
     try {
       photo = await this.prisma.photo.create({
-        data: { id, contentHash, storagePath: normalizedPath, mimeType: 'image/jpeg' },
+        data: { id, contentHash, storagePath: normalizedPath, mimeType: 'image/jpeg', purpose },
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         await unlinkIgnoringMissing(originalAbsolutePath);
         await unlinkIgnoringMissing(normalizedAbsolutePath);
         const existingAfterRace = await this.prisma.photo.findUnique({ where: { contentHash } });
-        if (existingAfterRace) return { photo: existingAfterRace, duplicate: true };
+        if (existingAfterRace) return { photo: await this.reclaimForEntry(existingAfterRace, purpose), duplicate: true };
       }
       throw e;
     }
 
     try {
-      await this.enqueueWithTimeout(photo.id);
+      await this.enqueueWithTimeout(photo.id, purpose);
     } catch (e) {
       this.logger.warn(`Mise en file d'attente impossible pour la photo ${photo.id} : ${(e as Error).message}`);
       await this.prisma.photo.delete({ where: { id: photo.id } });
@@ -82,11 +82,33 @@ export class PhotosService {
     return { photo, duplicate: false };
   }
 
-  private async enqueueWithTimeout(photoId: string): Promise<void> {
+  /**
+   * Mêmes octets envoyés en entrée qu'une ancienne photo de sortie restée sans
+   * mouvement : sans cette bascule, la photo garderait purpose = EXIT et
+   * disparaîtrait de la revue groupée comme du bandeau d'attente — une photo
+   * n'est jamais perdue. Une photo de sortie qui a déjà débité le stock reste
+   * une sortie. Si elle n'est pas encore analysée, elle suit le parcours
+   * d'entrée, mais son job garde les options de file de sortie déjà choisies
+   * (deux tentatives, sans report) : c'est acceptable, le cas est rare (mêmes
+   * octets exactement) et ne coûte au pire qu'un report en moins.
+   */
+  private async reclaimForEntry(photo: Photo, purpose: PhotoPurpose): Promise<Photo> {
+    if (purpose !== 'ENTRY' || photo.purpose !== 'EXIT') return photo;
+    // updateMany : la condition « aucun mouvement » est vérifiée par la base au
+    // moment de l'écriture, pas sur la ligne lue un instant plus tôt.
+    const { count } = await this.prisma.photo.updateMany({
+      where: { id: photo.id, purpose: 'EXIT', movements: { none: {} } },
+      data: { purpose: 'ENTRY' },
+    });
+    if (count === 0) return photo;
+    return (await this.prisma.photo.findUnique({ where: { id: photo.id } })) ?? photo;
+  }
+
+  private async enqueueWithTimeout(photoId: string, purpose: PhotoPurpose): Promise<void> {
     let timer!: NodeJS.Timeout;
     try {
       await Promise.race([
-        this.queue.add('extract', { photoId }, { jobId: photoId }),
+        this.queue.add('extract', { photoId }, { jobId: photoId, ...jobOptionsFor(purpose) }),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error('timeout')), ENQUEUE_TIMEOUT_MS);
         }),
@@ -113,7 +135,7 @@ export class PhotosService {
    * analyses terminées) ni dans le journal, et elle passe pour perdue.
    */
   async queueStatus(): Promise<{ waiting: number; oldestWaitingAt: Date | null; lastReason: string | null }> {
-    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] } };
+    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' };
     const [waiting, oldest, lastDeferred] = await Promise.all([
       this.prisma.photo.count({ where }),
       this.prisma.photo.findFirst({ where, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
@@ -128,7 +150,8 @@ export class PhotosService {
 
   listPendingReview(): Promise<Photo[]> {
     return this.prisma.photo.findMany({
-      where: { status: 'DONE', movements: { none: {} } },
+      // Une photo de sortie analysée n'est pas un vin à rentrer.
+      where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} } },
       orderBy: { createdAt: 'asc' },
       // La revue groupée est un écran de téléphone : au-delà de 200 fiches la
       // réponse (extractions JSON incluses) devient inutilisable.

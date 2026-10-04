@@ -2,12 +2,19 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Movement, Prisma, Wine } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WineMatchingService } from '../wines/wine-matching.service';
-import { CreateMovementInput } from './dto';
+import { CreateMovementInput, CreateOutInput, InventoryInput } from './dto';
 
 export interface MovementResult {
   movement: Movement;
   wine: Wine;
   stock: number;
+  created: boolean;
+}
+
+export interface InventoryResult {
+  movement: Movement | null;
+  stock: number;
+  delta: number;
   created: boolean;
 }
 
@@ -54,6 +61,16 @@ export class MovementsService {
           idempotencyKey: input.idempotencyKey,
         },
       });
+      // La première photo d'entrée devient la vignette du vin : c'est elle qui
+      // permet de départager deux millésimes à la sortie.
+      if (input.photoId && !wine.referencePhotoId) {
+        // updateMany (et non update) : la condition referencePhotoId: null est
+        // vérifiée par la base au moment de l'écriture, pas seulement par la
+        // valeur lue en mémoire. Deux premières entrées concurrentes ne gagnent
+        // donc pas toutes les deux — la seconde ne modifie plus aucune ligne.
+        await this.prisma.wine.updateMany({ where: { id: wine.id, referencePhotoId: null }, data: { referencePhotoId: input.photoId } });
+      }
+
       return { movement, wine, stock: await this.stockOf(wine.id), created: true };
     } catch (e) {
       if (isUniqueViolation(e, 'idempotency')) {
@@ -121,6 +138,113 @@ export class MovementsService {
       }
       throw e;
     }
+  }
+
+  async createOut(input: CreateOutInput): Promise<MovementResult> {
+    if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+      throw new BadRequestException('La quantité doit être un entier positif');
+    }
+    const plan = await this.planOut(input);
+    if ('replay' in plan) return plan.replay;
+
+    const wine = await this.prisma.wine.findUnique({ where: { id: input.wineId } });
+    if (!wine) throw new NotFoundException('Vin introuvable');
+
+    try {
+      const movement = await this.prisma.movement.create({
+        data: {
+          wineId: wine.id,
+          delta: -input.quantity,
+          type: 'OUT',
+          photoId: plan.photoId,
+          idempotencyKey: input.idempotencyKey,
+        },
+      });
+      return { movement, wine, stock: await this.stockOf(wine.id), created: true };
+    } catch (e) {
+      // Course perdue contre un double tap ou un second téléphone : la clé ou la
+      // photo a été écrite entre la vérification et l'insertion.
+      // Toute violation d'unicité, sans se fier au nom d'index que Prisma remonte
+      // pour un index partiel écrit à la main : on réévalue avec les mêmes règles
+      // (rejeu, 409 pour un autre vin) maintenant que la ligne gagnante est visible.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const raced = await this.planOut(input);
+        if ('replay' in raced) return raced.replay;
+      }
+      if (e instanceof Error && /aucune bouteille/.test(e.message)) {
+        throw new ConflictException(`Il n’en reste que ${await this.stockOf(wine.id)}`);
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Décide quoi faire d'une demande de sortie avant d'écrire :
+   * - la clé a déjà servi à cette sortie → on la rejoue (double tap, file hors ligne) ;
+   * - la photo a déjà sorti ce même vin, sortie non annulée → on la rejoue ;
+   * - la photo a déjà sorti un AUTRE vin, sortie non annulée → 409 : répondre
+   *   « Sorti » mentirait, aucune bouteille de ce vin-ci n'aurait bougé ;
+   * - la sortie de cette photo a été annulée → nouvelle sortie, écrite sans photo
+   *   car idx_movement_photo_out n'admet qu'une sortie par photo (la clé
+   *   d'idempotence protège toujours contre le double tap).
+   */
+  private async planOut(input: CreateOutInput): Promise<{ replay: MovementResult } | { photoId: string | null }> {
+    const byKey = await this.prisma.movement.findUnique({ where: { idempotencyKey: input.idempotencyKey }, include: { wine: true } });
+    if (byKey) {
+      // La clé appartient déjà à un autre mouvement (une entrée, un inventaire, ou
+      // la sortie d'un autre vin) : la rejouer comme une sortie mentirait au client
+      // en lui disant « Sorti » sans qu'aucune bouteille n'ait bougé.
+      if (byKey.type !== 'OUT' || byKey.wineId !== input.wineId) {
+        throw new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement');
+      }
+      return { replay: await this.asReplay(byKey) };
+    }
+    if (!input.photoId) return { photoId: null };
+
+    const byPhoto = await this.prisma.movement.findFirst({ where: { photoId: input.photoId, type: 'OUT' }, include: { wine: true } });
+    if (!byPhoto) return { photoId: input.photoId };
+    const reversal = await this.prisma.movement.findFirst({ where: { reversesId: byPhoto.id } });
+    if (reversal) return { photoId: null };
+    if (byPhoto.wineId !== input.wineId) {
+      throw new ConflictException('Cette photo a déjà servi à sortir un autre vin — annulez d’abord cette sortie');
+    }
+    return { replay: await this.asReplay(byPhoto) };
+  }
+
+  private async asReplay(found: Movement & { wine: Wine }): Promise<MovementResult> {
+    const { wine, ...movement } = found;
+    return { movement, wine, stock: await this.stockOf(found.wineId), created: false };
+  }
+
+  /**
+   * Inventaire physique : l'utilisateur a compté N bouteilles, l'écart avec le
+   * journal devient un mouvement ADJUST daté. Le verrou sur la ligne du vin
+   * empêche deux inventaires simultanés de calculer leur écart sur le même stock.
+   */
+  async adjustTo(wineId: string, input: InventoryInput): Promise<InventoryResult> {
+    const already = await this.prisma.movement.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+    if (already) {
+      // Même raisonnement que pour les sorties : une clé déjà posée sur un autre
+      // mouvement (ou un inventaire d'un autre vin) ne doit pas être rejouée
+      // comme si l'inventaire avait eu lieu.
+      if (already.type !== 'ADJUST' || already.wineId !== wineId) {
+        throw new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement');
+      }
+      return { movement: already, stock: await this.stockOf(wineId), delta: already.delta, created: false };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM wine WHERE id = ${wineId} FOR UPDATE`;
+      if (locked.length === 0) throw new NotFoundException('Vin introuvable');
+      const [{ quantity }] = await tx.$queryRaw<{ quantity: number }[]>`
+        SELECT COALESCE(SUM(delta), 0)::INTEGER AS quantity FROM movement WHERE wine_id = ${wineId}`;
+      const delta = input.counted - quantity;
+      if (delta === 0) return { movement: null, stock: quantity, delta: 0, created: false };
+      const movement = await tx.movement.create({
+        data: { wineId, delta, type: 'ADJUST', note: `Inventaire : ${input.counted} comptées`, idempotencyKey: input.idempotencyKey },
+      });
+      return { movement, stock: input.counted, delta, created: true };
+    });
   }
 
   recent(limit = 20): Promise<Array<Movement & { wine: Wine }>> {
