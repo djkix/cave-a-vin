@@ -31,6 +31,11 @@ enum PhotoStatus {
   FAILED
 }
 
+enum PhotoPurpose {
+  ENTRY
+  EXIT
+}
+
 enum AccountStatus {
   ACTIVE
   BLOCKED
@@ -94,6 +99,7 @@ model Photo {
   storagePath   String      @map("storage_path")
   mimeType      String      @default("image/jpeg") @map("mime_type")
   status        PhotoStatus @default(PENDING)
+  purpose       PhotoPurpose @default(ENTRY)
   rawExtraction Json?       @map("raw_extraction")
   model         String?
   latencyMs     Int?        @map("latency_ms")
