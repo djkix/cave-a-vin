@@ -46,7 +46,7 @@ export function CavePage() {
                 <span className="list__title" style={{ display: 'block' }}>
                   {w.producer}{w.cuvee ? ` — ${w.cuvee}` : ''} {w.vintage ?? 'NV'}
                 </span>
-                <span className="list__meta">{w.appellationRaw}</span>
+                <span className="list__meta">{w.appellationRaw} · {COLORS.find((c) => c.value === w.color)?.label}</span>
               </span>
               <span className="cave-row__qty num">{w.quantity}</span>
             </Link>

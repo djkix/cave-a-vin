@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as api from '../lib/api-client';
@@ -56,6 +56,14 @@ it('filtre par couleur et montre les épuisés sur demande', async () => {
   await userEvent.selectOptions(screen.getByLabelText('Couleur'), 'BLANC');
   await userEvent.click(screen.getByLabelText('Afficher les vins épuisés'));
   await waitFor(() => expect(getCave).toHaveBeenLastCalledWith({ q: '', color: 'BLANC', includeEmpty: true }));
+});
+
+it('affiche la couleur du vin sur sa ligne', async () => {
+  vi.spyOn(api, 'getCave').mockResolvedValue(rows);
+  mount();
+  await screen.findByText(/Domaine Leflaive/);
+  const row = screen.getByRole('link', { name: /Leflaive/ });
+  expect(within(row).getByText(/Blanc/)).toBeInTheDocument();
 });
 
 it('dit quand la cave est vide', async () => {
