@@ -1,14 +1,16 @@
 import {
-  BadRequestException, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Res, UploadedFile, UseGuards, UseInterceptors,
+  BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
+import { z } from 'zod';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { parseExtraction } from '../vision/extraction-schema';
 import { PhotosService } from './photos.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const purposeSchema = z.enum(['ENTRY', 'EXIT']).default('ENTRY');
 
 @Controller('photos')
 @UseGuards(AuthenticatedGuard)
@@ -23,10 +25,12 @@ export class PhotosController {
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
-  async upload(@UploadedFile() file?: Express.Multer.File) {
+  async upload(@UploadedFile() file?: Express.Multer.File, @Body('purpose') rawPurpose?: string) {
     if (!file) throw new BadRequestException('Fichier « file » manquant');
     if (!ALLOWED.has(file.mimetype)) throw new BadRequestException('Format d’image non pris en charge');
-    const { photo, duplicate } = await this.photos.ingest(file.buffer, file.mimetype);
+    const purpose = purposeSchema.safeParse(rawPurpose ?? undefined);
+    if (!purpose.success) throw new BadRequestException('Destination de photo inconnue');
+    const { photo, duplicate } = await this.photos.ingest(file.buffer, file.mimetype, purpose.data);
     return { id: photo.id, status: photo.status, duplicate };
   }
 

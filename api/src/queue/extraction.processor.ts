@@ -4,7 +4,7 @@ import { UnrecoverableError } from 'bullmq';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
-import { EXTRACTION_ATTEMPTS } from './extraction.queue';
+import { EXIT_ATTEMPTS, EXTRACTION_ATTEMPTS } from './extraction.queue';
 import { deferralReason, isTransientVisionFailure } from './transient-failure';
 import { VisionBudgetService } from './vision-budget.service';
 
@@ -20,7 +20,8 @@ export class ExtractionProcessor {
   ) {}
 
   async process(photoId: string, isLastAttempt = true): Promise<void> {
-    await this.prisma.photo.update({ where: { id: photoId }, data: { status: 'PROCESSING' } });
+    const photo = await this.prisma.photo.update({ where: { id: photoId }, data: { status: 'PROCESSING' } });
+    const attempts = photo.purpose === 'EXIT' ? EXIT_ATTEMPTS : EXTRACTION_ATTEMPTS;
     try {
       await this.budget.assertUnderCap();
       const image = await this.photos.readNormalized(photoId);
@@ -55,7 +56,7 @@ export class ExtractionProcessor {
 
       await this.prisma.photo.update({
         where: { id: photoId },
-        data: { status: 'FAILED', errorMessage: transient ? `${deferralReason(e)} — abandon après ${EXTRACTION_ATTEMPTS} tentatives` : message },
+        data: { status: 'FAILED', errorMessage: transient ? `${deferralReason(e)} — abandon après ${attempts} tentatives` : message },
       });
 
       // Erreur définitive (sortie du modèle inexploitable, clé d'API invalide) :

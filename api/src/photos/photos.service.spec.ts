@@ -14,7 +14,7 @@ function fakePrisma() {
     photo: {
       findUnique: async ({ where }: any) => photos.find((p) => p.contentHash === where.contentHash || p.id === where.id) ?? null,
       create: async ({ data }: any) => {
-        const p = { id: data.id ?? `p${photos.length + 1}`, status: 'PENDING', createdAt: new Date(), ...data };
+        const p = { id: data.id ?? `p${photos.length + 1}`, status: 'PENDING', purpose: 'ENTRY', createdAt: new Date(), ...data };
         photos.push(p);
         return p;
       },
@@ -119,6 +119,20 @@ describe('PhotosService.ingest', () => {
     expect(readdirSync(join(dir, 'original')).some((f) => f.startsWith(deletedId))).toBe(false);
     expect(readdirSync(join(dir, 'normalized')).some((f) => f.startsWith(deletedId))).toBe(false);
   });
+
+  it('met une photo de sortie en file avec la politique courte (deux tentatives, sans report)', async () => {
+    const prisma = fakePrisma();
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
+    const img = await sharp({ create: { width: 30, height: 30, channels: 3, background: '#456' } }).jpeg().toBuffer();
+    const { photo } = await service.ingest(img, 'image/jpeg', 'EXIT');
+    expect(photo.purpose).toBe('EXIT');
+    expect(queue.add).toHaveBeenCalledWith(
+      'extract',
+      { photoId: photo.id },
+      { jobId: photo.id, attempts: 2, backoff: { type: 'fixed', delay: 3000 } },
+    );
+  });
 });
 
 describe('PhotosService.queueStatus', () => {
@@ -152,5 +166,22 @@ describe('PhotosService.queueStatus', () => {
     expect(status.waiting).toBe(2);
     expect(status.oldestWaitingAt).toEqual(old);
     expect(status.lastReason).toContain('saturé');
+  });
+});
+
+describe('PhotosService — photos de sortie tenues à l’écart', () => {
+  it('ne liste dans la revue groupée que les photos d’entrée', async () => {
+    const findMany = jest.fn(async () => []);
+    const service = new PhotosService({ photo: { findMany } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await service.listPendingReview();
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} } } }));
+  });
+
+  it('ne compte dans l’attente que les photos d’entrée', async () => {
+    const count = jest.fn(async () => 0);
+    const findFirst = jest.fn(async () => null);
+    const service = new PhotosService({ photo: { count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await service.queueStatus();
+    expect(count).toHaveBeenCalledWith({ where: { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' } });
   });
 });
