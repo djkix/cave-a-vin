@@ -10,6 +10,7 @@ import { NotFoundPage, RouteErrorPage } from './pages/ErrorPages';
 import { HomePage } from './pages/HomePage';
 import { JournalPage } from './pages/JournalPage';
 import { LoginPage } from './pages/LoginPage';
+import { WinePage } from './pages/WinePage';
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
           { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
           { path: '/journal', element: <JournalPage /> },
           { path: '/cave', element: <CavePage /> },
+          { path: '/cave/:wineId', element: <WinePage /> },
           { path: '/admin', element: <AdminPage /> },
           // Derrière RequireAuth : une URL inconnue commence par demander la session,
           // comme n'importe quelle page de l'application.
