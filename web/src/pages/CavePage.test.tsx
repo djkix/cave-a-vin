@@ -8,7 +8,7 @@ import { CavePage } from './CavePage';
 afterEach(() => vi.restoreAllMocks());
 
 const rows: api.CaveRow[] = [
-  { id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: 'p1', quantity: 3 },
+  { id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: 'p1', quantity: 3, apogee: { min: 2024, max: 2036, confidence: 'FAIBLE', status: 'A_BOIRE', reason: null, source: 'REGLE' } },
   { id: 'w2', producer: 'Domaine Leflaive', cuvee: null, appellationRaw: 'Puligny-Montrachet', vintage: 2020, color: 'BLANC', formatCl: 75, referencePhotoId: null, quantity: 1 },
 ];
 
@@ -64,6 +64,13 @@ it('affiche la couleur du vin sur sa ligne', async () => {
   await screen.findByText(/Domaine Leflaive/);
   const row = screen.getByRole('link', { name: /Leflaive/ });
   expect(within(row).getByText(/Blanc/)).toBeInTheDocument();
+});
+
+it('montre une mention d’apogée sur la ligne', async () => {
+  vi.spyOn(api, 'getCave').mockResolvedValue(rows);
+  mount();
+  const row = await screen.findByRole('link', { name: /Domaine Tempier/ });
+  expect(within(row).getByText('À boire 2024-2036')).toBeInTheDocument();
 });
 
 it('dit quand la cave est vide', async () => {

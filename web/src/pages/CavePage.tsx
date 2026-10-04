@@ -5,6 +5,7 @@ import { BottomNav } from '../components/BottomNav';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
 import { getCave, WineColor } from '../lib/api-client';
+import { apogeeShortLabel } from '../lib/apogee';
 
 const COLORS: Array<{ value: WineColor | ''; label: string }> = [
   { value: '', label: 'Toutes' }, { value: 'ROUGE', label: 'Rouge' }, { value: 'BLANC', label: 'Blanc' },
@@ -47,6 +48,9 @@ export function CavePage() {
                   {w.producer}{w.cuvee ? ` — ${w.cuvee}` : ''} {w.vintage ?? 'NV'}
                 </span>
                 <span className="list__meta">{w.appellationRaw} · {COLORS.find((c) => c.value === w.color)?.label}</span>
+                {w.apogee && apogeeShortLabel(w.apogee) && (
+                  <span className="list__meta" style={{ display: 'block' }}>{apogeeShortLabel(w.apogee)}</span>
+                )}
               </span>
               <span className="cave-row__qty num">{w.quantity}</span>
             </Link>

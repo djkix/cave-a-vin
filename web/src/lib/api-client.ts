@@ -98,9 +98,19 @@ export function exportUrl(filter: { color?: WineColor; region?: string } = {}) {
   return `/api/export.xlsx${s ? `?${s}` : ''}`;
 }
 
+export type ApogeeConfidence = 'SAISIE' | 'MOYENNE' | 'FAIBLE';
+export type ApogeeStatus = 'TROP_JEUNE' | 'A_BOIRE' | 'A_BOIRE_VITE' | 'PASSEE';
+export type ApogeeReason = 'NON_MILLESIME' | 'APPELLATION_INCONNUE' | 'GARDE_INCONNUE';
+export interface Apogee {
+  min: number | null; max: number | null; confidence: ApogeeConfidence | null;
+  status: ApogeeStatus | null; reason: ApogeeReason | null; source: 'MANUEL' | 'REGLE' | null;
+}
+
 export interface CaveRow {
   id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null;
   color: WineColor; formatCl: number; referencePhotoId: string | null; quantity: number;
+  /** Toujours fourni par la liste et la fiche ; absent des candidats de sortie. */
+  apogee?: Apogee;
 }
 export function getCave(filter: { q?: string; color?: WineColor; includeEmpty?: boolean }) {
   const q = new URLSearchParams();
@@ -131,3 +141,7 @@ export type ExitCandidatesResponse =
   | { status: 'FAILED'; errorMessage: string | null }
   | { status: 'DONE'; outcome: 'UNIQUE' | 'SEVERAL' | 'NONE'; read: ExitRead; candidates: ExitCandidate[] };
 export const getExitCandidates = (photoId: string) => apiFetch<ExitCandidatesResponse>(`/photos/${photoId}/exit-candidates`);
+
+export const setApogee = (wineId: string, input: { min: number; max: number }) =>
+  apiFetch<Apogee>(`/wines/${wineId}/apogee`, { method: 'PUT', body: JSON.stringify(input) });
+export const clearApogee = (wineId: string) => apiFetch<Apogee>(`/wines/${wineId}/apogee`, { method: 'DELETE' });
