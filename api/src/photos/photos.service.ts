@@ -35,7 +35,7 @@ export class PhotosService {
   async ingest(input: Buffer, mimeType: string, purpose: PhotoPurpose = 'ENTRY'): Promise<{ photo: Photo; duplicate: boolean }> {
     const contentHash = createHash('sha256').update(input).digest('hex');
     const existing = await this.prisma.photo.findUnique({ where: { contentHash } });
-    if (existing) return { photo: existing, duplicate: true };
+    if (existing) return { photo: await this.reclaimForEntry(existing, purpose), duplicate: true };
 
     let buffer: Buffer;
     try {
@@ -64,7 +64,7 @@ export class PhotosService {
         await unlinkIgnoringMissing(originalAbsolutePath);
         await unlinkIgnoringMissing(normalizedAbsolutePath);
         const existingAfterRace = await this.prisma.photo.findUnique({ where: { contentHash } });
-        if (existingAfterRace) return { photo: existingAfterRace, duplicate: true };
+        if (existingAfterRace) return { photo: await this.reclaimForEntry(existingAfterRace, purpose), duplicate: true };
       }
       throw e;
     }
@@ -80,6 +80,28 @@ export class PhotosService {
     }
 
     return { photo, duplicate: false };
+  }
+
+  /**
+   * Mêmes octets envoyés en entrée qu'une ancienne photo de sortie restée sans
+   * mouvement : sans cette bascule, la photo garderait purpose = EXIT et
+   * disparaîtrait de la revue groupée comme du bandeau d'attente — une photo
+   * n'est jamais perdue. Une photo de sortie qui a déjà débité le stock reste
+   * une sortie. Si elle n'est pas encore analysée, elle suit le parcours
+   * d'entrée, mais son job garde les options de file de sortie déjà choisies
+   * (deux tentatives, sans report) : c'est acceptable, le cas est rare (mêmes
+   * octets exactement) et ne coûte au pire qu'un report en moins.
+   */
+  private async reclaimForEntry(photo: Photo, purpose: PhotoPurpose): Promise<Photo> {
+    if (purpose !== 'ENTRY' || photo.purpose !== 'EXIT') return photo;
+    // updateMany : la condition « aucun mouvement » est vérifiée par la base au
+    // moment de l'écriture, pas sur la ligne lue un instant plus tôt.
+    const { count } = await this.prisma.photo.updateMany({
+      where: { id: photo.id, purpose: 'EXIT', movements: { none: {} } },
+      data: { purpose: 'ENTRY' },
+    });
+    if (count === 0) return photo;
+    return (await this.prisma.photo.findUnique({ where: { id: photo.id } })) ?? photo;
   }
 
   private async enqueueWithTimeout(photoId: string, purpose: PhotoPurpose): Promise<void> {

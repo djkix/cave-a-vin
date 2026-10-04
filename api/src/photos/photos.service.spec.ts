@@ -25,6 +25,11 @@ function fakePrisma() {
         return removed;
       }),
       findMany: async () => photos,
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const hit = photos.filter((p) => p.id === where.id && p.purpose === where.purpose && !p.hasMovement);
+        hit.forEach((p) => Object.assign(p, data));
+        return { count: hit.length };
+      }),
     },
   };
 }
@@ -56,6 +61,30 @@ describe('PhotosService.ingest', () => {
     expect(b.photo.id).toBe(a.photo.id);
     expect(prisma.photos).toHaveLength(1);
     expect(queue.add).toHaveBeenCalledTimes(1);
+  });
+
+  it('rend à l’entrée une photo de sortie sans mouvement quand les mêmes octets arrivent en entrée', async () => {
+    const prisma = fakePrisma();
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
+    const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#222' } }).jpeg().toBuffer();
+    const exit = await service.ingest(img, 'image/jpeg', 'EXIT');
+    const entry = await service.ingest(img, 'image/jpeg', 'ENTRY');
+    expect(entry.duplicate).toBe(true);
+    expect(entry.photo.id).toBe(exit.photo.id);
+    expect(entry.photo.purpose).toBe('ENTRY');
+    expect(prisma.photos[0].purpose).toBe('ENTRY');
+  });
+
+  it('laisse en sortie une photo de sortie qui a déjà servi à un mouvement', async () => {
+    const prisma = fakePrisma();
+    const queue = { add: jest.fn() };
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
+    const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#333' } }).jpeg().toBuffer();
+    await service.ingest(img, 'image/jpeg', 'EXIT');
+    prisma.photos[0].hasMovement = true;
+    const entry = await service.ingest(img, 'image/jpeg', 'ENTRY');
+    expect(entry.photo.purpose).toBe('EXIT');
   });
 
   it('recovers from a concurrent duplicate create (P2002) by cleaning up files and returning the existing row', async () => {
