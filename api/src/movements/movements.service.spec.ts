@@ -5,7 +5,7 @@ import { MovementsService } from './movements.service';
 function harness() {
   const movements: any[] = [];
   const wine: any = { id: 'w1', producer: 'Domaine Test', appellationRaw: 'Bandol', color: 'ROUGE', formatCl: 75, vintage: 2019 };
-  wine.update = jest.fn(async ({ data }: any) => Object.assign(wine, data));
+  wine.updateMany = jest.fn(async ({ data }: any) => Object.assign(wine, data));
   const stock = () => movements.filter((m) => m.wineId === 'w1').reduce((s, m) => s + m.delta, 0);
   const prisma: any = {
     movement: {
@@ -30,7 +30,7 @@ function harness() {
     },
     wine: {
       findUnique: async ({ where }: any) => (where.id === wine.id ? wine : null),
-      update: wine.update,
+      updateMany: wine.updateMany,
     },
     $transaction: async (fn: any) => fn(prisma),
     $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) =>
@@ -379,13 +379,74 @@ describe('MovementsService.createIn — photo de référence', () => {
   it('retient la photo de la première entrée comme photo de référence du vin', async () => {
     const h = harness();
     await h.service.createIn({ ...input, photoId: 'p-in' });
-    expect(h.wine.update).toHaveBeenCalledWith({ where: { id: 'w1' }, data: { referencePhotoId: 'p-in' } });
+    expect(h.wine.updateMany).toHaveBeenCalledWith({
+      where: { id: 'w1', referencePhotoId: null },
+      data: { referencePhotoId: 'p-in' },
+    });
   });
 
   it('ne remplace pas une photo de référence déjà posée', async () => {
     const h = harness();
     (h.wine as any).referencePhotoId = 'p-old';
     await h.service.createIn({ ...input, photoId: 'p-in' });
-    expect(h.wine.update).not.toHaveBeenCalled();
+    expect(h.wine.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('MovementsService.createOut — clé d’idempotence déjà prise par un autre mouvement', () => {
+  const out = { idempotencyKey: 'shared', wineId: 'w1', quantity: 1 };
+
+  it('refuse une clé déjà utilisée par une entrée', async () => {
+    const h = harness();
+    await h.service.createIn({ ...input, idempotencyKey: 'shared' });
+    await expect(h.service.createOut(out)).rejects.toThrow(
+      new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement'),
+    );
+  });
+
+  it('refuse une clé déjà utilisée par la sortie d’un autre vin', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    h.movements.push({
+      id: 'm-other',
+      wineId: 'w2',
+      delta: -1,
+      type: 'OUT',
+      occurredAt: new Date(),
+      photoId: null,
+      idempotencyKey: 'shared',
+      reversesId: null,
+    });
+    await expect(h.service.createOut(out)).rejects.toThrow(
+      new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement'),
+    );
+  });
+});
+
+describe('MovementsService.adjustTo — clé d’idempotence déjà prise par un autre mouvement', () => {
+  it('refuse une clé déjà utilisée par une entrée', async () => {
+    const h = harness();
+    await h.service.createIn({ ...input, idempotencyKey: 'shared' });
+    await expect(h.service.adjustTo('w1', { idempotencyKey: 'shared', counted: 1 })).rejects.toThrow(
+      new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement'),
+    );
+  });
+
+  it('refuse une clé déjà utilisée par l’inventaire d’un autre vin', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    h.movements.push({
+      id: 'm-other',
+      wineId: 'w2',
+      delta: -2,
+      type: 'ADJUST',
+      occurredAt: new Date(),
+      photoId: null,
+      idempotencyKey: 'shared',
+      reversesId: null,
+    });
+    await expect(h.service.adjustTo('w1', { idempotencyKey: 'shared', counted: 1 })).rejects.toThrow(
+      new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement'),
+    );
   });
 });

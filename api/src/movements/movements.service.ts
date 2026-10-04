@@ -64,7 +64,11 @@ export class MovementsService {
       // La première photo d'entrée devient la vignette du vin : c'est elle qui
       // permet de départager deux millésimes à la sortie.
       if (input.photoId && !wine.referencePhotoId) {
-        await this.prisma.wine.update({ where: { id: wine.id }, data: { referencePhotoId: input.photoId } });
+        // updateMany (et non update) : la condition referencePhotoId: null est
+        // vérifiée par la base au moment de l'écriture, pas seulement par la
+        // valeur lue en mémoire. Deux premières entrées concurrentes ne gagnent
+        // donc pas toutes les deux — la seconde ne modifie plus aucune ligne.
+        await this.prisma.wine.updateMany({ where: { id: wine.id, referencePhotoId: null }, data: { referencePhotoId: input.photoId } });
       }
 
       return { movement, wine, stock: await this.stockOf(wine.id), created: true };
@@ -176,6 +180,12 @@ export class MovementsService {
   /** Une même clé, ou une même photo, ne débite qu'une fois : on renvoie la première sortie. */
   private async findOutReplay(input: CreateOutInput): Promise<MovementResult | null> {
     const byKey = await this.prisma.movement.findUnique({ where: { idempotencyKey: input.idempotencyKey }, include: { wine: true } });
+    // La clé appartient déjà à un autre mouvement (une entrée, un inventaire, ou
+    // la sortie d'un autre vin) : la rejouer comme une sortie mentirait au client
+    // en lui disant « Sorti » sans qu'aucune bouteille n'ait bougé.
+    if (byKey && (byKey.type !== 'OUT' || byKey.wineId !== input.wineId)) {
+      throw new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement');
+    }
     const byPhoto =
       byKey ?? (input.photoId ? await this.prisma.movement.findFirst({ where: { photoId: input.photoId, type: 'OUT' }, include: { wine: true } }) : null);
     if (!byPhoto) return null;
@@ -190,7 +200,15 @@ export class MovementsService {
    */
   async adjustTo(wineId: string, input: InventoryInput): Promise<InventoryResult> {
     const already = await this.prisma.movement.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
-    if (already) return { movement: already, stock: await this.stockOf(wineId), delta: already.delta, created: false };
+    if (already) {
+      // Même raisonnement que pour les sorties : une clé déjà posée sur un autre
+      // mouvement (ou un inventaire d'un autre vin) ne doit pas être rejouée
+      // comme si l'inventaire avait eu lieu.
+      if (already.type !== 'ADJUST' || already.wineId !== wineId) {
+        throw new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement');
+      }
+      return { movement: already, stock: await this.stockOf(wineId), delta: already.delta, created: false };
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM wine WHERE id = ${wineId} FOR UPDATE`;
