@@ -8,12 +8,11 @@ import { uploadPhoto } from '../lib/api-client';
 export function SortieCapturePage() {
   const navigate = useNavigate();
   const input = useRef<HTMLInputElement>(null);
+  const lastFile = useRef<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function onFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function send(file: File) {
     setBusy(true);
     setError(null);
     try {
@@ -23,8 +22,19 @@ export function SortieCapturePage() {
       setError(err instanceof Error ? err.message : 'Envoi impossible');
     } finally {
       setBusy(false);
-      e.target.value = '';
     }
+  }
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    lastFile.current = file;
+    await send(file);
+  }
+
+  async function retry() {
+    if (lastFile.current) await send(lastFile.current);
   }
 
   return (
@@ -40,6 +50,7 @@ export function SortieCapturePage() {
         {error && (
           <>
             <p role="alert" className="text-error">{error}</p>
+            <Button variant="dark" onClick={retry} disabled={busy}>Réessayer l’envoi</Button>
             <Link to="/cave" className="btn btn--outline">Chercher dans la cave</Link>
           </>
         )}

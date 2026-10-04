@@ -32,3 +32,18 @@ it('propose la recherche dans la cave quand l’envoi échoue', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Réseau indisponible');
   expect(screen.getByRole('link', { name: 'Chercher dans la cave' })).toHaveAttribute('href', '/cave');
 });
+
+it('réessaie l’envoi de la même photo puis ouvre la résolution', async () => {
+  const file = new File(['x'], 'b.jpg', { type: 'image/jpeg' });
+  const upload = vi
+    .spyOn(api, 'uploadPhoto')
+    .mockRejectedValueOnce(new Error('Réseau indisponible'))
+    .mockResolvedValueOnce({ id: 'p9', status: 'PENDING', duplicate: false });
+  mount();
+  await userEvent.upload(screen.getByLabelText('Photographier l’étiquette'), file);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Réseau indisponible');
+  await userEvent.click(screen.getByRole('button', { name: 'Réessayer l’envoi' }));
+  await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+  expect(upload).toHaveBeenNthCalledWith(2, file, 'EXIT');
+  expect(await screen.findByText('Résolution')).toBeInTheDocument();
+});

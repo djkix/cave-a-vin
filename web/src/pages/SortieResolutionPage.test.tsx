@@ -43,6 +43,20 @@ it('fait choisir le millésime quand plusieurs vins sont proches, puis confirme'
   expect(await screen.findByRole('button', { name: /Sortir 1 bouteille/ })).toBeInTheDocument();
 });
 
+it('permet de revenir sur le choix du millésime après un tapotement sur un mauvais candidat', async () => {
+  vi.spyOn(api, 'getExitCandidates').mockResolvedValue({ status: 'DONE', outcome: 'SEVERAL', read, candidates: [cand('w19', 2019), cand('w20', 2020)] });
+  const createOut = vi.spyOn(api, 'createOut');
+  mount();
+  expect(await screen.findByText('Lequel est-ce ?')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /2020/ }));
+  expect(await screen.findByRole('button', { name: /Sortir 1 bouteille/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Choisir un autre millésime' }));
+  expect(await screen.findByText('Lequel est-ce ?')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /2019/ })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /2020/ })).toBeInTheDocument();
+  expect(createOut).not.toHaveBeenCalled();
+});
+
 it('propose de chercher (recherche pré-remplie) ou de rentrer le vin quand il n’est pas dans la cave', async () => {
   vi.spyOn(api, 'getExitCandidates').mockResolvedValue({ status: 'DONE', outcome: 'NONE', read, candidates: [] });
   mount();

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Button } from '../components/Button';
 import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
@@ -52,7 +53,14 @@ export function SortieResolutionPage() {
       </section>
     );
   } else if (data?.status === 'DONE' && (chosen || data.outcome === 'UNIQUE')) {
-    body = <SortieConfirmation wine={toRow(chosen ?? data.candidates[0])} photoId={photoId} />;
+    body = (
+      <>
+        {chosen && data.outcome === 'SEVERAL' && (
+          <Button variant="link" onClick={() => setChosen(null)}>Choisir un autre millésime</Button>
+        )}
+        <SortieConfirmation wine={toRow(chosen ?? data.candidates[0])} photoId={photoId} />
+      </>
+    );
   } else if (data?.status === 'DONE' && data.outcome === 'SEVERAL') {
     body = (
       <section>
