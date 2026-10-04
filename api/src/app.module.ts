@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module';
 import { AppellationsModule } from './appellations/appellations.module';
+import { ApogeeModule } from './apogee/apogee.module';
 import { AuthModule } from './auth/auth.module';
 import { CaveModule } from './cave/cave.module';
 import { ExportModule } from './export/export.module';
@@ -20,6 +21,7 @@ import { WinesModule } from './wines/wines.module';
     PrismaModule,
     AuthModule,
     AdminModule,
+    ApogeeModule,
     AppellationsModule,
     WinesModule,
     PhotosModule,

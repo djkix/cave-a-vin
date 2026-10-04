@@ -86,6 +86,16 @@ describeIfInfra('api HTTP', () => {
     expect(JSON.stringify(res.body)).not.toContain('googleSub');
   });
 
+  it('lets an admin qualify a vintage, then return it to « non qualifié »', async () => {
+    const put = await agent.put('/api/admin/vintages').send({ region: 'Rhône', year: 2016, quality: 'GRAND' });
+    expect(put.status).toBe(200);
+    const list = await agent.get('/api/admin/vintages');
+    expect(list.body.regions).toContain('Rhône');
+    expect(list.body.qualities).toContainEqual({ region: 'Rhône', year: 2016, quality: 'GRAND' });
+    const del = await agent.delete(`/api/admin/vintages/${encodeURIComponent('Rhône')}/2016`);
+    expect(del.status).toBe(204);
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);
@@ -98,6 +108,11 @@ describeIfInfra('api HTTP', () => {
     await prisma.$executeRaw`UPDATE app_user SET is_admin = false WHERE email = ${email.toLowerCase()}`;
     const res = await agent.get('/api/admin/users');
     expect(res.status).toBe(403);
+  });
+
+  it('refuses the apogee rules to an authenticated but non-admin account', async () => {
+    expect((await agent.put('/api/admin/vintages').send({ region: 'Rhône', year: 2016, quality: 'GRAND' })).status).toBe(403);
+    expect((await agent.get('/api/admin/guards?q=bandol')).status).toBe(403);
   });
 
   // Garder ce cas en dernier : il épuise le quota de connexion locale.
