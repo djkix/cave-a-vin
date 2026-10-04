@@ -34,7 +34,9 @@ correction manuelle par vin reste toujours prioritaire.
   jeune (2027) », « À boire vite », « Apogée passée »).
 - **Administration** (réservée aux administrateurs) : qualité des millésimes
   par région, gardes ajustables par appellation (toutes couleurs ou une
-  couleur), retrait possible, effet immédiat sur toutes les fiches.
+  couleur), retrait possible, effet immédiat sur toutes les fiches ; l'écran
+  des gardes rappelle que les rosés se gardent 1 à 3 ans sauf ajustement
+  « Rosé », et qu'un ajustement « Toutes couleurs » ne s'applique pas à eux.
 - **Export Excel** : colonnes *Apogée min*, *Apogée max*, *Confiance* dans la
   feuille `Stock`, mise en évidence des lignes dont l'apogée est passée.
 - **Migration** `20261005000000_lot2b_apogee` : tables `vintage_quality` et

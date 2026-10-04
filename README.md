@@ -466,7 +466,9 @@ chaque lecture.** Fiche vin (fourchette, confiance, statut, correction
 manuelle par vin qui prime toujours), mention courte dans l'onglet Cave,
 colonnes *Apogée min*, *Apogée max* et *Confiance* dans l'export Excel (apogées
 passées mises en évidence), administration réservée aux administrateurs pour
-qualifier le millésime d'une région et ajuster la garde d'une appellation.
+qualifier le millésime d'une région et ajuster la garde d'une appellation
+(l'écran rappelle que les rosés se gardent 1 à 3 ans sauf ajustement « Rosé »,
+qu'un ajustement « Toutes couleurs » ne s'applique pas à eux).
 Migration `20261005000000_lot2b_apogee` (tables `vintage_quality`,
 `guard_override`).
 
