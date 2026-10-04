@@ -386,10 +386,12 @@ cd web && npm ci && npm run dev
 Tests : `cd api && npm test` (les suites qui touchent la base s'activent quand
 `DATABASE_URL` est défini) et `cd web && npm test`.
 
-Les deux index uniques partiels (`idx_movement_reverses_id`,
-`idx_movement_photo_in`) ne sont pas exprimables dans le schéma Prisma : créer
-les futures migrations avec `npx prisma migrate dev --create-only` et conserver
-le SQL à la main, sinon Prisma proposera de les supprimer.
+Les trois index uniques partiels (`idx_movement_reverses_id`,
+`idx_movement_photo_in`, `idx_movement_photo_out`) et la fonction de
+déclencheur `check_stock_non_negative` ne sont pas exprimables dans le schéma
+Prisma : créer les futures migrations avec `npx prisma migrate dev
+--create-only` et conserver ce SQL écrit à la main, sinon Prisma proposera de
+le supprimer.
 
 ## Limites
 
@@ -436,7 +438,15 @@ restreinte aux vins en stock, avec choix sur vignettes quand plusieurs
 millésimes sont proches et repli sur la cave en cas d'échec ou au bout de
 12 s ; photos de sortie jamais reportées. Correction : le déclencheur « stock
 jamais négatif » verrouille désormais la ligne du vin, deux sorties
-simultanées de la dernière bouteille ne passent plus toutes les deux.
+simultanées de la dernière bouteille ne passent plus toutes les deux. Une
+photo de sortie réutilisée après une annulation sort bien le vin choisi
+ensuite ; réutilisée pour un autre vin sans annulation, elle est refusée en
+clair. Une sortie rejouée par le serveur s'annonce « Déjà sortie — il en reste
+N ». Le résultat et *Annuler* restent affichés après la sortie de la dernière
+bouteille, même au retour sur l'application. Les vignettes de choix affichent
+le format (« 150 cl »), et l'inventaire refuse un compte au-delà de 100 000
+bouteilles. Une photo d'entrée identique à une ancienne photo de sortie
+inutilisée rejoint la revue groupée.
 
 ### 1.1.2 — 3 octobre 2026
 

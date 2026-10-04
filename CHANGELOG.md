@@ -52,6 +52,28 @@ physique.
   verrouillait la ligne du mouvement mais pas celle du vin — deux sorties
   simultanées de la dernière bouteille passaient toutes les deux. Il
   verrouille désormais la ligne du vin avant de vérifier le stock.
+- **Photo de sortie réutilisée** : une photo dont la sortie a été annulée
+  sort désormais vraiment le vin choisi ensuite (même photo, autre
+  millésime) ; auparavant l'écran annonçait « Sorti » sans rien débiter. Une
+  photo qui a déjà sorti un autre vin, sans annulation, est refusée en clair
+  (« Cette photo a déjà servi à sortir un autre vin — annulez d'abord cette
+  sortie »), et « Choisir un autre millésime » disparaît une fois la sortie
+  faite.
+- **« Déjà sortie »** : quand le serveur rejoue une sortie déjà écrite (double
+  tap, même photo), l'écran dit « Déjà sortie — il en reste N » au lieu de
+  « Sorti », et garde *Annuler*.
+- **Résultat conservé après la dernière bouteille** : revenir sur
+  l'application après avoir sorti la dernière bouteille d'un vin reconnu par
+  photo n'efface plus le résultat ni *Annuler* au profit de « Ce vin n'est pas
+  dans la cave ».
+- **Format sur les vignettes** : chaque candidat affiche son format
+  (« 150 cl ») sous le millésime, pour distinguer bouteille et magnum.
+- **Inventaire borné** : un compte au-delà de 100 000 bouteilles est refusé
+  (« Nombre de bouteilles trop élevé ») au lieu de provoquer une erreur
+  serveur.
+- **Photo d'entrée identique à une ancienne photo de sortie** : envoyée en
+  entrée, elle redevient une photo d'entrée (si elle n'a servi à aucun
+  mouvement) et apparaît dans la revue groupée au lieu de rester invisible.
 
 ## [1.1.2](https://github.com/djkix/cave-a-vin/compare/v1.1.1...v1.1.2) (2026-10-03)
 
