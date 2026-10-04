@@ -27,13 +27,14 @@ export function HomePage() {
             </span>
             <Icon name="arrow_forward" />
           </Link>
-          <button type="button" className="action action--out" disabled>
+          <Link to="/sortie" className="action action--out">
             <Icon name="remove_circle_outline" />
             <span className="action__text">
               <strong>Sortir une bouteille</strong>
-              <small>Bientôt disponible (lot 2)</small>
+              <small>Photo de l’étiquette, ou recherche dans la cave</small>
             </span>
-          </button>
+            <Icon name="arrow_forward" />
+          </Link>
         </section>
         <Link to="/entree/campagne" className="btn btn--outline">
           Mode campagne (reprise de la cave)

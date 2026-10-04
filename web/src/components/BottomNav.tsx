@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 const tabs = [
   { to: '/cave', icon: 'shelves', label: 'Cave', soon: false },
   { to: '/entree', icon: 'add_circle', label: 'Entrée', soon: false },
-  { to: '/sortie', icon: 'remove_circle_outline', label: 'Sortie', soon: true },
+  { to: '/sortie', icon: 'remove_circle_outline', label: 'Sortie', soon: false },
   { to: '/journal', icon: 'history_edu', label: 'Journal', soon: false },
 ];
 
