@@ -45,6 +45,24 @@ correction manuelle par vin reste toujours prioritaire.
   référentiel, rechargé à chaque démarrage de l'api, n'écrase jamais les
   ajustements de garde.
 
+## [1.3.0](https://github.com/djkix/cave-a-vin/compare/v1.2.0...v1.3.0) (2026-10-04)
+
+
+### Fonctionnalités
+
+* **apogee:** administrer la qualité des millésimes et les gardes ([151848a](https://github.com/djkix/cave-a-vin/commit/151848a28a7b69f2733d1edf360c16a9b2a31b34))
+* **apogee:** administrer la qualité des millésimes et les gardes ([5d651a1](https://github.com/djkix/cave-a-vin/commit/5d651a10942070e58c600ec678dd9589ad9ca052))
+* **apogee:** apogée dans la liste et la fiche, correction manuelle par vin ([9ecafb8](https://github.com/djkix/cave-a-vin/commit/9ecafb8e6703287ef6c656000834a02a68981b8d))
+* **apogee:** apogée et confiance dans l'export, apogées passées mises en évidence ([aa9e743](https://github.com/djkix/cave-a-vin/commit/aa9e743272368fc046e135034495a4c1fe3b37ce))
+* **apogee:** estimer la fourchette d'apogée par règles ([ac1e55f](https://github.com/djkix/cave-a-vin/commit/ac1e55fe35f006e5cad2bcb80808d25291955945))
+* **apogee:** fourchette, confiance et correction sur la fiche, mention dans la cave ([84160d3](https://github.com/djkix/cave-a-vin/commit/84160d3430b4af99319c76f4a82f93efdac128ff))
+* **apogee:** tables des règles de garde et de qualité des millésimes ([7dbdd3f](https://github.com/djkix/cave-a-vin/commit/7dbdd3fd1006de0bb3d0b3dca4f1d775f7a47749))
+
+
+### Corrections
+
+* **apogee:** corrige cinq points de la revue finale du lot 2b ([f887075](https://github.com/djkix/cave-a-vin/commit/f88707537a7bbe5cc911ace2d4841a4c47424037))
+
 ## [1.2.0](https://github.com/djkix/cave-a-vin/compare/v1.1.2...v1.2.0) (2026-10-04)
 
 ### Résumé
