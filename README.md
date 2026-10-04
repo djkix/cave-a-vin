@@ -6,10 +6,11 @@ tout moment l'état complet de la cave. Application auto-hébergée en Docker,
 utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
-- **État** : lot 0 + lot 1 livrés — socle, entrée de stock par photo (Gemini),
-  mode campagne, file hors ligne, journal et export Excel.
-- **À venir (lot 2)** : sortie de stock par photo, estimation de l'apogée, cote
-  iDealwine. Voir `cahier-des-charges.md`.
+- **État** : lot 0 + lot 1 + lot 2a livrés — socle, entrée de stock par photo
+  (Gemini), mode campagne, file hors ligne, journal et export Excel, onglet
+  Cave, fiche vin et sortie de stock (par la liste ou par photo).
+- **À venir** : estimation de l'apogée (lot 2b), cote iDealwine (lot 2c). Voir
+  `cahier-des-charges.md`.
 
 ## Sommaire
 
@@ -19,7 +20,7 @@ utilisée depuis un téléphone (PWA installable).
 - [Mise à jour](#mise-à-jour)
 - [Sauvegarde et restauration](#sauvegarde-et-restauration)
 - [Développement](#développement)
-- [Limites du lot 1](#limites-du-lot-1)
+- [Limites](#limites)
 - [Journal des modifications](#journal-des-modifications)
 - [Stack technique](#stack-technique)
 
@@ -37,6 +38,36 @@ avant la validation explicite.
 suivant, sans confirmation unitaire. Un écran de revue groupée liste ensuite les
 fiches extraites, les moins fiables en premier, et une seule validation crée tous
 les mouvements.
+
+**La cave et la sortie.** L'onglet *Cave* liste les vins en stock avec
+vignette (photo de l'entrée, ou un pictogramme de bouteille s'il n'y a pas de
+photo ou qu'elle ne charge pas), domaine, cuvée, appellation, millésime,
+couleur et quantité ; la recherche porte sur domaine/cuvée/appellation sans
+tenir compte des accents ni de la casse (« chateauneuf » trouve
+« Châteauneuf-du-Pape »), un filtre par couleur s'ajoute, et les vins épuisés
+restent masqués sauf à cocher « Vins épuisés ». La fiche vin affiche la photo
+de référence (celle de la première entrée), le stock et les 10 derniers
+mouvements ; *Sortir* propose un sélecteur de quantité borné par le stock puis
+confirme « Sorti — il en reste N » (le message survit au rafraîchissement du
+stock, y compris pour la dernière bouteille) ; *Corriger le stock* permet un
+inventaire physique — le nombre compté, l'écart annoncé avant d'enregistrer
+(« −2 bouteilles », « Stock déjà juste »), écrit comme un mouvement `ADJUST`
+daté (« Inventaire : N comptées »). La **sortie par photo** (bouton *Sortir une
+bouteille* sur l'accueil, ou onglet *Sortie*) ne reconnaît que les vins en
+stock : l'étiquette est lue par Gemini puis comparée sur domaine/cuvée/
+appellation, le millésime pesant fortement. Un candidat clair déclenche une
+confirmation ; plusieurs candidats (ou un candidat incertain) affichent 1 à 4
+vignettes avec le millésime en gros, un tap suffit pour choisir, et « Choisir
+un autre millésime » permet de revenir en arrière ; aucun candidat affiche
+« Ce vin n'est pas dans la cave » avec « Chercher dans la cave » (recherche
+pré-remplie avec ce qui a été lu) ou « Rentrer ce vin ». Si l'envoi de la photo
+échoue, « Réessayer l'envoi » renvoie la même photo sans reprendre une capture ;
+si l'analyse échoue d'emblée ou n'a pas abouti au bout de 12 s, l'écran bascule
+sur « Chercher dans la cave ». Rien n'est jamais sorti sans confirmation
+explicite. Les photos de sortie ne sont **jamais reportées** : deux tentatives
+à 3 s d'intervalle puis abandon (l'utilisateur sort par la liste) ; elles
+n'apparaissent ni dans la revue groupée ni dans le bandeau « en attente
+d'analyse », et ne sont pas remises en file au démarrage du worker.
 
 **Analyse différée, jamais bloquante.** L'analyse ne dépend pas de la
 disponibilité de l'API de vision. Dès qu'une photo est reçue, elle est stockée
@@ -75,10 +106,16 @@ jamais supprimé, l'historique reste vrai.
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`) et un filtre
 optionnel par couleur.
 
-**Garde-fous.** Stock jamais négatif (contrainte en base), journal en ajout seul,
+**Garde-fous.** Stock jamais négatif (contrainte en base), **même sous
+concurrence** : le déclencheur verrouille désormais la ligne du vin avant de
+vérifier le stock, pour qu'une sortie simultanée des dernières bouteilles ne
+puisse pas en laisser passer deux à la fois. Journal en ajout seul,
 idempotence de bout en bout (empreinte de contenu par photo, clé d'idempotence par
-mouvement, un seul mouvement d'entrée par photo) et plafond mensuel de dépense
-pour l'API de vision.
+mouvement, un seul mouvement d'entrée par photo **et une seule sortie par
+photo**, une clé d'idempotence déjà utilisée par un autre mouvement est
+refusée plutôt que rejouée comme une sortie), inventaire physique sous verrou
+de ligne (deux inventaires simultanés n'écrivent l'écart qu'une fois), et
+plafond mensuel de dépense pour l'API de vision.
 
 **Comptes et administration.** L'inscription est libre : n'importe quel compte
 Google se connecte et a immédiatement accès complet à l'application. Le
@@ -354,7 +391,7 @@ Les deux index uniques partiels (`idx_movement_reverses_id`,
 les futures migrations avec `npx prisma migrate dev --create-only` et conserver
 le SQL à la main, sinon Prisma proposera de les supprimer.
 
-## Limites du lot 1
+## Limites
 
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
@@ -376,12 +413,30 @@ le SQL à la main, sinon Prisma proposera de les supprimer.
 - **Pas de relance manuelle d'une analyse** : il n'y a pas de bouton
   « réanalyser » sur une photo en échec définitif ; la saisie manuelle prend le
   relais, et reprendre la photo crée simplement une nouvelle entrée.
-- **Sortie de stock par photo, apogée et cote iDealwine** : lot 2.
+- **La reconnaissance ne départage pas seule deux millésimes** quand l'année
+  n'est pas lisible sur l'étiquette : la sortie par photo propose alors le
+  choix sur vignettes plutôt que de deviner.
+- **Apogée et cote iDealwine** : lot 2b et lot 2c, restent à venir.
+- **Après « Annuler »**, le panneau de sortie de la fiche vin reste sur
+  « Sortie annulée » jusqu'à ce qu'on quitte la page (pas de retour
+  automatique à l'écran de sortie).
 
 ## Journal des modifications
 
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
+
+### Non publié
+
+**Le lot 2a boucle le cycle du stock : on peut désormais sortir ce qu'on a
+rentré.** Onglet *Cave* (recherche sans accents, filtre couleur, vins
+épuisés) ; fiche vin (photo de référence, stock, derniers mouvements, sortie
+par quantité, inventaire physique avec écart annoncé) ; sortie par photo
+restreinte aux vins en stock, avec choix sur vignettes quand plusieurs
+millésimes sont proches et repli sur la cave en cas d'échec ou au bout de
+12 s ; photos de sortie jamais reportées. Correction : le déclencheur « stock
+jamais négatif » verrouille désormais la ligne du vin, deux sorties
+simultanées de la dernière bouteille ne passent plus toutes les deux.
 
 ### 1.1.2 — 3 octobre 2026
 

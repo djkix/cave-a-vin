@@ -9,6 +9,50 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## Non publié
+
+### Résumé
+
+Le lot 2a boucle le cycle du stock : on peut désormais sortir ce qu'on a
+rentré, par la liste ou par photo, et corriger le stock par un inventaire
+physique.
+
+### Fonctionnalités
+
+- **Onglet Cave** : vins en stock avec vignette (photo de l'entrée, ou un
+  pictogramme de bouteille à défaut), domaine, cuvée, appellation, millésime,
+  couleur, quantité ; recherche insensible aux accents et à la casse, filtre
+  par couleur, option « Vins épuisés » masquée par défaut, pré-remplissage de
+  la recherche via `?q=`.
+- **Fiche vin** : photo de référence (première entrée), stock, 10 derniers
+  mouvements.
+- **Sortie par la liste** : sélecteur de quantité borné par le stock, message
+  « Sorti — il en reste N » qui survit au rafraîchissement du stock (y compris
+  pour la dernière bouteille), *Annuler*.
+- **Inventaire physique** (« Corriger le stock ») : écart annoncé avant
+  d'enregistrer (« −2 bouteilles », « Stock déjà juste »), mouvement `ADJUST`
+  daté.
+- **Sortie par photo** (accueil et onglet Sortie) : reconnaissance restreinte
+  aux vins en stock (domaine/cuvée/appellation, millésime pesant fortement),
+  confirmation directe pour un candidat clair, choix sur 1 à 4 vignettes avec
+  le millésime en gros sinon, retour en arrière via « Choisir un autre
+  millésime », « Ce vin n'est pas dans la cave » avec recherche pré-remplie ou
+  entrée du vin, « Réessayer l'envoi » si la photo ne part pas, repli sur
+  « Chercher dans la cave » en cas d'échec immédiat ou au bout de 12 s.
+- **Photos de sortie jamais reportées** : deux tentatives à 3 s d'intervalle
+  puis abandon, exclues de la revue groupée, du bandeau « en attente
+  d'analyse » et de la remise en file au démarrage du worker.
+- **Migration** `20261004000000_lot2a_sortie` : purpose entrée/sortie des
+  photos, verrou du déclencheur, index une sortie par photo, rétro-remplissage
+  de la photo de référence de chaque vin depuis sa première entrée.
+
+### Corrections
+
+- **Stock jamais négatif, même sous concurrence** : le déclencheur
+  verrouillait la ligne du mouvement mais pas celle du vin — deux sorties
+  simultanées de la dernière bouteille passaient toutes les deux. Il
+  verrouille désormais la ligne du vin avant de vérifier le stock.
+
 ## [1.1.2](https://github.com/djkix/cave-a-vin/compare/v1.1.1...v1.1.2) (2026-10-03)
 
 ### Résumé
