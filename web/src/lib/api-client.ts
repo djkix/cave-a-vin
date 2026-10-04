@@ -145,3 +145,21 @@ export const getExitCandidates = (photoId: string) => apiFetch<ExitCandidatesRes
 export const setApogee = (wineId: string, input: { min: number; max: number }) =>
   apiFetch<Apogee>(`/wines/${wineId}/apogee`, { method: 'PUT', body: JSON.stringify(input) });
 export const clearApogee = (wineId: string) => apiFetch<Apogee>(`/wines/${wineId}/apogee`, { method: 'DELETE' });
+
+export type VintageQualityLevel = 'GRAND' | 'MOYEN' | 'FAIBLE';
+export interface VintageQualityRow { region: string; year: number; quality: VintageQualityLevel }
+export const getVintages = () => apiFetch<{ regions: string[]; qualities: VintageQualityRow[] }>('/admin/vintages');
+export const putVintage = (row: VintageQualityRow) =>
+  apiFetch<VintageQualityRow>('/admin/vintages', { method: 'PUT', body: JSON.stringify(row) });
+/** La région peut porter un accent ou un tiret (« Rhône », « Languedoc-Roussillon ») : elle est encodée dans l'adresse. */
+export const deleteVintage = (region: string, year: number) =>
+  apiFetch<void>(`/admin/vintages/${encodeURIComponent(region)}/${year}`, { method: 'DELETE' });
+
+export interface GuardAppellation {
+  id: string; canonicalName: string; region: string | null; guardMinYears: number | null; guardMaxYears: number | null;
+  overrides: Array<{ id: string; color: WineColor | null; min: number; max: number }>;
+}
+export const searchGuards = (q: string) => apiFetch<GuardAppellation[]>(`/admin/guards?q=${encodeURIComponent(q)}`);
+export const putGuard = (input: { appellationId: string; color: WineColor | null; min: number; max: number }) =>
+  apiFetch<{ id: string; color: WineColor | null; min: number; max: number }>('/admin/guards', { method: 'PUT', body: JSON.stringify(input) });
+export const deleteGuard = (id: string) => apiFetch<void>(`/admin/guards/${id}`, { method: 'DELETE' });

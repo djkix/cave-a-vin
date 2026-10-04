@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { TopBar } from '../components/TopBar';
+import { GuardsSection } from '../components/admin/GuardsSection';
+import { VintagesSection } from '../components/admin/VintagesSection';
 import { AdminUser, getAdminUsers, getMe, updateAdminUser } from '../lib/api-client';
 
 const fmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -72,6 +74,8 @@ export function AdminPage() {
               ))}
               {users.data?.length === 0 && <p className="centered">Aucun compte.</p>}
             </div>
+            <VintagesSection />
+            <GuardsSection />
           </>
         )}
       </main>
