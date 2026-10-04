@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { deleteGuard, GuardAppellation, putGuard, searchGuards, WineColor } from '../../lib/api-client';
 import { Button } from '../Button';
 
@@ -18,11 +18,23 @@ export function GuardsSection() {
   const [minText, setMinText] = useState('');
   const [maxText, setMaxText] = useState('');
   const results = useQuery({ queryKey: ['admin', 'guards', q], queryFn: () => searchGuards(q), enabled: q.trim().length >= 2 });
+  // Évite une erreur de l'autre mutation de rester affichée après celle-ci :
+  // des refs (et non les mutations elles-mêmes, qui se référenceraient
+  // circulairement) portent le dernier « reset » de chacune.
+  const resetDel = useRef<() => void>(() => {});
+  const resetPut = useRef<() => void>(() => {});
   const put = useMutation({
     mutationFn: (input: { appellationId: string; color: WineColor | null; min: number; max: number }) => putGuard(input),
+    onMutate: () => resetDel.current(),
     onSuccess: () => { setSelected(null); void invalidate(qc); },
   });
-  const del = useMutation({ mutationFn: (id: string) => deleteGuard(id), onSuccess: () => invalidate(qc) });
+  resetPut.current = () => put.reset();
+  const del = useMutation({
+    mutationFn: (id: string) => deleteGuard(id),
+    onMutate: () => resetPut.current(),
+    onSuccess: () => invalidate(qc),
+  });
+  resetDel.current = () => del.reset();
 
   const min = /^\d{1,3}$/.test(minText) ? Number(minText) : null;
   const max = /^\d{1,3}$/.test(maxText) ? Number(maxText) : null;
@@ -32,6 +44,9 @@ export function GuardsSection() {
   return (
     <section className="card">
       <h2 style={{ fontSize: 18 }}>Gardes</h2>
+      <p className="list__meta">
+        Les rosés se gardent 1 à 3 ans, sauf ajustement « Rosé » : un ajustement « Toutes couleurs » ne s’applique pas à eux.
+      </p>
       <label htmlFor="guard-search" className="field__label">Appellation</label>
       <input id="guard-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Au moins deux lettres" />
       {error && <p role="alert" className="text-error">{error.message}</p>}

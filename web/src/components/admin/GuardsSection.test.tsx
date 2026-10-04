@@ -19,6 +19,14 @@ function mount() {
   );
 }
 
+it('explique la règle spéciale des rosés', () => {
+  vi.spyOn(api, 'searchGuards').mockResolvedValue([]);
+  mount();
+  expect(
+    screen.getByText('Les rosés se gardent 1 à 3 ans, sauf ajustement « Rosé » : un ajustement « Toutes couleurs » ne s’applique pas à eux.'),
+  ).toBeInTheDocument();
+});
+
 it('cherche une appellation et montre sa garde et ses ajustements', async () => {
   const search = vi.spyOn(api, 'searchGuards').mockResolvedValue([cdp]);
   mount();
@@ -57,4 +65,19 @@ it('retire un ajustement', async () => {
   await userEvent.type(screen.getByLabelText('Appellation'), 'chateauneuf');
   await userEvent.click(await screen.findByRole('button', { name: 'Retirer l’ajustement Rosé' }));
   await waitFor(() => expect(del).toHaveBeenCalledWith(cdp.overrides[0].id));
+});
+
+it('n’affiche plus l’erreur d’un enregistrement raté une fois une suppression réussie', async () => {
+  vi.spyOn(api, 'searchGuards').mockResolvedValue([cdp]);
+  vi.spyOn(api, 'putGuard').mockRejectedValue(new api.ApiError(400, 'Garde invalide'));
+  vi.spyOn(api, 'deleteGuard').mockResolvedValue(undefined);
+  mount();
+  await userEvent.type(screen.getByLabelText('Appellation'), 'chateauneuf');
+  await userEvent.click(await screen.findByRole('button', { name: 'Ajuster Châteauneuf-du-Pape' }));
+  await userEvent.type(screen.getByLabelText('Garde minimale'), '10');
+  await userEvent.type(screen.getByLabelText('Garde maximale'), '25');
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la garde' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Garde invalide');
+  await userEvent.click(screen.getByRole('button', { name: 'Retirer l’ajustement Rosé' }));
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
 });

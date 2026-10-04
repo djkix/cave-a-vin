@@ -1,10 +1,13 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Put, Query, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { AdminGuard } from '../auth/admin.guard';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { ApogeeAdminService } from './apogee-admin.service';
 import { guardOverrideSchema, vintageQualitySchema } from './dto';
 
 const issues = (e: { issues: { message: string }[] }) => e.issues.map((i) => i.message).join(' ; ');
+
+const searchQuerySchema = z.object({ q: z.string().trim().max(200).optional() });
 
 /** Règles d'apogée : elles changent toute la cave, d'où la garde administrateur. */
 @Controller('admin')
@@ -26,13 +29,18 @@ export class ApogeeAdminController {
 
   @Delete('vintages/:region/:year')
   @HttpCode(204)
-  removeVintage(@Param('region') region: string, @Param('year', ParseIntPipe) year: number) {
+  removeVintage(
+    @Param('region') region: string,
+    @Param('year', new ParseIntPipe({ exceptionFactory: () => new BadRequestException('Année invalide') })) year: number,
+  ) {
     return this.admin.removeVintage(region, year);
   }
 
   @Get('guards')
-  searchGuards(@Query('q') q?: string) {
-    return this.admin.searchGuards(q ?? '');
+  searchGuards(@Query() query: unknown) {
+    const parsed = searchQuerySchema.safeParse(query);
+    if (!parsed.success) throw new BadRequestException('Recherche invalide');
+    return this.admin.searchGuards(parsed.data.q ?? '');
   }
 
   @Put('guards')
@@ -44,7 +52,9 @@ export class ApogeeAdminController {
 
   @Delete('guards/:id')
   @HttpCode(204)
-  removeGuard(@Param('id', ParseUUIDPipe) id: string) {
+  removeGuard(
+    @Param('id', new ParseUUIDPipe({ exceptionFactory: () => new BadRequestException('Identifiant d’ajustement invalide') })) id: string,
+  ) {
     return this.admin.removeGuard(id);
   }
 }

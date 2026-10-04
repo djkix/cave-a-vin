@@ -77,7 +77,7 @@ export function ApogeeBlock({ wine }: { wine: CaveRow }) {
           <Button variant="dark" disabled={busy || typeof verdict === 'string'} onClick={() => typeof verdict !== 'string' && run(() => setApogee(wine.id, verdict))}>
             Enregistrer l’apogée
           </Button>
-          <Button variant="link" onClick={() => setEditing(false)}>Abandonner</Button>
+          <Button variant="link" onClick={() => { setEditing(false); setError(null); }}>Abandonner</Button>
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)', flexWrap: 'wrap' }}>

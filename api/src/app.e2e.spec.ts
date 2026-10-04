@@ -96,6 +96,44 @@ describeIfInfra('api HTTP', () => {
     expect(del.status).toBe(204);
   });
 
+  it('answers in French when the vintage year or guard id is not well-formed', async () => {
+    const badYear = await agent.delete(`/api/admin/vintages/${encodeURIComponent('Rhône')}/abc`);
+    expect(badYear.status).toBe(400);
+    expect(badYear.body.message).toBe('Année invalide');
+    const badId = await agent.delete('/api/admin/guards/not-a-uuid');
+    expect(badId.status).toBe(400);
+    expect(badId.body.message).toBe('Identifiant d’ajustement invalide');
+    const badQuery = await agent.get('/api/admin/guards?q=a&q=b');
+    expect(badQuery.status).toBe(400);
+  });
+
+  it('lets a wine owner correct, then clear, its own apogee over HTTP', async () => {
+    const appellation = await prisma.appellation.findFirstOrThrow({ where: { canonicalName: 'Châteauneuf-du-Pape' } });
+    const wine = await prisma.wine.create({
+      data: {
+        matchKey: `e2e-apogee-${Date.now()}`,
+        producer: 'Domaine e2e',
+        appellationId: appellation.id,
+        appellationRaw: appellation.canonicalName,
+        vintage: 2016,
+        color: 'ROUGE',
+      },
+    });
+    try {
+      const ok = await agent.put(`/api/wines/${wine.id}/apogee`).send({ min: 2030, max: 2035 });
+      expect(ok.status).toBe(200);
+      expect(ok.body.confidence).toBe('SAISIE');
+      const invalid = await agent.put(`/api/wines/${wine.id}/apogee`).send({ min: 2035, max: 2030 });
+      expect(invalid.status).toBe(400);
+      expect(invalid.body.message).toBe('L’année de début doit précéder ou égaler l’année de fin');
+      const cleared = await agent.delete(`/api/wines/${wine.id}/apogee`);
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.source).toBe('REGLE');
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { deleteVintage, getVintages, putVintage, VintageQualityLevel, VintageQualityRow } from '../../lib/api-client';
 import { Button } from '../Button';
 
@@ -15,8 +15,23 @@ export function VintagesSection() {
   const [region, setRegion] = useState('');
   const [yearText, setYearText] = useState('');
   // Fonctions enveloppées : la mutation reçoit exactement un argument, quelle que soit la version de TanStack Query.
-  const put = useMutation({ mutationFn: (row: VintageQualityRow) => putVintage(row), onSuccess: () => invalidate(qc) });
-  const del = useMutation({ mutationFn: ({ r, y }: { r: string; y: number }) => deleteVintage(r, y), onSuccess: () => invalidate(qc) });
+  // Évite qu'une erreur de l'autre mutation reste affichée après celle-ci :
+  // des refs (et non les mutations elles-mêmes, qui se référenceraient
+  // circulairement) portent le dernier « reset » de chacune.
+  const resetDel = useRef<() => void>(() => {});
+  const resetPut = useRef<() => void>(() => {});
+  const put = useMutation({
+    mutationFn: (row: VintageQualityRow) => putVintage(row),
+    onMutate: () => resetDel.current(),
+    onSuccess: () => invalidate(qc),
+  });
+  resetPut.current = () => put.reset();
+  const del = useMutation({
+    mutationFn: ({ r, y }: { r: string; y: number }) => deleteVintage(r, y),
+    onMutate: () => resetPut.current(),
+    onSuccess: () => invalidate(qc),
+  });
+  resetDel.current = () => del.reset();
 
   const regions = data.data?.regions ?? [];
   const chosenRegion = region || regions[0] || '';

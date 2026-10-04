@@ -72,3 +72,13 @@ it('affiche en clair une erreur de l’api', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’apogée' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Année de fin trop lointaine');
 });
+
+it('efface l’erreur quand on abandonne la correction', async () => {
+  vi.spyOn(api, 'setApogee').mockRejectedValue(new api.ApiError(400, 'Année de fin trop lointaine'));
+  mount();
+  await userEvent.click(screen.getByRole('button', { name: 'Corriger' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’apogée' }));
+  await screen.findByRole('alert');
+  await userEvent.click(screen.getByRole('button', { name: 'Abandonner' }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});

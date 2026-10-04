@@ -81,7 +81,10 @@ export function WinePage() {
           </div>
         </section>
 
-        <ApogeeBlock wine={wine} />
+        {/* Clé distincte de celle de SortieConfirmation : deux enfants du même
+            <main> partageant la même clé troublent la réconciliation de React
+            (avertissement « two children with the same key », rendu dupliqué). */}
+        <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} />
 
         <SortieConfirmation key={wine.id} wine={wine} />
 

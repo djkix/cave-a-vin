@@ -47,6 +47,19 @@ it('remet un millésime à « non qualifié »', async () => {
   await waitFor(() => expect(del).toHaveBeenCalledWith('Languedoc-Roussillon', 2016));
 });
 
+it('n’affiche plus l’erreur d’un enregistrement raté une fois une suppression réussie', async () => {
+  vi.spyOn(api, 'getVintages').mockResolvedValue({ regions: ['Rhône'], qualities: [{ region: 'Rhône', year: 2016, quality: 'GRAND' }] });
+  vi.spyOn(api, 'putVintage').mockRejectedValue(new api.ApiError(400, 'Région inconnue du référentiel'));
+  vi.spyOn(api, 'deleteVintage').mockResolvedValue(undefined);
+  mount();
+  await screen.findByLabelText('Région');
+  await userEvent.type(screen.getByLabelText('Année'), '2016');
+  await userEvent.click(screen.getByRole('button', { name: 'Grand' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Région inconnue du référentiel');
+  await userEvent.click(screen.getByRole('button', { name: 'Retirer Rhône 2016' }));
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+});
+
 it('encode une région accentuée ou à tiret dans l’adresse', async () => {
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
   await api.deleteVintage('Rhône', 2016);
