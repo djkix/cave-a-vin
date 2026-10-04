@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
-import { cancelMovementSchema, createMovementSchema } from './dto';
+import { cancelMovementSchema, createMovementSchema, createOutSchema } from './dto';
 import { MovementResult, MovementsService } from './movements.service';
 
 @Controller('movements')
@@ -32,6 +32,13 @@ export class MovementsController {
       }
     }
     return results;
+  }
+
+  @Post('out')
+  createOut(@Body() body: unknown) {
+    const parsed = createOutSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
+    return this.movements.createOut(parsed.data);
   }
 
   @Post(':id/cancel')

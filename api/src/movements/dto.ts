@@ -27,3 +27,19 @@ export const cancelMovementSchema = z.object({
 });
 
 export type CancelMovementInput = z.infer<typeof cancelMovementSchema>;
+
+export const createOutSchema = z.object({
+  idempotencyKey: z.string().uuid('idempotencyKey invalide'),
+  wineId: z.string().uuid('Vin invalide'),
+  quantity: z.number().int().positive('La quantité doit être positive'),
+  photoId: z.string().uuid().nullish(),
+});
+
+export type CreateOutInput = z.infer<typeof createOutSchema>;
+
+export const inventorySchema = z.object({
+  idempotencyKey: z.string().uuid('idempotencyKey invalide'),
+  counted: z.number({ invalid_type_error: 'Nombre de bouteilles invalide' }).int('Nombre de bouteilles entier attendu').min(0, 'Le nombre de bouteilles ne peut pas être négatif'),
+});
+
+export type InventoryInput = z.infer<typeof inventorySchema>;
