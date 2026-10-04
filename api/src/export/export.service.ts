@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, WineColor } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import { ApogeeConfidence, estimateApogee } from '../apogee/apogee';
+import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ExportFilter {
@@ -9,10 +11,16 @@ export interface ExportFilter {
 }
 
 const COLOR_LABEL: Record<WineColor, string> = { ROUGE: 'Rouge', BLANC: 'Blanc', ROSE: 'Rosé', PETILLANT: 'Pétillant' };
+const CONFIDENCE_LABEL: Record<ApogeeConfidence, string> = { SAISIE: 'Saisie', MOYENNE: 'Moyenne', FAIBLE: 'Faible' };
+/** Fond d'avertissement des lignes dont l'apogée est passée. */
+const PASSED_FILL = 'FFFCE4D6';
 
 @Injectable()
 export class ExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rules: ApogeeRulesService,
+  ) {}
 
   async buildWorkbook(filter: ExportFilter, userId: string): Promise<{ buffer: Buffer; rowCount: number }> {
     const [stockRows, wines, movements, appellations] = await Promise.all([
@@ -24,6 +32,8 @@ export class ExportService {
     const stockByWine = new Map(stockRows.map((r) => [r.wine_id, Number(r.quantity)]));
     const lastPrice = new Map<string, number>();
     for (const m of [...movements].reverse()) if (m.type === 'IN' && m.priceUnitCents != null) lastPrice.set(m.wineId, m.priceUnitCents);
+    const rules = await this.rules.load();
+    const year = new Date().getFullYear();
 
     const inStock = wines.filter((w) => {
       const q = stockByWine.get(w.id) ?? 0;
@@ -44,6 +54,9 @@ export class ExportService {
       { header: 'Appellation', key: 'appellation', width: 26 },
       { header: 'Région', key: 'region', width: 14 },
       { header: 'Millésime', key: 'vintage', width: 10 },
+      { header: 'Apogée min', key: 'apogeeMin', width: 11 },
+      { header: 'Apogée max', key: 'apogeeMax', width: 11 },
+      { header: 'Confiance', key: 'confidence', width: 11 },
       { header: 'Couleur', key: 'color', width: 10 },
       { header: 'Format (cl)', key: 'formatCl', width: 10 },
       { header: 'Quantité', key: 'quantity', width: 10 },
@@ -53,13 +66,29 @@ export class ExportService {
     for (const w of inStock) {
       const q = stockByWine.get(w.id) ?? 0;
       const price = lastPrice.has(w.id) ? lastPrice.get(w.id)! / 100 : null;
-      stock.addRow({
+      // Même calcul que l'application : l'export ne raconte jamais une autre apogée.
+      const apogee = estimateApogee(
+        {
+          vintage: w.vintage, color: w.color, appellationId: w.appellationId, region: w.appellation?.region ?? null,
+          referenceGuardMin: w.appellation?.guardMinYears ?? null, referenceGuardMax: w.appellation?.guardMaxYears ?? null,
+          apogeeMin: w.apogeeMin, apogeeMax: w.apogeeMax, apogeeSource: w.apogeeSource,
+        },
+        rules, year,
+      );
+      const row = stock.addRow({
         producer: w.producer, cuvee: w.cuvee ?? '', appellation: w.appellationRaw, region: w.appellation?.region ?? '',
-        vintage: w.vintage ?? 'NV', color: COLOR_LABEL[w.color], formatCl: w.formatCl, quantity: q,
+        vintage: w.vintage ?? 'NV', apogeeMin: apogee.min, apogeeMax: apogee.max,
+        confidence: apogee.confidence ? CONFIDENCE_LABEL[apogee.confidence] : null,
+        color: COLOR_LABEL[w.color], formatCl: w.formatCl, quantity: q,
         price, value: price == null ? null : Math.round(price * q * 100) / 100,
       });
+      if (apogee.status === 'PASSEE') {
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PASSED_FILL } };
+        });
+      }
     }
-    stock.autoFilter = { from: 'A1', to: 'J1' };
+    stock.autoFilter = { from: 'A1', to: 'M1' };
     stock.getRow(1).font = { bold: true };
 
     const mv = wb.addWorksheet('Mouvements', { views: [{ state: 'frozen', ySplit: 1 }] });
