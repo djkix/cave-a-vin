@@ -69,3 +69,47 @@ it('montre « Vin introuvable » pour un identifiant inconnu', async () => {
   expect(await screen.findByText('Vin introuvable')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Retour à la cave' })).toHaveAttribute('href', '/cave');
 });
+
+it('garde le résultat de la sortie affiché après le rafraîchissement du stock', async () => {
+  const getWine = vi.spyOn(api, 'getWine')
+    .mockResolvedValueOnce(detail)
+    .mockResolvedValue({ ...detail, wine: { ...detail.wine, quantity: 5 } });
+  vi.spyOn(api, 'createOut').mockResolvedValue({
+    movement: { id: 'm2', delta: -1, type: 'OUT', occurredAt: '' },
+    wine: detail.wine,
+    stock: 5,
+    created: true,
+  });
+  mount();
+  await userEvent.click(await screen.findByRole('button', { name: /Sortir 1 bouteille/ }));
+  await screen.findByText('Sorti — il en reste 5');
+  await waitFor(() => expect(getWine).toHaveBeenCalledTimes(2));
+  expect(screen.getByText('Sorti — il en reste 5')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Annuler la sortie' })).toBeInTheDocument();
+});
+
+it('garde le résultat affiché quand la sortie vide le stock', async () => {
+  const last = { ...detail, wine: { ...detail.wine, quantity: 1 } };
+  const getWine = vi.spyOn(api, 'getWine')
+    .mockResolvedValueOnce(last)
+    .mockResolvedValue({ ...last, wine: { ...last.wine, quantity: 0 } });
+  vi.spyOn(api, 'createOut').mockResolvedValue({
+    movement: { id: 'm3', delta: -1, type: 'OUT', occurredAt: '' },
+    wine: last.wine,
+    stock: 0,
+    created: true,
+  });
+  mount();
+  await userEvent.click(await screen.findByRole('button', { name: /Sortir 1 bouteille/ }));
+  await screen.findByText('Sorti — il en reste 0');
+  await waitFor(() => expect(getWine).toHaveBeenCalledTimes(2));
+  expect(screen.getByText('Sorti — il en reste 0')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Annuler la sortie' })).toBeInTheDocument();
+});
+
+it('ne propose pas de sortie pour un vin déjà épuisé', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue({ ...detail, wine: { ...detail.wine, quantity: 0 } });
+  mount();
+  await screen.findByRole('heading', { name: /Domaine Tempier/ });
+  expect(screen.queryByRole('button', { name: /Sortir/ })).not.toBeInTheDocument();
+});

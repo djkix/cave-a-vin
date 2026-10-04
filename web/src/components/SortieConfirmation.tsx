@@ -24,13 +24,18 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
 
   const refresh = () => qc.invalidateQueries({ predicate: (q) => ['cave', 'wine', 'movements'].includes(String(q.queryKey[0])) });
 
+  // Le stock peut se réduire sous la quantité choisie après un rafraîchissement
+  // (un autre mouvement concurrent, par exemple) : on ne retient jamais plus
+  // que ce qu'il reste, à l'affichage comme à l'envoi.
+  const safeQuantity = Math.min(quantity, Math.max(wine.quantity, 1));
+
   async function sortir() {
     if (sending.current) return;
     sending.current = true;
     setBusy(true);
     setError(null);
     try {
-      setResult(await createOut({ idempotencyKey, wineId: wine.id, quantity, photoId: photoId ?? null }));
+      setResult(await createOut({ idempotencyKey, wineId: wine.id, quantity: safeQuantity, photoId: photoId ?? null }));
       void refresh();
       onDone?.();
     } catch (e) {
@@ -66,6 +71,11 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
     );
   }
 
+  // Un vin épuisé n'a pas de sortie à proposer — mais on n'atteint ce point que
+  // si aucune sortie n'a encore été confirmée : le panneau de résultat, lui,
+  // reste affiché même quand la sortie vient de vider le stock.
+  if (wine.quantity < 1) return null;
+
   const max = wine.quantity;
   return (
     <section className="card">
@@ -77,18 +87,18 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-md)', margin: 'var(--space-md) 0' }}>
-        <Button variant="outline" onClick={() => setQuantity((n) => Math.max(1, n - 1))} disabled={quantity <= 1} aria-label="Une bouteille de moins">
+        <Button variant="outline" onClick={() => setQuantity((n) => Math.max(1, n - 1))} disabled={safeQuantity <= 1} aria-label="Une bouteille de moins">
           <Icon name="remove" />
         </Button>
-        <span className="num" style={{ fontSize: 28 }}>{quantity}</span>
-        <Button variant="outline" onClick={() => setQuantity((n) => Math.min(max, n + 1))} disabled={quantity >= max} aria-label="Une bouteille de plus">
+        <span className="num" style={{ fontSize: 28 }}>{safeQuantity}</span>
+        <Button variant="outline" onClick={() => setQuantity((n) => Math.min(max, n + 1))} disabled={safeQuantity >= max} aria-label="Une bouteille de plus">
           <Icon name="add" />
         </Button>
       </div>
       {error && <p role="alert" className="text-error">{error}</p>}
       <Button variant="dark" onClick={sortir} disabled={busy || max < 1}>
         <Icon name="remove_circle_outline" />
-        {busy ? 'Sortie…' : `Sortir ${quantity} bouteille${quantity > 1 ? 's' : ''}`}
+        {busy ? 'Sortie…' : `Sortir ${safeQuantity} bouteille${safeQuantity > 1 ? 's' : ''}`}
       </Button>
     </section>
   );

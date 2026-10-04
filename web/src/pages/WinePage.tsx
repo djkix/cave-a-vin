@@ -76,7 +76,7 @@ export function WinePage() {
           </div>
         </section>
 
-        {wine.quantity > 0 && <SortieConfirmation key={`${wine.id}-${wine.quantity}`} wine={wine} />}
+        <SortieConfirmation key={wine.id} wine={wine} />
 
         <section className="card">
           {inventoryMessage && <p role="status">{inventoryMessage}</p>}
