@@ -1,4 +1,5 @@
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
+import { ENTRY_BATCH_CALL_TIMEOUT_MS, RESERVATION_MS } from './entry-batch';
 import { EntryBatchProcessor } from './entry-batch.processor';
 import { VisionBudgetExceededError } from './vision-budget.service';
 
@@ -34,10 +35,20 @@ function matches(row: any, where: any): boolean {
       if ('in' in cond) return cond.in.includes(value);
       if ('lte' in cond) return value !== null && value.getTime() <= cond.lte.getTime();
       if ('equals' in cond) return value === cond.equals;
+      if ('gte' in cond) return value >= cond.gte;
+      if ('lt' in cond) return value < cond.lt;
       throw new Error(`condition non gérée par le faux : ${JSON.stringify(cond)}`);
     }
     return value === cond;
   });
+}
+
+/** Applique un `data` Prisma, y compris `{ increment }`. */
+function apply(row: any, data: any) {
+  for (const [k, v] of Object.entries(data)) {
+    row[k] = v && typeof v === 'object' && 'increment' in (v as any) ? (row[k] ?? 0) + (v as any).increment : v;
+  }
+  return row;
 }
 
 function isCandidate(r: Row, now: Date) {
@@ -53,7 +64,7 @@ function harness() {
   const rows: Row[] = [];
   const updateMany = jest.fn(async ({ where, data }: any) => {
     const hit = rows.filter((r) => matches(r, where));
-    hit.forEach((r) => Object.assign(r, data));
+    hit.forEach((r) => apply(r, data));
     return { count: hit.length };
   });
   const prisma: any = {
@@ -70,7 +81,7 @@ function harness() {
       update: jest.fn(async ({ where, data }: any) => {
         const row = rows.find((r) => r.id === where.id);
         if (!row) throw new Error('photo absente');
-        return Object.assign(row, data);
+        return apply(row, data);
       }),
     },
     // La réservation est du SQL brut (FOR UPDATE SKIP LOCKED) : le faux en reprend la
@@ -83,7 +94,7 @@ function harness() {
             .filter((r) => isCandidate(r, now))
             .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
             .slice(0, 8)
-            .map((r) => ({ id: r.id, attempts: r.attempts }));
+            .map((r) => ({ id: r.id, attempts: r.attempts, costCents: r.costCents ?? null }));
         }),
         photo: { updateMany },
       }),
@@ -244,7 +255,7 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
     });
   });
 
-  it('lot mélangé : une relecture en panne ne reporte que sa photo', async () => {
+  it('lot mélangé : à la première relecture en panne, les photos restantes sont reportées sans appel', async () => {
     const h = harness();
     const all = h.addMany(8);
     h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)'));
@@ -253,9 +264,101 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
       return { raw: {}, extraction: {} as any, model: 'm', latencyMs: 1, costCents: 1 };
     });
     await h.processor.tick(NOW);
-    expect(all[2].status).toBe('PENDING');
-    expect(all[2].attempts).toBe(1);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(3);
+    expect(all.slice(0, 2).every((r) => r.status === 'DONE')).toBe(true);
+    all.slice(2).forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.attempts).toBe(1);
+      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.errorMessage).toBe('Analyse reportée : service Gemini momentanément saturé, reprise automatique');
+    });
+  });
+
+  it('lot mélangé : une relecture en erreur définitive n’échoue que sa photo, les autres sont relues', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)'));
+    h.vision.extractWineLabel.mockImplementation(async (image: Buffer) => {
+      if (image.toString() === `img-${all[2].id}`) throw new Error('Sortie du modèle invalide : couleur');
+      return { raw: {}, extraction: {} as any, model: 'm', latencyMs: 1, costCents: 1 };
+    });
+    await h.processor.tick(NOW);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(8);
+    expect(all[2].status).toBe('FAILED');
     expect(all.filter((r) => r.status === 'DONE')).toHaveLength(7);
+  });
+
+  it('lot mélangé : le coût de l’appel de lot est réparti, en plus de celui de la relecture', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)', 16));
+    await h.processor.tick(NOW);
+    all.forEach((r) => expect(r.costCents).toBe(4)); // ceil(16 / 8) + 2
+  });
+
+  it('lot mélangé puis panne : la part du coût de lot reste comptée sur les photos reportées', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)', 16));
+    h.vision.extractWineLabel.mockRejectedValue(GEMINI_503);
+    await h.processor.tick(NOW);
+    all.forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.costCents).toBe(2);
+    });
+  });
+
+  it('cumule le coût déjà dépensé sur une photo lors d’un nouvel appel', async () => {
+    const h = harness();
+    const p = h.add({ createdAt: at(-60_000), costCents: 3 });
+    await h.processor.tick(NOW);
+    expect(p.status).toBe('DONE');
+    expect(p.costCents).toBe(3 + 10);
+  });
+
+  it('un item invalide reçoit aussi sa part du coût', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockImplementationOnce(async (images: any[]) => ({
+      items: images.map((_, i) => (i === 0 ? { error: 'Lecture de l’étiquette inexploitable' } : { raw: {}, extraction: {} as any })),
+      model: 'gemini-test',
+      latencyMs: 900,
+      costCents: 10,
+    }));
+    await h.processor.tick(NOW);
+    expect(all[0].status).toBe('FAILED');
+    all.forEach((r) => expect(r.costCents).toBe(2));
+  });
+
+  it('un appel de lot sans réponse est abandonné au bout du délai et le lot reporté', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.processor.callTimeoutMs = 20;
+    h.vision.extractWineLabels.mockImplementationOnce(() => new Promise(() => undefined));
+    await h.processor.tick(NOW);
+    all.forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.attempts).toBe(1);
+      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.errorMessage).toBe('Analyse reportée : service Gemini injoignable, reprise automatique');
+    });
+  });
+
+  it('une relecture sans réponse est abandonnée au bout du délai et le reste reporté', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.processor.callTimeoutMs = 20;
+    h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)'));
+    h.vision.extractWineLabel.mockImplementation(() => new Promise(() => undefined));
+    await h.processor.tick(NOW);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(1);
+    all.forEach((r) => expect(r.status).toBe('PENDING'));
+  });
+
+  it('le délai d’appel reste bien inférieur à l’échéance de réservation', () => {
+    expect(ENTRY_BATCH_CALL_TIMEOUT_MS).toBe(2 * 60_000);
+    expect(ENTRY_BATCH_CALL_TIMEOUT_MS).toBeLessThan(RESERVATION_MS);
+    expect(harness().processor.callTimeoutMs).toBe(ENTRY_BATCH_CALL_TIMEOUT_MS);
   });
 
   it('une image introuvable fait échouer sa seule photo', async () => {
@@ -339,7 +442,11 @@ describe('EntryBatchProcessor.tick — pannes', () => {
       throw new Error('connexion perdue');
     });
     await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 8 });
-    expect(all.every((r) => r.status !== 'PROCESSING')).toBe(true);
+    all.forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.attempts).toBe(1);
+      expect(r.nextAttemptAt).toEqual(at(30_000));
+    });
   });
 
   it('ne laisse jamais sortir d’exception, même si la base est injoignable', async () => {
@@ -372,7 +479,32 @@ describe('EntryBatchProcessor.tick — réservation', () => {
     await h.processor.tick(NOW);
     expect(stale.status).toBe('PENDING');
     expect(stale.nextAttemptAt).toBeNull();
+    expect(stale.attempts).toBe(1); // la reprise compte comme une tentative
     expect(live.status).toBe('PROCESSING');
+    expect(live.attempts).toBe(0);
     expect(exit.status).toBe('PROCESSING');
+  });
+
+  it('reprend une photo ENTRY PROCESSING sans échéance (ancien travail BullMQ interrompu)', async () => {
+    const h = harness();
+    const orphan = h.add({ status: 'PROCESSING', nextAttemptAt: null });
+    const exit = h.add({ status: 'PROCESSING', nextAttemptAt: null, purpose: 'EXIT' });
+    await h.processor.tick(NOW);
+    expect(orphan.status).toBe('PENDING');
+    expect(orphan.attempts).toBe(1);
+    expect(exit.status).toBe('PROCESSING');
+  });
+
+  it('une photo qui interrompt le worker à chaque fois finit en échec après EXTRACTION_ATTEMPTS', async () => {
+    const h = harness();
+    const p = h.add({ status: 'PROCESSING', nextAttemptAt: at(-1), attempts: 999 });
+    const q = h.add({ status: 'PROCESSING', nextAttemptAt: null, attempts: 999 });
+    await h.processor.tick(NOW);
+    for (const r of [p, q]) {
+      expect(r.status).toBe('FAILED');
+      expect(r.attempts).toBe(1000);
+      expect(r.nextAttemptAt).toBeNull();
+      expect(r.errorMessage).toBe('Analyse interrompue (worker arrêté en plein lot) — abandon après 1000 tentatives');
+    }
   });
 });

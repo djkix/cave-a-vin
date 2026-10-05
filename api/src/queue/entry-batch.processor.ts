@@ -4,7 +4,7 @@ import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
-import { ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
+import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
 import { EXTRACTION_ATTEMPTS, extractionBackoffDelay } from './extraction.queue';
 import { deferralReason, isTransientVisionFailure } from './transient-failure';
 import { VisionBudgetService } from './vision-budget.service';
@@ -12,7 +12,11 @@ import { VisionBudgetService } from './vision-budget.service';
 interface Reserved {
   id: string;
   attempts: number;
+  /** Coût déjà dépensé sur la photo (appels précédents), cumulé à chaque appel. */
+  costCents: number | null;
 }
+
+type Readable = Reserved & { data: Buffer };
 
 const MIME = 'image/jpeg';
 
@@ -28,6 +32,9 @@ const MIME = 'image/jpeg';
 @Injectable()
 export class EntryBatchProcessor {
   private readonly logger = new Logger(EntryBatchProcessor.name);
+
+  /** Délai maximal d'un appel Gemini ; modifiable par les tests. */
+  callTimeoutMs = ENTRY_BATCH_CALL_TIMEOUT_MS;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -80,13 +87,37 @@ export class EntryBatchProcessor {
     };
   }
 
-  /** Worker arrêté en plein lot : la réservation échue rend la photo à la file. */
+  /**
+   * Une photo ENTRY encore PROCESSING dont la réservation a expiré (worker arrêté
+   * en plein lot) ou qui n'en a jamais eu (ancien travail BullMQ interrompu, photo
+   * de sortie reprise en entrée pendant son analyse) revient dans la file. La
+   * reprise compte comme une tentative : une photo qui fait tomber le worker à
+   * chaque lecture finit en échec au lieu de tourner sans fin.
+   */
   private async reclaimExpired(now: Date): Promise<void> {
-    const { count } = await this.prisma.photo.updateMany({
-      where: { purpose: 'ENTRY', status: 'PROCESSING', nextAttemptAt: { lte: now } },
-      data: { status: 'PENDING', nextAttemptAt: null },
+    const stuck: Prisma.PhotoWhereInput = {
+      purpose: 'ENTRY',
+      status: 'PROCESSING',
+      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+    };
+    const abandoned = await this.prisma.photo.updateMany({
+      where: { ...stuck, attempts: { gte: EXTRACTION_ATTEMPTS - 1 } },
+      data: {
+        status: 'FAILED',
+        attempts: { increment: 1 },
+        nextAttemptAt: null,
+        errorMessage: `Analyse interrompue (worker arrêté en plein lot) — abandon après ${EXTRACTION_ATTEMPTS} tentatives`,
+      },
     });
-    if (count > 0) this.logger.warn(`${count} photo(s) d'entrée reprise(s) après une réservation échue`);
+    const requeued = await this.prisma.photo.updateMany({
+      where: { ...stuck, attempts: { lt: EXTRACTION_ATTEMPTS - 1 } },
+      data: { status: 'PENDING', attempts: { increment: 1 }, nextAttemptAt: null },
+    });
+    if (requeued.count + abandoned.count > 0) {
+      this.logger.warn(
+        `Photos d'entrée bloquées en analyse : ${requeued.count} remise(s) en file, ${abandoned.count} abandonnée(s)`,
+      );
+    }
   }
 
   /**
@@ -98,7 +129,7 @@ export class EntryBatchProcessor {
     const deadline = new Date(now.getTime() + RESERVATION_MS);
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Reserved[]>`
-        SELECT id, attempts FROM photo
+        SELECT id, attempts, cost_cents AS "costCents" FROM photo
         WHERE purpose = 'ENTRY' AND status = 'PENDING' AND dismissed_at IS NULL
           AND (next_attempt_at IS NULL OR next_attempt_at <= (${now}::timestamptz AT TIME ZONE 'UTC'))
         ORDER BY created_at
@@ -109,7 +140,11 @@ export class EntryBatchProcessor {
         where: { id: { in: rows.map((r) => r.id) } },
         data: { status: 'PROCESSING', nextAttemptAt: deadline },
       });
-      return rows.map((r) => ({ id: r.id, attempts: Number(r.attempts) }));
+      return rows.map((r) => ({
+        id: r.id,
+        attempts: Number(r.attempts),
+        costCents: r.costCents === null ? null : Number(r.costCents),
+      }));
     });
   }
 
@@ -121,53 +156,84 @@ export class EntryBatchProcessor {
       return;
     }
 
-    const readable: Array<Reserved & { data: Buffer }> = [];
+    const readable: Readable[] = [];
     for (const photo of reserved) {
       try {
-        readable.push({ ...photo, data: await this.photos.readNormalized(photo.id) });
+        // Même objet que la réservation : une dépense notée ici reste visible du
+        // rattrapage de `tick` si le lot est interrompu.
+        readable.push(Object.assign(photo, { data: await this.photos.readNormalized(photo.id) }));
       } catch (e) {
         this.logger.warn(`Photo d'entrée ${photo.id} : image illisible : ${messageOf(e)}`);
-        await this.fail(photo.id, 'Image introuvable', settled);
+        await this.fail(photo, 'Image introuvable', settled);
       }
     }
     if (readable.length === 0) return;
 
     let batch;
     try {
-      batch = await this.vision.extractWineLabels(readable.map((p) => ({ data: p.data, mimeType: MIME })));
+      batch = await this.withTimeout(this.vision.extractWineLabels(readable.map((p) => ({ data: p.data, mimeType: MIME }))));
     } catch (e) {
       if (e instanceof VisionBatchMismatchError) {
-        this.logger.warn(`Lot mélangé (${messageOf(e)}) : relecture photo par photo`);
-        for (const photo of readable) await this.readAlone(photo, now, settled);
+        // L'appel a abouti et il est facturé : sa part reste comptée sur chaque photo.
+        const share = splitCost(e.costCents, readable.length);
+        readable.forEach((p) => spend(p, share));
+        this.logger.warn(`Lot mélangé (${e.message}) : relecture photo par photo`);
+        await this.readEachAlone(readable, now, settled);
         return;
       }
       await this.settleFailure(readable, e, now, settled);
       return;
     }
 
-    const cost = splitCost(batch.costCents, readable.length);
+    const share = splitCost(batch.costCents, readable.length);
     for (let i = 0; i < readable.length; i++) {
       const item = batch.items[i];
-      const id = readable[i].id;
+      const photo = readable[i];
+      spend(photo, share);
       if (!item || 'error' in item) {
-        await this.fail(id, item?.error ?? 'Lecture de l’étiquette inexploitable', settled);
+        await this.fail(photo, item?.error ?? 'Lecture de l’étiquette inexploitable', settled);
         continue;
       }
-      await this.done(id, { raw: item.raw, model: batch.model, latencyMs: batch.latencyMs, costCents: cost }, settled);
+      await this.done(photo, { raw: item.raw, model: batch.model, latencyMs: batch.latencyMs }, settled);
     }
     this.logger.log(`Lot d'entrée de ${readable.length} photo(s) lu en ${batch.latencyMs} ms`);
   }
 
-  /** Lot mélangé : chaque photo est relue seule, aucune lecture ne peut être attribuée à une autre. */
-  private async readAlone(photo: Reserved & { data: Buffer }, now: Date, settled: Set<string>): Promise<void> {
-    let r;
-    try {
-      r = await this.vision.extractWineLabel(photo.data, MIME);
-    } catch (e) {
-      await this.settleFailure([photo], e, now, settled);
-      return;
+  /**
+   * Lot mélangé : chaque photo est relue seule, aucune lecture ne peut être
+   * attribuée à une autre. À la première panne passagère, les photos restantes
+   * sont reportées sans appel : le service est indisponible pour toutes.
+   */
+  private async readEachAlone(photos: Readable[], now: Date, settled: Set<string>): Promise<void> {
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
+      let r;
+      try {
+        r = await this.withTimeout(this.vision.extractWineLabel(photo.data, MIME));
+      } catch (e) {
+        if (isTransientVisionFailure(e)) {
+          await this.settleFailure(photos.slice(i), e, now, settled);
+          return;
+        }
+        await this.settleFailure([photo], e, now, settled);
+        continue;
+      }
+      spend(photo, r.costCents);
+      await this.done(photo, { raw: r.raw, model: r.model, latencyMs: r.latencyMs }, settled);
     }
-    await this.done(photo.id, { raw: r.raw, model: r.model, latencyMs: r.latencyMs, costCents: r.costCents }, settled);
+  }
+
+  /** Un appel bloqué devient une panne passagère (ETIMEDOUT) : le lot est reporté normalement. */
+  private withTimeout<T>(call: Promise<T>): Promise<T> {
+    const ms = this.callTimeoutMs;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Délai de réponse de Gemini dépassé (ETIMEDOUT après ${Math.round(ms / 1000)} s)`)),
+        ms,
+      );
+    });
+    return Promise.race([call, timeout]).finally(() => clearTimeout(timer));
   }
 
   /**
@@ -181,60 +247,62 @@ export class EntryBatchProcessor {
     this.logger.warn(`Lot d'entrée de ${photos.length} photo(s) ${transient ? 'reporté' : 'en échec'} : ${message}`);
     for (const photo of photos) {
       if (!transient) {
-        await this.fail(photo.id, message, settled);
+        await this.fail(photo, message, settled);
         continue;
       }
       const attempts = photo.attempts + 1;
       const reason = deferralReason(error);
-      if (attempts >= EXTRACTION_ATTEMPTS) {
-        await this.prisma.photo.update({
-          where: { id: photo.id },
-          data: {
-            status: 'FAILED',
-            attempts,
-            nextAttemptAt: null,
-            errorMessage: `${reason} — abandon après ${EXTRACTION_ATTEMPTS} tentatives`,
-          },
-        });
-      } else {
-        await this.prisma.photo.update({
-          where: { id: photo.id },
-          data: {
-            status: 'PENDING',
-            attempts,
-            nextAttemptAt: new Date(now.getTime() + extractionBackoffDelay(attempts)),
-            errorMessage: reason,
-          },
-        });
-      }
+      const exhausted = attempts >= EXTRACTION_ATTEMPTS;
+      await this.prisma.photo.update({
+        where: { id: photo.id },
+        data: {
+          status: exhausted ? 'FAILED' : 'PENDING',
+          attempts,
+          nextAttemptAt: exhausted ? null : new Date(now.getTime() + extractionBackoffDelay(attempts)),
+          errorMessage: exhausted ? `${reason} — abandon après ${EXTRACTION_ATTEMPTS} tentatives` : reason,
+          ...costData(photo),
+        },
+      });
       settled.add(photo.id);
     }
   }
 
   private async done(
-    id: string,
-    r: { raw: unknown; model: string; latencyMs: number; costCents: number },
+    photo: Reserved,
+    r: { raw: unknown; model: string; latencyMs: number },
     settled: Set<string>,
   ): Promise<void> {
     await this.prisma.photo.update({
-      where: { id },
+      where: { id: photo.id },
       data: {
         status: 'DONE',
         rawExtraction: r.raw as Prisma.InputJsonValue,
         model: r.model,
         latencyMs: r.latencyMs,
-        costCents: r.costCents,
+        costCents: photo.costCents ?? 0,
         errorMessage: null,
         nextAttemptAt: null,
       },
     });
-    settled.add(id);
+    settled.add(photo.id);
   }
 
-  private async fail(id: string, errorMessage: string, settled: Set<string>): Promise<void> {
-    await this.prisma.photo.update({ where: { id }, data: { status: 'FAILED', errorMessage, nextAttemptAt: null } });
-    settled.add(id);
+  private async fail(photo: Reserved, errorMessage: string, settled: Set<string>): Promise<void> {
+    await this.prisma.photo.update({
+      where: { id: photo.id },
+      data: { status: 'FAILED', errorMessage, nextAttemptAt: null, ...costData(photo) },
+    });
+    settled.add(photo.id);
   }
+}
+
+/** Ajoute une dépense à la photo : le coût cumulé de tous ses appels compte dans le plafond mensuel. */
+function spend(photo: Reserved, cents: number): void {
+  photo.costCents = (photo.costCents ?? 0) + cents;
+}
+
+function costData(photo: Reserved): { costCents?: number } {
+  return photo.costCents === null ? {} : { costCents: photo.costCents };
 }
 
 function messageOf(e: unknown): string {

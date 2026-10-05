@@ -8,7 +8,12 @@ export class VisionInvalidOutputError extends Error {}
 
 /** Lot mélangé (JSON illisible, pas un tableau, longueur ≠ N, indice manquant/dupliqué/hors bornes) :
  * attrapée par le processeur de lot, qui relit alors photo par photo. */
-export class VisionBatchMismatchError extends Error {}
+export class VisionBatchMismatchError extends Error {
+  /** `costCents` : l'appel a abouti et il est facturé même si sa sortie est inexploitable. */
+  constructor(message: string, readonly costCents = 0) {
+    super(message);
+  }
+}
 
 const PROMPT = `Tu lis une étiquette de vin (ou un carton de vin) photographiée. Réponds UNIQUEMENT par un objet JSON strict de cette forme :
 ${EXTRACTION_JSON_SCHEMA_DESCRIPTION}
@@ -108,16 +113,17 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
       generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     });
     const latencyMs = Date.now() - started;
+    const costCents = costCentsOf(result.response.usageMetadata);
     const text = stripFences(result.response.text());
 
     let rawArray: unknown;
     try {
       rawArray = JSON.parse(text);
     } catch {
-      throw new VisionBatchMismatchError('Sortie du modèle invalide (JSON illisible)');
+      throw new VisionBatchMismatchError('Sortie du modèle invalide (JSON illisible)', costCents);
     }
     if (!Array.isArray(rawArray) || rawArray.length !== n) {
-      throw new VisionBatchMismatchError('Sortie du modèle invalide (tableau de taille incorrecte)');
+      throw new VisionBatchMismatchError('Sortie du modèle invalide (tableau de taille incorrecte)', costCents);
     }
 
     const items = new Array<{ raw: unknown; extraction: WineExtraction } | { error: string }>(n);
@@ -125,10 +131,10 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
     for (const obj of rawArray as unknown[]) {
       const index = (obj as { image?: unknown } | null)?.image;
       if (typeof index !== 'number' || !Number.isInteger(index) || index < 1 || index > n) {
-        throw new VisionBatchMismatchError('Sortie du modèle invalide (indice hors bornes)');
+        throw new VisionBatchMismatchError('Sortie du modèle invalide (indice hors bornes)', costCents);
       }
       if (seen.has(index)) {
-        throw new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)');
+        throw new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)', costCents);
       }
       seen.add(index);
 
@@ -139,10 +145,9 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
       }
     }
     if (seen.size !== n) {
-      throw new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)');
+      throw new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)', costCents);
     }
 
-    const costCents = costCentsOf(result.response.usageMetadata);
     return { items, model: this.modelName, latencyMs, costCents };
   }
 

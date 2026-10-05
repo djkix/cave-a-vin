@@ -100,7 +100,19 @@ describeIfDb('analyse par lot — réservation (base réelle)', () => {
     await processor.tick(now);
 
     const s = await prisma.photo.findUniqueOrThrow({ where: { id: stale.id } });
-    expect(['PENDING', 'DONE']).toContain(s.status);
+    expect(s.status).toBe('PENDING');
+    expect(s.attempts).toBe(1);
     expect((await prisma.photo.findUniqueOrThrow({ where: { id: live.id } })).status).toBe('PROCESSING');
+  });
+
+  it('reprend une photo ENTRY PROCESSING sans échéance (ancien travail interrompu)', async () => {
+    const orphan = await photo({ createdAt: new Date(), status: 'PROCESSING', nextAttemptAt: null });
+
+    await processor.tick();
+
+    const o = await prisma.photo.findUniqueOrThrow({ where: { id: orphan.id } });
+    expect(o.status).toBe('PENDING');
+    expect(o.attempts).toBe(1);
+    expect(o.nextAttemptAt).toBeNull();
   });
 });

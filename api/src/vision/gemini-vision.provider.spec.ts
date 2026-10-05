@@ -147,6 +147,18 @@ describe('GeminiVisionProvider.extractWineLabels', () => {
     await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
   });
 
+  it('un lot mélangé porte le coût de l’appel, déjà payé', async () => {
+    const ok = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const expected = (await new GeminiVisionProvider(fakeModel(JSON.stringify(ok)) as any, 'g').extractWineLabels(images)).costCents;
+    expect(expected).toBeGreaterThan(0);
+    const bad = [{ image: 1, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
+    const err = await new GeminiVisionProvider(fakeModel(JSON.stringify(bad)) as any, 'g').extractWineLabels(images).catch((e) => e);
+    expect(err).toBeInstanceOf(VisionBatchMismatchError);
+    expect(err.costCents).toBe(expected);
+    const unreadable = await new GeminiVisionProvider(fakeModel('pas du json') as any, 'g').extractWineLabels(images).catch((e) => e);
+    expect(unreadable.costCents).toBe(expected);
+  });
+
   it('rejette un indice hors bornes', async () => {
     const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 5, ...validObj() }];
     const model = fakeModel(JSON.stringify(arr));
