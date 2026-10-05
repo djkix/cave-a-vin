@@ -38,6 +38,13 @@ function rowProblem(r: Row): string | null {
 
 const sectionTitle = { fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)', textTransform: 'uppercase' } as const;
 
+/** Libellé accessible du bouton « Écarter » : le vin quand il est connu, sinon la photo. */
+function dismissLabel(draft?: WineDraft): string {
+  const producer = draft?.producer.trim();
+  if (!producer) return 'Écarter cette photo';
+  return ['Écarter', producer, draft?.cuvee?.trim(), draft?.vintage?.toString()].filter(Boolean).join(' ');
+}
+
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 function Thumb({ photoId }: { photoId: string }) {
@@ -121,6 +128,8 @@ export function AConfirmerPage() {
   }
 
   async function dismiss(photoId: string) {
+    // Écarter est définitif (la photo ne revient plus) : on demande confirmation.
+    if (!window.confirm('Écarter cette photo ? Elle ne sera plus proposée.')) return;
     setBusy(true);
     setError(null);
     try {
@@ -175,7 +184,7 @@ export function AConfirmerPage() {
                     <span className={`badge ${r.globalConfidence >= LOW_CONFIDENCE ? 'badge--ok' : 'badge--warn'}`}>confiance {Math.round(r.globalConfidence * 100)} %</span>
                     {!r.ignored && problem && <span className="badge badge--warn">{problem}</span>}
                     {itemError && <span className="badge badge--warn">{itemError}</span>}
-                    <Button variant="link" onClick={() => update(r.photoId, { ignored: !r.ignored })}>{r.ignored ? 'Reprendre' : 'Ignorer'}</Button>
+                    <Button variant="link" onClick={() => update(r.photoId, { ignored: !r.ignored })}>{r.ignored ? 'Reprendre' : 'Mettre de côté'}</Button>
                   </div>
                   {!r.ignored && (
                     <>
@@ -187,7 +196,7 @@ export function AConfirmerPage() {
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end' }}>
-                    <Button variant="outline" onClick={() => dismiss(r.photoId)} disabled={busy}>Écarter</Button>
+                    <Button variant="outline" onClick={() => dismiss(r.photoId)} disabled={busy} aria-label={dismissLabel(r.draft)}>Écarter</Button>
                     {!r.ignored && (
                       <Button variant="primary" onClick={() => validate([r])} disabled={busy || problem !== null}>Valider</Button>
                     )}
@@ -221,7 +230,7 @@ export function AConfirmerPage() {
                   <Thumb photoId={p.id} />
                   <span style={{ flex: 1, minWidth: 0 }}>{p.errorMessage || 'Étiquette non lue'}</span>
                   <Link to={`/entree/${p.id}`} className="btn btn--outline">Saisir à la main</Link>
-                  <Button variant="link" onClick={() => dismiss(p.id)} disabled={busy}>Écarter</Button>
+                  <Button variant="link" onClick={() => dismiss(p.id)} disabled={busy} aria-label={dismissLabel()}>Écarter</Button>
                 </li>
               ))}
             </ul>
@@ -234,8 +243,8 @@ export function AConfirmerPage() {
               Tout valider ({kept.length})
             </Button>
             <span className="dock__hint">
-              Un mouvement d’entrée par fiche · les fiches ignorées restent à confirmer
-              {incomplete > 0 && ` · ${plural(incomplete, 'fiche')} incomplète${incomplete > 1 ? 's' : ''} à corriger ou à ignorer`}
+              Un mouvement d’entrée par fiche · les fiches mises de côté restent à confirmer
+              {incomplete > 0 && ` · ${plural(incomplete, 'fiche')} incomplète${incomplete > 1 ? 's' : ''} à corriger ou à mettre de côté`}
             </span>
           </div>
         )}

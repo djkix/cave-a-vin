@@ -34,35 +34,31 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('sends once on mount, once per 15s tick while mounted, once on online, and never after unmount', async () => {
+it('ne fait que lire la file : aucun envoi au montage, ni par minuterie, ni au retour du réseau', async () => {
   const { unmount } = render(<Probe />);
   await flush();
-  expect(sendQueuedPhotos).toHaveBeenCalledTimes(1);
-
   act(() => {
-    vi.advanceTimersByTime(10_000);
-  });
-  await flush();
-  expect(sendQueuedPhotos).toHaveBeenCalledTimes(1);
-
-  act(() => {
-    vi.advanceTimersByTime(5_000);
-  });
-  await flush();
-  expect(sendQueuedPhotos).toHaveBeenCalledTimes(2);
-
-  act(() => {
+    vi.advanceTimersByTime(60_000);
     window.dispatchEvent(new Event('online'));
   });
   await flush();
-  expect(sendQueuedPhotos).toHaveBeenCalledTimes(3);
-
+  expect(sendQueuedPhotos).not.toHaveBeenCalled();
+  expect(queueStats).toHaveBeenCalled();
   unmount();
-  act(() => {
-    vi.advanceTimersByTime(60_000);
-  });
+});
+
+it('flushNow envoie la file à la demande', async () => {
+  let api: ReturnType<typeof useOfflineQueue> | undefined;
+  function Capture() {
+    api = useOfflineQueue();
+    return null;
+  }
+  render(<Capture />);
   await flush();
-  expect(sendQueuedPhotos).toHaveBeenCalledTimes(3);
+  await act(async () => {
+    await api!.flushNow();
+  });
+  expect(sendQueuedPhotos).toHaveBeenCalledTimes(1);
 });
 
 it('subscribes to queue changes to refresh stats, and unsubscribes on unmount', async () => {

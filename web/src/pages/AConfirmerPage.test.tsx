@@ -99,7 +99,7 @@ it('liste la confiance la plus basse en premier et « Tout valider » envoie les
   renderPage();
   const rows = await screen.findAllByRole('article');
   expect(within(rows[0]).getByDisplayValue('Domaine Douteux')).toBeInTheDocument();
-  await userEvent.click(within(rows[0]).getByRole('button', { name: /Ignorer/ }));
+  await userEvent.click(within(rows[0]).getByRole('button', { name: /Mettre de côté/ }));
   await userEvent.click(screen.getByRole('button', { name: /Tout valider \(1\)/ }));
   await waitFor(() => expect(bulk).toHaveBeenCalledTimes(1));
   const items = bulk.mock.calls[0][0];
@@ -149,6 +149,7 @@ it('écarte une fiche à valider et une photo illisible', async () => {
     failed: [{ id: 'p-ko', status: 'FAILED', createdAt: '', errorMessage: 'Étiquette illisible' }],
   }));
   const dismiss = vi.spyOn(api, 'dismissPhoto').mockResolvedValue({ ok: true });
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
   const { invalidate } = renderPage();
   const card = (await screen.findAllByRole('article'))[0];
   await userEvent.click(within(card).getByRole('button', { name: /Écarter/ }));
@@ -161,9 +162,67 @@ it('écarte une fiche à valider et une photo illisible', async () => {
   expect(keys).toEqual(expect.arrayContaining(['["entry-inbox"]', '["cave"]', '["movements"]']));
 });
 
+it('demande confirmation avant d’écarter : annuler ne fait rien', async () => {
+  vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({
+    toConfirm: [done('p-a', ext('Domaine A', 0.95, 6))],
+    failed: [{ id: 'p-ko', status: 'FAILED', createdAt: '', errorMessage: 'Étiquette illisible' }],
+  }));
+  const dismiss = vi.spyOn(api, 'dismissPhoto').mockResolvedValue({ ok: true });
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  renderPage();
+  const card = (await screen.findAllByRole('article'))[0];
+  await userEvent.click(within(card).getByRole('button', { name: /Écarter/ }));
+  await userEvent.click(within(section(/Lecture impossible/)).getByRole('button', { name: /Écarter/ }));
+  expect(confirm).toHaveBeenCalledTimes(2);
+  expect(confirm).toHaveBeenCalledWith('Écarter cette photo ? Elle ne sera plus proposée.');
+  expect(dismiss).not.toHaveBeenCalled();
+  expect(screen.getByDisplayValue('Domaine A')).toBeInTheDocument();
+  expect(screen.getByText('Étiquette illisible')).toBeInTheDocument();
+});
+
+it('écarte après confirmation acceptée', async () => {
+  vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({ toConfirm: [done('p-a', ext('Domaine A', 0.95, 6))] }));
+  const dismiss = vi.spyOn(api, 'dismissPhoto').mockResolvedValue({ ok: true });
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  renderPage();
+  const card = (await screen.findAllByRole('article'))[0];
+  await userEvent.click(within(card).getByRole('button', { name: /Écarter/ }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(dismiss).toHaveBeenCalledWith('p-a'));
+});
+
+it('nomme le vin dans le libellé de chaque bouton « Écarter », sinon « cette photo »', async () => {
+  const unnamed = ext('Domaine B', 0.4, null);
+  unnamed.producer = { value: null, confidence: 0.4 };
+  vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({
+    toConfirm: [done('p-a', ext('Domaine A', 0.95, 6)), done('p-b', unnamed)],
+    failed: [{ id: 'p-ko', status: 'FAILED', createdAt: '', errorMessage: 'Étiquette illisible' }],
+  }));
+  renderPage();
+  await screen.findAllByRole('article');
+  expect(screen.getByRole('button', { name: 'Écarter Domaine A 2019' })).toBeInTheDocument();
+  expect(within(section(/À valider/)).getByRole('button', { name: 'Écarter cette photo' })).toBeInTheDocument();
+  expect(within(section(/Lecture impossible/)).getByRole('button', { name: 'Écarter cette photo' })).toBeInTheDocument();
+});
+
+it('« Mettre de côté » retire la fiche de « Tout valider » pour cette visite seulement', async () => {
+  vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({ toConfirm: [done('p-a', ext('Domaine A', 0.95, 6))] }));
+  const dismiss = vi.spyOn(api, 'dismissPhoto');
+  renderPage();
+  const card = (await screen.findAllByRole('article'))[0];
+  expect(screen.queryByRole('button', { name: /Ignorer/ })).not.toBeInTheDocument();
+  await userEvent.click(within(card).getByRole('button', { name: 'Mettre de côté' }));
+  expect(screen.getByRole('button', { name: /Tout valider \(0\)/ })).toBeDisabled();
+  expect(screen.getByText(/les fiches mises de côté restent à confirmer/)).toBeInTheDocument();
+  expect(dismiss).not.toHaveBeenCalled();
+  await userEvent.click(within(card).getByRole('button', { name: 'Reprendre' }));
+  expect(screen.getByRole('button', { name: /Tout valider \(1\)/ })).toBeEnabled();
+});
+
 it('affiche le refus d’écarter une photo déjà utilisée', async () => {
   vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({ toConfirm: [done('p-a', ext('Domaine A', 0.95, 6))] }));
   vi.spyOn(api, 'dismissPhoto').mockRejectedValue(new api.ApiError(409, 'Photo déjà utilisée par une entrée'));
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
   renderPage();
   const card = (await screen.findAllByRole('article'))[0];
   await userEvent.click(within(card).getByRole('button', { name: /Écarter/ }));

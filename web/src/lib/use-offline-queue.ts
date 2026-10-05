@@ -6,8 +6,11 @@ import { sendQueuedPhotos } from './photo-sender';
 // depuis ce module historique.
 export { notifyQueueChanged };
 
-const SENDER_INTERVAL_MS = 15_000;
-
+/**
+ * État de la file locale pour l'affichage (bandeau) et envoi forcé à la demande.
+ * L'envoi automatique (minuterie, retour du réseau…) est porté une seule fois
+ * pour toute l'application par `useBackgroundSender`.
+ */
 export function useOfflineQueue() {
   const [stats, setStats] = useState({ count: 0, bytes: 0 });
   const [flushing, setFlushing] = useState(false);
@@ -26,19 +29,8 @@ export function useOfflineQueue() {
 
   useEffect(() => {
     refresh();
-    const unsubscribe = subscribeQueueChanged(refresh);
-    const onVisible = () => { if (document.visibilityState === 'visible') void flushNow(); };
-    window.addEventListener('online', flushNow);
-    document.addEventListener('visibilitychange', onVisible);
-    const timer = window.setInterval(flushNow, SENDER_INTERVAL_MS);
-    void flushNow();
-    return () => {
-      unsubscribe();
-      window.removeEventListener('online', flushNow);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.clearInterval(timer);
-    };
-  }, [refresh, flushNow]);
+    return subscribeQueueChanged(refresh);
+  }, [refresh]);
 
   return { ...stats, flushing, flushNow };
 }

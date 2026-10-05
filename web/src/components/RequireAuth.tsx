@@ -1,9 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, Outlet } from 'react-router-dom';
 import { ApiError, getMe } from '../lib/api-client';
+import { useBackgroundSender } from '../lib/use-background-sender';
 
 export function RequireAuth() {
   const me = useQuery({ queryKey: ['me'], queryFn: getMe, retry: false });
+  // Racine des pages protégées : les photos restées sur le téléphone partent
+  // quelle que soit la page ouverte, pas seulement là où le bandeau s'affiche.
+  useBackgroundSender(me.isSuccess);
   if (me.isPending) return <p className="centered">Chargement…</p>;
   // 401 : pas de session. 403 : session valide mais compte bloqué (AuthenticatedGuard) —
   // dans les deux cas, retour à l'écran de connexion plutôt qu'un faux « serveur injoignable ».
