@@ -6,11 +6,14 @@ tout moment l'état complet de la cave. Application auto-hébergée en Docker,
 utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
-- **État** : lot 0, lot 1, lot 2a, lot 2b, lot 3a, mesure « zéro saisie » et lot 4a (statistiques) livrés — socle, entrée de
+- **État** : lot 0, lot 1, lot 2a, lot 2b, lot 3a, mesure « zéro saisie », lot 4a
+  (statistiques) et lots 4b et 4c (note de dégustation, accords mets-vins)
+  livrés — socle, entrée de
   stock par photo (Gemini), mode campagne, file hors ligne, journal et export
   Excel, onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
   estimation de l'apogée par règles avec correction manuelle par vin, filtre
-  « à boire en priorité » et statistiques de la cave.
+  « à boire en priorité », statistiques de la cave, note de dégustation et
+  accords mets-vins.
 - **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
   (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
   liste « à boire en priorité » se consulte dans l'application. Voir
@@ -165,15 +168,43 @@ plus de bouteilles que la barre), par **couleur**, par **région** (8 premières
 puis *Autres*) et par **décennie
 de millésime** ; **mouvements sur 12 mois** (entrées et sorties par mois, heure
 de Paris ; annulations et inventaires exclus), avec le rythme moyen de
-consommation et la durée de cave qu'il donne ; et trois **classements** : les
+consommation et la durée de cave qu'il donne ; et quatre **classements** : les
 vins les plus bus sur 12 mois, les producteurs les plus présents, les
-bouteilles les plus chères au prix d'achat.
+bouteilles les plus chères au prix d'achat et les mieux notés.
+
+**Note de dégustation.** Sur la fiche d'un vin, le bloc *Ma note* permet à
+tout compte actif de noter le vin **sur 20, par demi-point** (« 16,5 » ou
+« 16.5 » acceptés) ; la note remplace la précédente et peut être retirée. Elle
+s'affiche avec sa date et son auteur, sur la ligne du vin dans l'onglet Cave,
+dans la colonne *Note /20* de l'export Excel et dans le classement *Les mieux
+notés* de la page Stats. API : `PUT` et `DELETE /api/wines/:id/rating`.
+
+**Accords mets-vins.** Chaque vin reçoit, en tâche de fond, jusqu'à 8 plats
+suggérés par Gemini (file `wine-pairing` du worker, à la création du vin et au
+démarrage du worker pour les vins qui n'en ont pas encore — ce rattrapage au
+démarrage génère les accords de tous les vins existants qui n'en ont pas,
+pour une fraction de centime chacun). Comme pour les photos, une
+indisponibilité de Gemini relance la génération plus tard sans rien bloquer,
+et le plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` compte photos et accords
+ensemble ; les accords ne se génèrent que tant que la dépense du mois reste
+sous 80 % de ce plafond, pour que les photos d'étiquette gardent toujours la
+priorité. La fiche affiche les plats (« Suggestions générées par
+Gemini »), « Suggestions en préparation… » en attendant, et *Régénérer*
+(`POST /api/wines/:id/pairing/regenerate`) ; une génération qui échoue pour un
+problème de configuration affiche « Génération impossible : configuration
+Gemini à vérifier », et une réponse inexploitable « Réponse de Gemini
+inexploitable ». Dans l'onglet Cave, le champ
+**Accompagner un plat** garde les vins dont un plat suggéré contient les mots
+tapés (sans accents ni majuscules), les bouteilles à boire en priorité en
+premier, avec la mention « avec : … » (`GET /api/cave?dish=`). L'export ajoute
+une colonne *Accords*.
 
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
 optionnel par couleur et la case *Seulement les vins à boire en priorité*
 (même règle et même ordre que l'onglet Cave ; `GET /api/export.xlsx?drinkSoon=true`). La feuille `Stock` ajoute *Apogée min*, *Apogée max* et
-*Confiance* après *Millésime* ; une ligne dont l'apogée est déjà passée est
+*Confiance* après *Millésime*, puis *Note /20* après *Confiance* et *Accords*
+en dernière colonne ; une ligne dont l'apogée est déjà passée est
 mise en évidence par une teinte d'alerte.
 
 **Garde-fous.** Stock jamais négatif (contrainte en base), **même sous
@@ -474,6 +505,13 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Statistiques au prix d'achat seulement** : la valeur au prix du marché et
   l'écart achat / marché attendent la cote iDealwine (lot 2c, reporté). La
   fenêtre des mouvements est fixe (12 mois).
+- **Accords suggérés, jamais saisis** : les plats viennent de Gemini et ne se
+  corrigent pas un à un (seulement *Régénérer*) ; aucun accord « vécu » n'est
+  enregistré. Une régénération remplace le coût de la précédente dans le
+  plafond du mois. Si le plafond mensuel est atteint tôt dans le mois, un
+  accord peut épuiser ses tentatives avant le changement de mois et rester
+  « indisponible » — utiliser alors *Régénérer* le mois suivant.
+- **Une seule note par vin**, sans commentaire ni historique.
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
   conservée telle qu'elle a été lue ou saisie ; seule une correspondance quasi

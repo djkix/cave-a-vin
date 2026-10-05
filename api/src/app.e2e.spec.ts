@@ -202,6 +202,49 @@ describeIfInfra('api HTTP', () => {
     expect((await supertest(app.getHttpServer()).get('/api/stats')).status).toBe(401);
   });
 
+  it('lets a signed-in account rate a wine, then remove the rating', async () => {
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-rating-${Date.now()}`, producer: 'Domaine e2e note', appellationRaw: 'Bandol', color: 'ROUGE' },
+    });
+    try {
+      const ok = await agent.put(`/api/wines/${wine.id}/rating`).send({ rating: 16.5 });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ value: 16.5, ratedBy: expect.any(String) });
+      const detail = await agent.get(`/api/wines/${wine.id}`);
+      expect(detail.body.wine.rating.value).toBe(16.5);
+      const bad = await agent.put(`/api/wines/${wine.id}/rating`).send({ rating: 16.3 });
+      expect(bad.status).toBe(400);
+      expect(bad.body.message).toBe('La note se donne par demi-point');
+      const cleared = await agent.delete(`/api/wines/${wine.id}/rating`);
+      expect(cleared.status).toBe(200);
+      expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.rating).toBeNull();
+      expect((await supertest(app.getHttpServer()).put(`/api/wines/${wine.id}/rating`).send({ rating: 12 })).status).toBe(401);
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
+  it('queues a pairing regeneration for a known wine, 404 otherwise', async () => {
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-pairing-${Date.now()}`, producer: 'Domaine e2e accords', appellationRaw: 'Bandol', color: 'ROUGE' },
+    });
+    try {
+      const res = await agent.post(`/api/wines/${wine.id}/pairing/regenerate`);
+      expect(res.status).toBe(202);
+      expect((await prisma.pairing.findUniqueOrThrow({ where: { wineId: wine.id } })).status).toBe('PENDING');
+      expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.pairing).toMatchObject({ status: 'PENDING', dishes: [] });
+      expect((await agent.post('/api/wines/00000000-0000-4000-8000-000000000000/pairing/regenerate')).status).toBe(404);
+      expect((await supertest(app.getHttpServer()).post(`/api/wines/${wine.id}/pairing/regenerate`)).status).toBe(401);
+      await prisma.pairing.update({ where: { wineId: wine.id }, data: { status: 'DONE', dishes: ['Agneau de sept heures'] } });
+      const found = await agent.get('/api/cave?dish=AGNEAU&includeEmpty=true');
+      expect(found.status).toBe(200);
+      expect(found.body.find((w: { id: string }) => w.id === wine.id)?.matchedDish).toBe('Agneau de sept heures');
+      expect((await agent.get(`/api/cave?dish=${'x'.repeat(101)}`)).status).toBe(400);
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);

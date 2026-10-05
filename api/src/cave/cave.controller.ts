@@ -1,10 +1,13 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { AppUser } from '@prisma/client';
 import { z } from 'zod';
 import { manualApogeeSchema } from '../apogee/dto';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { inventorySchema } from '../movements/dto';
 import { MovementsService } from '../movements/movements.service';
 import { CaveService } from './cave.service';
+import { ratingSchema } from './rating.dto';
 
 const listQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
@@ -12,6 +15,7 @@ const listQuerySchema = z.object({
   includeEmpty: z.enum(['true', 'false']).optional(),
   drinkSoon: z.enum(['true', 'false']).optional(),
   noApogee: z.enum(['true', 'false']).optional(),
+  dish: z.string().trim().max(100).optional(),
 });
 
 @Controller()
@@ -26,11 +30,11 @@ export class CaveController {
   list(@Query() query: unknown) {
     const parsed = listQuerySchema.safeParse(query);
     if (!parsed.success) throw new BadRequestException('Filtre de cave invalide');
-    const { q, color, includeEmpty, drinkSoon, noApogee } = parsed.data;
+    const { q, color, includeEmpty, drinkSoon, noApogee, dish } = parsed.data;
     if (drinkSoon === 'true' && noApogee === 'true') {
       throw new BadRequestException('Choisis « à boire en priorité » ou « sans apogée », pas les deux');
     }
-    return this.cave.list({ q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true' });
+    return this.cave.list({ q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true', dish: dish || undefined });
   }
 
   @Get('wines/:id')
@@ -60,5 +64,17 @@ export class CaveController {
   @Delete('wines/:id/apogee')
   clearApogee(@Param('id', ParseUUIDPipe) id: string) {
     return this.cave.clearManualApogee(id);
+  }
+
+  @Put('wines/:id/rating')
+  setRating(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @CurrentUser() user: AppUser) {
+    const parsed = ratingSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
+    return this.cave.setRating(id, parsed.data.rating, user.id);
+  }
+
+  @Delete('wines/:id/rating')
+  clearRating(@Param('id', ParseUUIDPipe) id: string) {
+    return this.cave.clearRating(id);
   }
 }

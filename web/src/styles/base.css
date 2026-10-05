@@ -143,3 +143,6 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 .histo__bar--out, .histo__key--out { background: var(--color-wine-rouge); }
 .histo__label { font-size: 10px; color: var(--color-secondary); margin-top: 2px; }
 .histo__key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; }
+
+.dish-pills { list-style: none; margin: var(--space-sm) 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.dish-pill { padding: 4px 10px; border-radius: 999px; background: var(--color-surface-container-low); border: 1px solid var(--color-outline-subtle); font-size: 13px; }

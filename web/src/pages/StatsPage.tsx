@@ -5,6 +5,7 @@ import { TopBar } from '../components/TopBar';
 import { BarList, BarRow } from '../components/stats/BarList';
 import { MonthlyChart } from '../components/stats/MonthlyChart';
 import { getStats, StatsRankedWine, StatsShare } from '../lib/api-client';
+import { formatRatingShort } from '../lib/rating';
 
 const COLOR_LABEL: Record<string, string> = { ROUGE: 'Rouge', BLANC: 'Blanc', ROSE: 'Rosé', PETILLANT: 'Pétillant' };
 const COLOR_VAR: Record<string, string> = {
@@ -93,6 +94,7 @@ export function StatsPage() {
             <RankList title="Les plus bus" items={s.mostDrunk.map((w) => ({ key: w.id, label: wineLabel(w), value: bottlesText(w.value), to: `/cave/${w.id}` }))} />
             <RankList title="Producteurs" items={s.topProducers.map((p) => ({ key: p.producer, label: p.producer, value: bottlesText(p.bottles) }))} />
             <RankList title="Les plus chères" items={s.mostExpensive.map((w) => ({ key: w.id, label: wineLabel(w), value: euros(w.value), to: `/cave/${w.id}` }))} />
+            <RankList title="Les mieux notés" items={s.bestRated.map((w) => ({ key: w.id, label: wineLabel(w), value: formatRatingShort(w.value), to: `/cave/${w.id}` }))} />
           </>
         )}
       </main>

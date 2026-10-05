@@ -4,6 +4,8 @@ import { Link, useParams } from 'react-router-dom';
 import { ApogeeBlock } from '../components/ApogeeBlock';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
+import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
+import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
@@ -21,7 +23,11 @@ const MAX_COUNTED = 100_000;
 export function WinePage() {
   const { wineId = '' } = useParams();
   const qc = useQueryClient();
-  const detail = useQuery({ queryKey: ['wine', wineId], queryFn: () => getWine(wineId) });
+  const detail = useQuery({
+    queryKey: ['wine', wineId],
+    queryFn: () => getWine(wineId),
+    refetchInterval: (q) => pairingPollInterval(q.state.data?.wine.pairing),
+  });
   const [counting, setCounting] = useState(false);
   const [counted, setCounted] = useState('');
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
@@ -85,6 +91,8 @@ export function WinePage() {
             <main> partageant la même clé troublent la réconciliation de React
             (avertissement « two children with the same key », rendu dupliqué). */}
         <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} />
+        <RatingBlock key={`rating-${wine.id}`} wine={wine} />
+        <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} />
 
         <SortieConfirmation key={wine.id} wine={wine} />
 

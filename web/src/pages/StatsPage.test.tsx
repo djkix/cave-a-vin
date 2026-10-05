@@ -23,6 +23,7 @@ const base: api.Stats = {
   mostDrunk: [{ id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', vintage: 2019, value: 3 }],
   topProducers: [{ producer: 'Domaine Tempier', bottles: 9 }],
   mostExpensive: [{ id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', vintage: 2019, value: 4800 }],
+  bestRated: [{ id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', vintage: 2019, value: 17.5 }],
 };
 
 function mount() {
@@ -90,11 +91,19 @@ it('mène des classements vers la fiche du vin', async () => {
   expect(within(card).getByText('~48 €')).toBeInTheDocument();
 });
 
+it('classe les mieux notés', async () => {
+  vi.spyOn(api, 'getStats').mockResolvedValue(base);
+  mount();
+  const card = (await screen.findByRole('heading', { name: 'Les mieux notés' })).closest('section')!;
+  expect(within(card).getByRole('link', { name: /Domaine Tempier — La Tourtine 2019/ })).toHaveAttribute('href', '/cave/w1');
+  expect(within(card).getByText('17,5/20')).toBeInTheDocument();
+});
+
 it('dit quand la cave est vide', async () => {
   vi.spyOn(api, 'getStats').mockResolvedValue({
     ...base, bottles: 0, references: 0, pricedReferences: 0, purchaseValueCents: null, byColor: [], byRegion: [], byDecade: [],
     byApogee: base.byApogee.map((a) => ({ ...a, bottles: 0, share: 0 })), months: months(), drinkRate: 0, yearsLeft: null,
-    mostDrunk: [], topProducers: [], mostExpensive: [],
+    mostDrunk: [], topProducers: [], mostExpensive: [], bestRated: [],
   });
   mount();
   expect(await screen.findByText('Aucune bouteille en cave pour l’instant')).toBeInTheDocument();

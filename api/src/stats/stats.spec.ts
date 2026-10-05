@@ -4,7 +4,7 @@ import { computeStats, lastMonths, monthKey, StatsMovement, StatsWine } from './
 const NOW = new Date('2026-10-15T12:00:00Z');
 const ap = (status: ApogeeStatus | null): Apogee => ({ min: null, max: null, confidence: null, status, reason: null, source: null });
 const wine = (id: string, over: Partial<StatsWine> = {}): StatsWine => ({
-  id, producer: `P-${id}`, cuvee: null, vintage: 2019, color: 'ROUGE', region: 'Provence', quantity: 1, apogee: ap('A_BOIRE'), ...over,
+  id, producer: `P-${id}`, cuvee: null, vintage: 2019, color: 'ROUGE', region: 'Provence', quantity: 1, apogee: ap('A_BOIRE'), rating: null, ...over,
 });
 let n = 0;
 const mv = (wineId: string, type: StatsMovement['type'], delta: number, at: string, over: Partial<StatsMovement> = {}): StatsMovement => ({
@@ -150,5 +150,20 @@ describe('computeStats — classements', () => {
       mv('c', 'IN', 1, '2026-01-01T10:00:00Z', { priceUnitCents: 50000 }),
     ];
     expect(computeStats({ wines, movements }, NOW).mostExpensive.map((w) => [w.id, w.value])).toEqual([['b', 9000], ['a', 2000]]);
+  });
+
+  it('les mieux notés, en stock ou non, départagés par producteur, limités à 5', () => {
+    const wines = [
+      wine('a', { producer: 'Domaine A', rating: 15, quantity: 0 }),
+      wine('b', { producer: 'Domaine B', rating: 18.5 }),
+      wine('c', { producer: 'Domaine C', rating: 15 }),
+      wine('d', { producer: 'Domaine D', rating: null }),
+      wine('e', { producer: 'Domaine E', rating: 12 }),
+      wine('f', { producer: 'Domaine F', rating: 11 }),
+      wine('g', { producer: 'Domaine G', rating: 10 }),
+    ];
+    expect(computeStats({ wines, movements: [] }, NOW).bestRated.map((w) => [w.id, w.value])).toEqual([
+      ['b', 18.5], ['a', 15], ['c', 15], ['e', 12], ['f', 11],
+    ]);
   });
 });

@@ -44,8 +44,8 @@ describe('ExportService.buildWorkbook', () => {
     const stock = wb.getWorksheet('Stock')!;
     expect(stock.rowCount).toBe(2); // header + Tempier
     expect(stock.getRow(2).getCell(1).value).toBe('Domaine Tempier');
-    expect(stock.getRow(2).getCell(11).value).toBe(12);
-    expect(stock.getRow(2).getCell(13).value).toBe(576); // 12 × 48 €
+    expect(stock.getRow(2).getCell(12).value).toBe(12);
+    expect(stock.getRow(2).getCell(14).value).toBe(576); // 12 × 48 €
     expect(rowCount).toBe(1);
     expect(wb.getWorksheet('Mouvements')!.rowCount).toBe(4);
     expect(prisma.exportLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'u1', rowCount: 1 }) }));
@@ -119,8 +119,8 @@ describe('ExportService.buildWorkbook', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
     await wb.xlsx.load(buffer as any);
     const stock = wb.getWorksheet('Stock')!;
-    expect(stock.getRow(2).getCell(12).value).toBe(48);
-    expect(stock.getRow(2).getCell(13).value).toBe(576); // 12 × 48 €
+    expect(stock.getRow(2).getCell(13).value).toBe(48);
+    expect(stock.getRow(2).getCell(14).value).toBe(576); // 12 × 48 €
   });
 
   it('« à boire en priorité » ne garde que les fins d’apogée jusqu’à l’an prochain, la plus proche en premier', async () => {
@@ -144,5 +144,24 @@ describe('ExportService.buildWorkbook', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('ajoute la note et les accords à la feuille Stock', async () => {
+    const prisma = fakePrisma();
+    const rated = {
+      id: 'w5', producer: 'Domaine Noté', cuvee: null, appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75,
+      appellationId: 'a-bandol', apogeeMin: null, apogeeMax: null, apogeeSource: null, rating: 16.5,
+      appellation: { region: 'Provence', guardMinYears: 5, guardMaxYears: 20 },
+      pairing: { status: 'DONE', dishes: ['agneau de sept heures', 'daube provençale'] },
+    };
+    prisma.wine.findMany = async () => [rated] as any;
+    prisma.$queryRaw = async () => [{ wine_id: 'w5', quantity: 2 }];
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const wb = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
+    await wb.xlsx.load(buffer as any);
+    const stock = wb.getWorksheet('Stock')!;
+    expect([9, 15].map((c) => stock.getRow(1).getCell(c).value)).toEqual(['Note /20', 'Accords']);
+    expect([9, 15].map((c) => stock.getRow(2).getCell(c).value)).toEqual([16.5, 'agneau de sept heures ; daube provençale']);
   });
 });

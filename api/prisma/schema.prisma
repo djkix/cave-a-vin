@@ -47,6 +47,12 @@ enum AccountStatus {
   BLOCKED
 }
 
+enum PairingStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
 model Appellation {
   id             String          @id @default(uuid())
   canonicalName  String          @unique @map("canonical_name")
@@ -77,6 +83,11 @@ model Wine {
   idealwineRef     String?      @map("idealwine_ref")
   referencePhotoId String?      @map("reference_photo_id")
   createdAt        DateTime     @default(now()) @map("created_at")
+  rating           Decimal?     @db.Decimal(3, 1)
+  ratedAt          DateTime?    @map("rated_at")
+  ratedById        String?      @map("rated_by")
+  ratedBy          AppUser?     @relation(fields: [ratedById], references: [id], onDelete: SetNull)
+  pairing          Pairing?
   movements        Movement[]
 
   @@map("wine")
@@ -130,6 +141,7 @@ model AppUser {
   isAdmin      Boolean       @default(false) @map("is_admin")
   lastLoginAt  DateTime?     @map("last_login_at")
   createdAt    DateTime      @default(now()) @map("created_at")
+  ratedWines   Wine[]
 
   @@map("app_user")
 }
@@ -176,4 +188,19 @@ model GuardOverride {
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
   @@map("guard_override")
+}
+
+model Pairing {
+  id           String        @id @default(uuid())
+  wineId       String        @unique @map("wine_id")
+  wine         Wine          @relation(fields: [wineId], references: [id], onDelete: Cascade)
+  status       PairingStatus @default(PENDING)
+  dishes       String[]      @default([])
+  model        String?
+  costCents    Int?          @map("cost_cents")
+  errorMessage String?       @map("error_message")
+  generatedAt  DateTime?     @map("generated_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("pairing")
 }

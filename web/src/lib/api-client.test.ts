@@ -29,4 +29,16 @@ describe('apiFetch', () => {
     const init = fetchSpy.mock.calls[0][1];
     expect(init?.headers).toBeUndefined();
   });
+
+  it('renvoie undefined pour un corps vide, même hors 204 (200 ou 202)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    await expect(apiFetch('/wines/w1/rating', { method: 'DELETE' })).resolves.toBeUndefined();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 202 }));
+    await expect(apiFetch('/wines/w1/pairing/regenerate', { method: 'POST' })).resolves.toBeUndefined();
+  });
+
+  it('continue de parser le JSON pour un corps non vide hors 204', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ value: 16.5 }), { status: 202 }));
+    await expect(apiFetch('/x')).resolves.toEqual({ value: 16.5 });
+  });
 });

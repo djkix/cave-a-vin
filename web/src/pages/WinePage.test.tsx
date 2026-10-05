@@ -8,7 +8,10 @@ import { WinePage } from './WinePage';
 afterEach(() => vi.restoreAllMocks());
 
 const detail: api.WineDetail = {
-  wine: { id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: 'p1', quantity: 6 },
+  wine: {
+    id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: 'p1', quantity: 6,
+    pairing: { status: 'DONE', dishes: [], errorMessage: null, generatedAt: null },
+  },
   movements: [{ id: 'm1', delta: 6, type: 'IN', occurredAt: '2026-09-21T10:00:00Z', note: null, reversesId: null }],
 };
 

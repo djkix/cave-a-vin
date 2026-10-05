@@ -8,6 +8,7 @@ import { CaveModule } from './cave/cave.module';
 import { ExportModule } from './export/export.module';
 import { HealthController } from './health/health.controller';
 import { MovementsModule } from './movements/movements.module';
+import { PairingModule } from './pairing/pairing.module';
 import { PhotosModule } from './photos/photos.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
@@ -31,6 +32,7 @@ import { WinesModule } from './wines/wines.module';
     PhotosModule,
     QueueModule,
     MovementsModule,
+    PairingModule,
     ExportModule,
     CaveModule,
   ],
