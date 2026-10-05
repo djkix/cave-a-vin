@@ -22,6 +22,7 @@ export interface StatsWine {
   region: string | null;
   quantity: number;
   apogee: Apogee;
+  rating: number | null;
 }
 
 export interface StatsMovement {
@@ -54,6 +55,7 @@ export interface Stats {
   mostDrunk: RankedWine[];
   topProducers: RankedProducer[];
   mostExpensive: RankedWine[];
+  bestRated: RankedWine[];
 }
 
 const monthFormat = new Intl.DateTimeFormat('en-CA', { timeZone: STATS_TIME_ZONE, year: 'numeric', month: '2-digit' });
@@ -155,5 +157,10 @@ export function computeStats(input: { wines: StatsWine[]; movements: StatsMoveme
       .sort((a, b) => b.bottles - a.bottles || byFr(a.producer, b.producer))
       .slice(0, RANKING_SIZE),
     mostExpensive: priced.map((w) => ranked(w, lastPrice.get(w.id)!)).sort(valueThenProducer).slice(0, RANKING_SIZE),
+    bestRated: input.wines
+      .filter((w) => w.rating != null)
+      .map((w) => ranked(w, w.rating as number))
+      .sort(valueThenProducer)
+      .slice(0, RANKING_SIZE),
   };
 }

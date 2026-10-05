@@ -24,7 +24,7 @@ export class StatsService {
     const year = now.getFullYear();
     const wines = rows.map((r) => ({
       id: r.id, producer: r.producer, cuvee: r.cuvee, vintage: r.vintage, color: r.color,
-      region: r.region ?? null, quantity: r.quantity, apogee: apogeeOf(r, rules, year),
+      region: r.region ?? null, quantity: r.quantity, apogee: apogeeOf(r, rules, year), rating: r.rating ?? null,
     }));
     return computeStats({ wines, movements: movements as StatsMovement[] }, now);
   }

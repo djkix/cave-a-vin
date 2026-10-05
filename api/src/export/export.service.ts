@@ -27,7 +27,7 @@ export class ExportService {
   async buildWorkbook(filter: ExportFilter, userId: string): Promise<{ buffer: Buffer; rowCount: number }> {
     const [stockRows, wines, movements, appellations] = await Promise.all([
       this.prisma.$queryRaw<{ wine_id: string; quantity: number }[]>`SELECT wine_id, quantity FROM stock_courant`,
-      this.prisma.wine.findMany({ include: { appellation: true }, orderBy: [{ producer: 'asc' }, { vintage: 'asc' }] }),
+      this.prisma.wine.findMany({ include: { appellation: true, pairing: true }, orderBy: [{ producer: 'asc' }, { vintage: 'asc' }] }),
       this.prisma.movement.findMany({ include: { wine: true }, orderBy: { occurredAt: 'desc' } }),
       this.prisma.appellation.findMany({ orderBy: { canonicalName: 'asc' } }),
     ]);
@@ -75,11 +75,13 @@ export class ExportService {
       { header: 'Apogée min', key: 'apogeeMin', width: 11 },
       { header: 'Apogée max', key: 'apogeeMax', width: 11 },
       { header: 'Confiance', key: 'confidence', width: 11 },
+      { header: 'Note /20', key: 'rating', width: 9 },
       { header: 'Couleur', key: 'color', width: 10 },
       { header: 'Format (cl)', key: 'formatCl', width: 10 },
       { header: 'Quantité', key: 'quantity', width: 10 },
       { header: "Prix d'achat unitaire (€)", key: 'price', width: 20 },
       { header: "Valeur d'achat (€)", key: 'value', width: 16 },
+      { header: 'Accords', key: 'pairings', width: 48 },
     ];
     for (const { w, apogee } of inStock) {
       const q = stockByWine.get(w.id) ?? 0;
@@ -88,8 +90,10 @@ export class ExportService {
         producer: w.producer, cuvee: w.cuvee ?? '', appellation: w.appellationRaw, region: w.appellation?.region ?? '',
         vintage: w.vintage ?? 'NV', apogeeMin: apogee.min, apogeeMax: apogee.max,
         confidence: apogee.confidence ? CONFIDENCE_LABEL[apogee.confidence] : null,
+        rating: w.rating == null ? null : Number(w.rating),
         color: COLOR_LABEL[w.color], formatCl: w.formatCl, quantity: q,
         price, value: price == null ? null : Math.round(price * q * 100) / 100,
+        pairings: w.pairing?.status === 'DONE' ? w.pairing.dishes.join(' ; ') : '',
       });
       if (apogee.status === 'PASSEE') {
         row.eachCell({ includeEmpty: true }, (cell) => {
@@ -97,7 +101,7 @@ export class ExportService {
         });
       }
     }
-    stock.autoFilter = { from: 'A1', to: 'M1' };
+    stock.autoFilter = { from: 'A1', to: 'O1' };
     stock.getRow(1).font = { bold: true };
 
     const mv = wb.addWorksheet('Mouvements', { views: [{ state: 'frozen', ySplit: 1 }] });
