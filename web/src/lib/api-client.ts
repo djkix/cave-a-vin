@@ -174,3 +174,14 @@ export interface ReadingQuality {
   fields: Array<{ field: ReadField; corrected: number; rate: number | null }>;
 }
 export const getReadingQuality = () => apiFetch<ReadingQuality>('/admin/reading-quality');
+
+export interface StatsShare { key: string; bottles: number; share: number }
+export interface StatsRankedWine { id: string; producer: string; cuvee: string | null; vintage: number | null; value: number }
+export interface Stats {
+  bottles: number; references: number; pricedReferences: number; purchaseValueCents: number | null;
+  byColor: StatsShare[]; byRegion: StatsShare[]; byDecade: StatsShare[]; byApogee: StatsShare[];
+  months: Array<{ month: string; in: number; out: number }>;
+  drinkRate: number; yearsLeft: number | null;
+  mostDrunk: StatsRankedWine[]; topProducers: Array<{ producer: string; bottles: number }>; mostExpensive: StatsRankedWine[];
+}
+export const getStats = () => apiFetch<Stats>('/stats');
