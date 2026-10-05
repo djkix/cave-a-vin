@@ -290,6 +290,7 @@ Ce choix coûte une vue matérialisée et apporte trois choses que le compteur n
 - Le stock d'une référence peut passer à zéro mais **jamais en négatif** : contrainte vérifiée par trigger avant insertion, avec message explicite côté application (« il ne reste aucune bouteille de ce vin »).
 - `photo.raw_extraction` conserve la sortie JSON brute du modèle, telle quelle. C'est ce qui permet de rejouer l'extraction sur tout l'historique le jour où le prompt ou le modèle change, sans reprendre les photos.
 - Une vue matérialisée `stock_courant` (wine_id, quantité, valeur, apogée) est rafraîchie à chaque mouvement. À cette volumétrie, le coût est négligeable et la lecture devient triviale pour l'API comme pour la sync.
+  *Révision (octobre 2026) : `stock_courant` est devenue une vue simple, calculée à la lecture. Le rafraîchissement par déclencheur perdait un mouvement quand deux mouvements se croisaient.*
 
 ## Architecture technique
 

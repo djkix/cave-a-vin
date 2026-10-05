@@ -151,7 +151,9 @@ mise en évidence par une teinte d'alerte.
 **Garde-fous.** Stock jamais négatif (contrainte en base), **même sous
 concurrence** : le déclencheur verrouille désormais la ligne du vin avant de
 vérifier le stock, pour qu'une sortie simultanée des dernières bouteilles ne
-puisse pas en laisser passer deux à la fois. Journal en ajout seul,
+puisse pas en laisser passer deux à la fois. Le stock affiché est **calculé à
+chaque lecture** à partir du journal (vue `stock_courant`) : deux mouvements
+simultanés ne peuvent plus en faire disparaître un. Journal en ajout seul,
 idempotence de bout en bout (empreinte de contenu par photo, clé d'idempotence par
 mouvement, un seul mouvement d'entrée par photo **et une seule sortie par
 photo**, une clé d'idempotence déjà utilisée par un autre mouvement est
