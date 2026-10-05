@@ -11,8 +11,10 @@ utilisée depuis un téléphone (PWA installable).
   Excel, onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
   estimation de l'apogée par règles avec correction manuelle par vin, filtre
   « à boire en priorité ».
-- **À venir** : alertes d'apogée (lot 3b), emplacements dans la cave (lot 3c),
-  cote iDealwine (lot 2c). Voir `cahier-des-charges.md`.
+- **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
+  (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
+  liste « à boire en priorité » se consulte dans l'application. Voir
+  `cahier-des-charges.md`.
 
 ## Sommaire
 
@@ -463,9 +465,9 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   « moyen » (facteur 1,0).
 - **Pas d'estimation d'apogée pour les vins non millésimés** : la fiche
   l'indique et ne propose que la saisie manuelle.
-- **Pas encore d'alerte** : la liste « à boire en priorité » se consulte, elle
-  ne prévient pas (lot 3b, à venir). **Emplacements dans la cave** : lot 3c, à
-  venir. **Cote iDealwine** : lot 2c, à venir.
+- **Pas d'alerte hors de l'application** : la liste « à boire en priorité » se
+  consulte, elle ne prévient pas (choix assumé). **Emplacements dans la cave**
+  et **cote iDealwine** : reportés, chacun dans un lot séparé.
 - **Après « Annuler »**, le panneau de sortie de la fiche vin reste sur
   « Sortie annulée » jusqu'à ce qu'on quitte la page (pas de retour
   automatique à l'écran de sortie).
