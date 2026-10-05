@@ -1,5 +1,7 @@
 import { GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
 import { EXTRACTION_JSON_SCHEMA_DESCRIPTION, parseExtraction } from './extraction-schema';
+import { parsePairingOutput, PairingInvalidOutputError } from './pairing-output';
+import { PairingProvider, PairingResult, PairingWine } from './pairing-provider.interface';
 import { VisionProvider, VisionResult } from './vision-provider.interface';
 
 export class VisionInvalidOutputError extends Error {}
@@ -17,7 +19,25 @@ Règles :
 // Ordre de grandeur pour le plafond mensuel ; ajuster si la grille tarifaire change.
 const PRICE_PER_1K_TOKENS_CENTS = { input: 0.01, output: 0.04 };
 
-export class GeminiVisionProvider implements VisionProvider {
+function costCentsOf(usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined): number {
+  return Math.ceil(
+    ((usage?.promptTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.input +
+      ((usage?.candidatesTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.output,
+  );
+}
+
+const stripFences = (text: string) => text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+const COLOR_WORD: Record<string, string> = { ROUGE: 'rouge', BLANC: 'blanc', ROSE: 'rosé', PETILLANT: 'pétillant' };
+
+function pairingPrompt(w: PairingWine): string {
+  return `Tu es sommelier. Propose de 5 à 8 plats qui s'accordent avec ce vin.
+Réponds UNIQUEMENT par un objet JSON strict de la forme {"plats": string[]}.
+Chaque plat : un nom court en français (60 caractères au plus), sans phrase ni explication.
+Vin : producteur « ${w.producer} » ; cuvée « ${w.cuvee ?? 'aucune'} » ; appellation « ${w.appellation} » ; région « ${w.region ?? 'inconnue'} » ; couleur ${COLOR_WORD[w.color] ?? w.color} ; ${w.vintage == null ? 'non millésimé' : `millésime ${w.vintage}`}.`;
+}
+
+export class GeminiVisionProvider implements VisionProvider, PairingProvider {
   constructor(
     private readonly model: Pick<GenerativeModel, 'generateContent'>,
     private readonly modelName: string,
@@ -35,7 +55,7 @@ export class GeminiVisionProvider implements VisionProvider {
       generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     });
     const latencyMs = Date.now() - started;
-    const text = result.response.text().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const text = stripFences(result.response.text());
 
     let raw: unknown;
     try {
@@ -50,11 +70,21 @@ export class GeminiVisionProvider implements VisionProvider {
       throw new VisionInvalidOutputError(`Sortie du modèle invalide : ${(e as Error).message}`);
     }
 
-    const usage = result.response.usageMetadata;
-    const costCents = Math.ceil(
-      ((usage?.promptTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.input +
-        ((usage?.candidatesTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.output,
-    );
+    const costCents = costCentsOf(result.response.usageMetadata);
     return { extraction, raw, model: this.modelName, latencyMs, costCents };
+  }
+
+  async suggestPairings(wine: PairingWine): Promise<PairingResult> {
+    const result = await this.model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: pairingPrompt(wine) }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
+    });
+    let raw: unknown;
+    try {
+      raw = JSON.parse(stripFences(result.response.text()));
+    } catch {
+      throw new PairingInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
+    }
+    return { dishes: parsePairingOutput(raw), model: this.modelName, costCents: costCentsOf(result.response.usageMetadata) };
   }
 }

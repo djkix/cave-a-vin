@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { loadEnv } from '../config/env';
 import { GeminiVisionProvider } from './gemini-vision.provider';
+import { PAIRING_PROVIDER } from './pairing-provider.interface';
 import { VISION_PROVIDER } from './vision-provider.interface';
 
 @Module({
@@ -12,7 +13,8 @@ import { VISION_PROVIDER } from './vision-provider.interface';
         return GeminiVisionProvider.fromApiKey(env.GEMINI_API_KEY, env.GEMINI_MODEL);
       },
     },
+    { provide: PAIRING_PROVIDER, useExisting: VISION_PROVIDER },
   ],
-  exports: [VISION_PROVIDER],
+  exports: [VISION_PROVIDER, PAIRING_PROVIDER],
 })
 export class VisionModule {}

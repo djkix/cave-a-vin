@@ -1,4 +1,5 @@
 import { GeminiVisionProvider } from './gemini-vision.provider';
+import { PairingInvalidOutputError } from './pairing-output';
 
 const validJson = JSON.stringify({
   producteur: { value: 'Domaine Tempier', confidence: 0.98 }, cuvee: { value: null, confidence: 0 },
@@ -33,5 +34,33 @@ describe('GeminiVisionProvider', () => {
   it('throws a VisionInvalidOutputError on garbage', async () => {
     const provider = new GeminiVisionProvider(fakeModel('pas du json') as any, 'm');
     await expect(provider.extractWineLabel(Buffer.from('x'), 'image/jpeg')).rejects.toThrow(/sortie du modèle invalide/i);
+  });
+});
+
+describe('GeminiVisionProvider.suggestPairings', () => {
+  const wine = { producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellation: 'Bandol', region: 'Provence', color: 'ROUGE', vintage: 2019 };
+  const fake = (text: string) => ({
+    generateContent: jest.fn(async () => ({ response: { text: () => text, usageMetadata: { promptTokenCount: 200, candidatesTokenCount: 50 } } })),
+  });
+
+  it('demande des plats en français pour ce vin et rend la liste vérifiée avec son coût', async () => {
+    const model = fake('{"plats":["Agneau de sept heures","Daube provençale"]}');
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings(wine);
+    expect(r).toEqual({ dishes: ['Agneau de sept heures', 'Daube provençale'], model: 'gemini-test', costCents: 1 });
+    const prompt = (model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text as string;
+    expect(prompt).toContain('Domaine Tempier');
+    expect(prompt).toContain('La Tourtine');
+    expect(prompt).toContain('Bandol');
+    expect(prompt).toContain('2019');
+  });
+
+  it('nomme un vin non millésimé comme tel', async () => {
+    const model = fake('{"plats":["Comté"]}');
+    await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings({ ...wine, vintage: null });
+    expect((model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text).toContain('non millésimé');
+  });
+
+  it('refuse un JSON illisible', async () => {
+    await expect(new GeminiVisionProvider(fake('pas du json') as any, 'm').suggestPairings(wine)).rejects.toThrow(PairingInvalidOutputError);
   });
 });
