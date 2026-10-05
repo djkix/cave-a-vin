@@ -6,6 +6,7 @@ const tabs = [
   { to: '/entree', icon: 'add_circle', label: 'Entrée', soon: false },
   { to: '/sortie', icon: 'remove_circle_outline', label: 'Sortie', soon: false },
   { to: '/journal', icon: 'history_edu', label: 'Journal', soon: false },
+  { to: '/stats', icon: 'bar_chart', label: 'Stats', soon: false },
 ];
 
 export function BottomNav() {

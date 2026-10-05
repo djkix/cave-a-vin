@@ -6,11 +6,11 @@ tout moment l'état complet de la cave. Application auto-hébergée en Docker,
 utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
-- **État** : lot 0, lot 1, lot 2a, lot 2b, lot 3a et mesure « zéro saisie » livrés — socle, entrée de
+- **État** : lot 0, lot 1, lot 2a, lot 2b, lot 3a, mesure « zéro saisie » et lot 4a (statistiques) livrés — socle, entrée de
   stock par photo (Gemini), mode campagne, file hors ligne, journal et export
   Excel, onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
   estimation de l'apogée par règles avec correction manuelle par vin, filtre
-  « à boire en priorité ».
+  « à boire en priorité » et statistiques de la cave.
 - **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
   (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
   liste « à boire en priorité » se consulte dans l'application. Voir
@@ -152,6 +152,22 @@ diffère de celle que l'écran avait pré-remplie : espaces autour ignorés,
 majuscules et accents comptés, valeurs par défaut gardées (rouge, 75 cl) non
 comptées. Une photo dont l'analyse a échoué compte pour tout ce qui a été
 saisi. API : `GET /api/admin/reading-quality`.
+
+**Statistiques.** Le 5e onglet *Stats* ouvre une page calculée à chaque
+lecture (`GET /api/stats`, tout compte actif) : bouteilles, références et
+**valeur au prix d'achat** (stock × dernier prix d'achat saisi, la même règle
+que l'export ; « sur N des M références » quand des prix manquent, « Aucun prix
+d'achat saisi » quand aucun prix n'est connu) ; répartition du stock par
+**apogée** (les barres *À boire vite*, *Passée* et *Sans estimation* ouvrent
+l'onglet Cave déjà filtré ; l'onglet Cave affiche alors toute la liste « à
+boire en priorité », apogée finie au plus tard l'an prochain, qui peut compter
+plus de bouteilles que la barre), par **couleur**, par **région** (8 premières
+puis *Autres*) et par **décennie
+de millésime** ; **mouvements sur 12 mois** (entrées et sorties par mois, heure
+de Paris ; annulations et inventaires exclus), avec le rythme moyen de
+consommation et la durée de cave qu'il donne ; et trois **classements** : les
+vins les plus bus sur 12 mois, les producteurs les plus présents, les
+bouteilles les plus chères au prix d'achat.
 
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
@@ -455,6 +471,9 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   n'ont pas gardé leur fiche confirmée et ne comptent pas. Une entrée confirmée
   avant la fin de l'analyse est comparée à un formulaire vide : la lecture
   arrivée ensuite n'a pas été montrée.
+- **Statistiques au prix d'achat seulement** : la valeur au prix du marché et
+  l'écart achat / marché attendent la cote iDealwine (lot 2c, reporté). La
+  fenêtre des mouvements est fixe (12 mois).
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
   conservée telle qu'elle a été lue ou saisie ; seule une correspondance quasi

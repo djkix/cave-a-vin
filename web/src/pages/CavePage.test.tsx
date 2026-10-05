@@ -112,3 +112,20 @@ it('ne coche jamais les deux filtres d’apogée ensemble', async () => {
   expect(screen.getByLabelText('À boire en priorité')).not.toBeChecked();
   expect(screen.getByLabelText('Sans apogée')).not.toBeChecked();
 });
+
+it('coche « À boire en priorité » depuis l\'URL', async () => {
+  const getCave = vi.spyOn(api, 'getCave').mockResolvedValue([]);
+  mount('/cave?filtre=priorite');
+  expect(screen.getByLabelText('À boire en priorité')).toBeChecked();
+  await waitFor(() => expect(getCave).toHaveBeenCalledWith({ q: '', color: undefined, includeEmpty: false, drinkSoon: true }));
+});
+
+it('coche « Sans apogée » depuis l\'URL, et ignore une valeur inconnue', async () => {
+  vi.spyOn(api, 'getCave').mockResolvedValue([]);
+  const { unmount } = mount('/cave?filtre=sans-apogee');
+  expect(screen.getByLabelText('Sans apogée')).toBeChecked();
+  unmount();
+  mount('/cave?filtre=nimporte');
+  expect(screen.getByLabelText('À boire en priorité')).not.toBeChecked();
+  expect(screen.getByLabelText('Sans apogée')).not.toBeChecked();
+});

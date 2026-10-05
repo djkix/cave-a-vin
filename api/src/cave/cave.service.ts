@@ -14,21 +14,26 @@ export type ExitCandidatesResponse =
   | { status: 'DONE'; outcome: ExitOutcome; read: ExitRead; candidates: ExitCandidate[] };
 
 /** Ligne lue en base : la ligne publique plus ce qu'il faut pour estimer l'apogée. */
-type CaveDbRow = CaveRow & Omit<ApogeeWineInput, 'vintage' | 'color'>;
+export type CaveDbRow = CaveRow & Omit<ApogeeWineInput, 'vintage' | 'color'>;
 
 export type CaveItem = CaveRow & { apogee: Apogee };
 
-function toItem(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number): CaveItem {
-  const { appellationId, region, referenceGuardMin, referenceGuardMax, apogeeMin, apogeeMax, apogeeSource, ...pub } = row;
-  const apogee = estimateApogee(
+/** Apogée d'une ligne lue en base : partagé par la liste, la fiche et les statistiques. */
+export function apogeeOf(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number): Apogee {
+  return estimateApogee(
     {
-      vintage: row.vintage, color: row.color, appellationId: appellationId ?? null, region: region ?? null,
-      referenceGuardMin: referenceGuardMin ?? null, referenceGuardMax: referenceGuardMax ?? null,
-      apogeeMin: apogeeMin ?? null, apogeeMax: apogeeMax ?? null, apogeeSource: apogeeSource ?? null,
+      vintage: row.vintage, color: row.color, appellationId: row.appellationId ?? null, region: row.region ?? null,
+      referenceGuardMin: row.referenceGuardMin ?? null, referenceGuardMax: row.referenceGuardMax ?? null,
+      apogeeMin: row.apogeeMin ?? null, apogeeMax: row.apogeeMax ?? null, apogeeSource: row.apogeeSource ?? null,
     },
     rules, currentYear,
   );
-  return { ...pub, apogee };
+}
+
+function toItem(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number): CaveItem {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- champs internes retirés de la réponse
+  const { appellationId, region, referenceGuardMin, referenceGuardMax, apogeeMin, apogeeMax, apogeeSource, ...pub } = row;
+  return { ...pub, apogee: apogeeOf(row, rules, currentYear) };
 }
 
 @Injectable()

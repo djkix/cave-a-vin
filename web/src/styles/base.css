@@ -121,3 +121,25 @@ input, select { min-height: var(--size-touch-target); padding: 0 var(--space-md)
 .candidates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); }
 .candidate { display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); padding: var(--space-sm); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-lg); background: var(--color-surface-lowest); color: inherit; font: inherit; cursor: pointer; }
 .candidate__vintage { font: 700 24px var(--font-sans); color: var(--color-primary); }
+
+.stats-head { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); text-align: center; }
+.stats-head > span { display: flex; flex-direction: column; }
+.stats-head__value { font: 600 22px var(--font-serif); color: var(--color-primary); }
+.stats-head__note { grid-column: 1 / -1; }
+
+.bars { list-style: none; margin: var(--space-sm) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+.bars a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.bars__row { display: block; color: inherit; text-decoration: none; }
+a.bars__row .bars__text > span:first-child { text-decoration: underline; text-underline-offset: 3px; }
+.bars__text { display: flex; justify-content: space-between; gap: var(--space-sm); font-size: 13px; }
+.bars__track { display: block; height: 8px; margin-top: 2px; border-radius: 4px; background: var(--color-surface-container-low); overflow: hidden; }
+.bars__fill { display: block; height: 100%; border-radius: 4px; background: var(--color-primary); }
+
+.histo { display: flex; align-items: stretch; gap: 4px; height: 120px; margin-top: var(--space-sm); }
+.histo__col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.histo__bars { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 1px; }
+.histo__bar { width: 45%; border-radius: 2px 2px 0 0; }
+.histo__bar--in, .histo__key--in { background: var(--color-primary-action); }
+.histo__bar--out, .histo__key--out { background: var(--color-wine-rouge); }
+.histo__label { font-size: 10px; color: var(--color-secondary); margin-top: 2px; }
+.histo__key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; }

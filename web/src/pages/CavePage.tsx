@@ -12,13 +12,16 @@ const COLORS: Array<{ value: WineColor | ''; label: string }> = [
   { value: 'ROSE', label: 'Rosé' }, { value: 'PETILLANT', label: 'Pétillant' },
 ];
 
+/** Filtre d'apogée demandé par un lien (page Statistiques) : `?filtre=priorite` ou `?filtre=sans-apogee`. */
+const FILTER_FROM_URL: Record<string, 'drinkSoon' | 'noApogee'> = { priorite: 'drinkSoon', 'sans-apogee': 'noApogee' };
+
 export function CavePage() {
   const [params] = useSearchParams();
   const [q, setQ] = useState(params.get('q') ?? '');
   const [color, setColor] = useState<WineColor | ''>('');
   const [includeEmpty, setIncludeEmpty] = useState(false);
   // Un seul filtre d'apogée à la fois : « à boire en priorité » exclut par définition les vins sans estimation.
-  const [apogeeFilter, setApogeeFilter] = useState<'' | 'drinkSoon' | 'noApogee'>('');
+  const [apogeeFilter, setApogeeFilter] = useState<'' | 'drinkSoon' | 'noApogee'>(FILTER_FROM_URL[params.get('filtre') ?? ''] ?? '');
   const base: CaveFilter = { q, color: color || undefined, includeEmpty };
   const filter: CaveFilter = apogeeFilter ? { ...base, [apogeeFilter]: true } : base;
   const cave = useQuery({ queryKey: ['cave', filter], queryFn: () => getCave(filter) });

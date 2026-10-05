@@ -190,6 +190,18 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
+  it('serves the cave statistics to a signed-in account, never without a session', async () => {
+    const res = await agent.get('/api/stats');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({
+      bottles: expect.any(Number), references: expect.any(Number), pricedReferences: expect.any(Number),
+      byColor: expect.any(Array), byRegion: expect.any(Array), byDecade: expect.any(Array), byApogee: expect.any(Array),
+      drinkRate: expect.any(Number), mostDrunk: expect.any(Array), topProducers: expect.any(Array), mostExpensive: expect.any(Array),
+    }));
+    expect(res.body.months).toHaveLength(12);
+    expect((await supertest(app.getHttpServer()).get('/api/stats')).status).toBe(401);
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);
