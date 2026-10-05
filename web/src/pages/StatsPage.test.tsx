@@ -52,7 +52,10 @@ it('mène des barres d’apogée vers la cave filtrée', async () => {
   mount();
   expect(await screen.findByRole('link', { name: /À boire vite/ })).toHaveAttribute('href', '/cave?filtre=priorite');
   expect(screen.getByRole('link', { name: /Sans estimation/ })).toHaveAttribute('href', '/cave?filtre=sans-apogee');
-  expect(screen.queryByRole('link', { name: /^À boire 6/ })).not.toBeInTheDocument();
+  const heading = screen.getByRole('heading', { name: 'Apogée' });
+  const card = within(heading.closest('section')!);
+  // Passée et Trop jeune n'ont aucune bouteille dans le jeu de données : pas de lien pour elles.
+  expect(card.getAllByRole('link')).toHaveLength(2);
 });
 
 it('montre les 8 premières régions puis « Autres »', async () => {

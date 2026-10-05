@@ -108,6 +108,17 @@ describe('computeStats — mouvements sur 12 mois', () => {
     expect(s.yearsLeft).toBe(5);
   });
 
+  it('place un mouvement au tout début du mois le plus ancien, et exclut celui de la veille', () => {
+    const movements = [
+      // 2025-10-31T23:30:00Z = 1 nov. 2025 00 h 30 à Paris : dans la fenêtre, mois 2025-11.
+      mv('w1', 'OUT', -1, '2025-10-31T23:30:00Z'),
+      // 2025-10-31T22:30:00Z = 31 oct. 2025 23 h 30 à Paris : hors fenêtre (mois 2025-10).
+      mv('w1', 'OUT', -1, '2025-10-31T22:30:00Z'),
+    ];
+    const s = computeStats({ wines: [wine('w1', { quantity: 5 })], movements }, NOW);
+    expect(s.months.find((m) => m.month === '2025-11')).toEqual({ month: '2025-11', in: 0, out: 1 });
+  });
+
   it('sans sortie, ni rythme ni durée', () => {
     const s = computeStats({ wines: [wine('w1', { quantity: 5 })], movements: [mv('w1', 'IN', 5, '2026-05-01T10:00:00Z')] }, NOW);
     expect(s.drinkRate).toBe(0);
