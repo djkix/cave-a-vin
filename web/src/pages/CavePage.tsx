@@ -57,6 +57,9 @@ export function CavePage() {
             Sans apogée
           </label>
         </section>
+        {apogeeFilter === 'drinkSoon' && missing.isError && (
+          <p role="alert" className="text-error">Impossible de compter les vins sans apogée.</p>
+        )}
         {missingCount > 0 && (
           <aside className="banner" role="status">
             <span>{`${missingCount} ${missingCount > 1 ? 'vins' : 'vin'} sans apogée estimée`}</span>

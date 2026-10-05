@@ -89,6 +89,7 @@ it('filtre « à boire en priorité » et signale les vins sans apogée, avec un
   mount();
   await screen.findByText(/Domaine Tempier/);
   expect(screen.queryByText(/sans apogée estimée/)).not.toBeInTheDocument();
+  expect(getCave).not.toHaveBeenCalledWith(expect.objectContaining({ noApogee: true }));
   await userEvent.click(screen.getByLabelText('À boire en priorité'));
   await waitFor(() => expect(getCave).toHaveBeenCalledWith({ q: '', color: undefined, includeEmpty: false, drinkSoon: true }));
   expect(await screen.findByText('1 vin sans apogée estimée')).toBeInTheDocument();

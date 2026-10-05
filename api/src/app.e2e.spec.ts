@@ -150,6 +150,9 @@ describeIfInfra('api HTTP', () => {
       const both = await agent.get('/api/cave?drinkSoon=true&noApogee=true');
       expect(both.status).toBe(400);
       expect(both.body.message).toBe('Choisis « à boire en priorité » ou « sans apogée », pas les deux');
+      const badExport = await agent.get('/api/export.xlsx?drinkSoon=oui');
+      expect(badExport.status).toBe(400);
+      expect(badExport.body.message).toBe('Filtre d’export invalide');
     } finally {
       await prisma.wine.delete({ where: { id: wine.id } });
     }
