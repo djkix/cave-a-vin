@@ -9,6 +9,8 @@ const FIELD_LABEL: Record<ReadField, string> = {
 };
 
 const pct = (r: number) => `${Math.round(r * 100)} %`;
+/** Jugé sur le pourcentage affiché : « 15 % » ne peut pas s'afficher à côté d'« objectif atteint ». */
+const meetsTarget = (r: number) => Math.round(r * 100) < TARGET * 100;
 
 /** Mesure « zéro saisie » : part des champs que la lecture de l'étiquette n'a pas su remplir juste. */
 export function ReadingQualitySection() {
@@ -24,8 +26,8 @@ export function ReadingQualitySection() {
           <p style={{ margin: 'var(--space-sm) 0' }}>
             {`${pct(d.rate)} de champs corrigés à la main — ${d.entries} ${d.entries > 1 ? 'entrées' : 'entrée'} sur ${d.days} jours`}
           </p>
-          <span className={`badge ${d.rate < TARGET ? 'badge--ok' : 'badge--warn'}`}>
-            {d.rate < TARGET ? 'Objectif atteint (moins de 15 %)' : 'Au-dessus de l’objectif (moins de 15 %)'}
+          <span className={`badge ${meetsTarget(d.rate) ? 'badge--ok' : 'badge--warn'}`}>
+            {meetsTarget(d.rate) ? 'Objectif atteint (moins de 15 %)' : 'Au-dessus de l’objectif (moins de 15 %)'}
           </span>
           <table style={{ width: '100%', marginTop: 'var(--space-sm)', borderCollapse: 'collapse' }}>
             <thead>

@@ -15,7 +15,12 @@ export class ReadingQualityService {
       where: { type: 'IN', occurredAt: { gte: since }, confirmedWine: { not: Prisma.DbNull } },
       select: { confirmedWine: true, photo: { select: { rawExtraction: true } } },
     });
-    const perEntry = entries.map((m) => correctedFields(m.photo?.rawExtraction ?? null, m.confirmedWine as Record<string, unknown>));
+    const perEntry = entries.map((m) => {
+      const confirmed = m.confirmedWine as Record<string, unknown>;
+      // Lecture arrivée après la confirmation : l'écran ne l'a pas montrée.
+      const shown = confirmed.readingShown !== false ? m.photo?.rawExtraction ?? null : null;
+      return correctedFields(shown, confirmed);
+    });
     return { days: READING_QUALITY_DAYS, ...summarize(perEntry) };
   }
 }

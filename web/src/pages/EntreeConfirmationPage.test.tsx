@@ -141,3 +141,10 @@ it('sends a single movement on a rapid double tap of Confirmer', async () => {
   await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
   expect(await screen.findByText(/Stock : 6/)).toBeInTheDocument();
 });
+
+it('pré-remplit la fiche depuis la photo déjà lue, même sans nouvelle du flux', async () => {
+  vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'DONE', extraction, createdAt: '' });
+  vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation(() => () => {});
+  mount();
+  expect(await screen.findByDisplayValue('Domaine Tempier')).toBeInTheDocument();
+});

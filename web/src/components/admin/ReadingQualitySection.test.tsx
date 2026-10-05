@@ -47,3 +47,10 @@ it('dit quand la mesure ne se charge pas', async () => {
   mount();
   expect(await screen.findByRole('alert')).toHaveTextContent('Impossible de charger la mesure.');
 });
+
+it('juge l’objectif sur le pourcentage affiché', async () => {
+  vi.spyOn(api, 'getReadingQuality').mockResolvedValue({ days: 90, entries: 20, rate: 0.1496, fields: fields(0.3) });
+  mount();
+  expect(await screen.findByText(/15 % de champs corrigés/)).toBeInTheDocument();
+  expect(screen.getByText('Au-dessus de l’objectif (moins de 15 %)')).toBeInTheDocument();
+});

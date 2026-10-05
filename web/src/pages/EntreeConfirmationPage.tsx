@@ -58,6 +58,8 @@ export function EntreeConfirmationPage() {
         if (cancelled) return;
         setStatus(p.status);
         setErrorMessage(p.errorMessage ?? null);
+        // Photo déjà lue : la fiche se pré-remplit sans attendre le flux, qui peut se couper.
+        if (p.extraction) setExtraction(p.extraction);
         if (p.status === 'FAILED') return;
         unsub = subscribePhotoEvents(
           photoId,

@@ -13,4 +13,19 @@ describe('ReadingQualityService', () => {
     }));
     expect(r).toMatchObject({ days: 90, entries: 1, rate: 3 / 6 });
   });
+
+  it('compare à un formulaire vide une entrée confirmée avant la fin de l’analyse', async () => {
+    const rawExtraction = {
+      producteur: { value: 'X', confidence: 0.9 }, cuvee: { value: null, confidence: 0 }, appellation: { value: 'Bandol', confidence: 0.9 },
+      millesime: { value: 2019, confidence: 0.9 }, couleur: { value: 'rouge', confidence: 0.9 }, format_cl: { value: 75, confidence: 0.9 },
+      degre: { value: null, confidence: 0 }, pays_region: { value: null, confidence: 0 }, nb_cols_carton: { value: null, confidence: 0 }, confiance_globale: 0.9,
+    };
+    const wine = { producer: 'X', cuvee: null, appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75 };
+    const findMany = jest.fn(async () => [
+      { confirmedWine: { ...wine, readingShown: true }, photo: { rawExtraction } },
+      { confirmedWine: { ...wine, readingShown: false }, photo: { rawExtraction } },
+    ]);
+    const r = await new ReadingQualityService({ movement: { findMany } } as any).compute(new Date('2026-10-05T00:00:00Z'));
+    expect(r).toMatchObject({ entries: 2, rate: 3 / 12 });
+  });
 });

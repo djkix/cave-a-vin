@@ -453,8 +453,8 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 
 - **Mesure « zéro saisie » à partir de la 1.5.0** : les entrées antérieures
   n'ont pas gardé leur fiche confirmée et ne comptent pas. Une entrée confirmée
-  avant la fin de l'analyse est comparée à la lecture arrivée ensuite, que
-  l'écran n'a pas montrée.
+  avant la fin de l'analyse est comparée à un formulaire vide : la lecture
+  arrivée ensuite n'a pas été montrée.
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
   conservée telle qu'elle a été lue ou saisie ; seule une correspondance quasi
