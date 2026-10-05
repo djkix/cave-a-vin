@@ -11,6 +11,31 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.4.0](https://github.com/djkix/cave-a-vin/compare/v1.3.0...v1.4.0) (2026-10-05)
 
+### Résumé
+
+Le lot 3a montre les vins à boire en priorité : ceux dont l'apogée se
+termine au plus tard l'an prochain, la fin la plus proche en premier. Les vins
+sans estimation ne sont pas oubliés, ils ont leur propre filtre. Ni migration
+ni nouvelle variable d'environnement.
+
+### Fonctionnalités
+
+- **Onglet Cave** : case *À boire en priorité* (apogée passée, dernière année
+  ou fin l'an prochain ; tri par fin d'apogée puis producteur ; une correction
+  manuelle compte) et case *Sans apogée* (vins non millésimés, d'appellation
+  non reconnue ou de garde inconnue). Les deux s'excluent et se combinent avec
+  la recherche, la couleur et les vins épuisés.
+- **Bandeau** « N vins sans apogée estimée » sous *À boire en priorité*, avec
+  *À compléter* qui bascule sur *Sans apogée* ; un échec du comptage
+  s'affiche au lieu de passer pour « aucun ».
+- **Export Excel** : case *Seulement les vins à boire en priorité* dans le
+  Journal, même règle et même ordre ; paramètres de l'export validés avec des
+  messages en français.
+- **API** : `GET /api/cave?drinkSoon=true`, `GET /api/cave?noApogee=true`
+  (les deux ensemble : `400`), `GET /api/export.xlsx?drinkSoon=true`.
+
+### Détail par commit
+
 
 ### Fonctionnalités
 

@@ -475,6 +475,18 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.4.0 — 5 octobre 2026
+
+Publiée ([v1.4.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.4.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.4.0` et `-web:1.4.0`.
+
+**À boire en priorité.** Dans l'onglet Cave, la case *À boire en priorité*
+garde les vins dont l'apogée se termine au plus tard l'an prochain, la fin la
+plus proche en premier ; la case *Sans apogée* liste les vins sans estimation,
+signalés par un bandeau « N vins sans apogée estimée — À compléter ». L'export
+Excel propose *Seulement les vins à boire en priorité*. Ni migration ni
+nouvelle variable d'environnement.
+
 ### 1.3.0 — 4 octobre 2026
 
 Publiée ([v1.3.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.3.0)),
