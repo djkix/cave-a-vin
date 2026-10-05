@@ -202,6 +202,28 @@ describeIfInfra('api HTTP', () => {
     expect((await supertest(app.getHttpServer()).get('/api/stats')).status).toBe(401);
   });
 
+  it('lets a signed-in account rate a wine, then remove the rating', async () => {
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-rating-${Date.now()}`, producer: 'Domaine e2e note', appellationRaw: 'Bandol', color: 'ROUGE' },
+    });
+    try {
+      const ok = await agent.put(`/api/wines/${wine.id}/rating`).send({ rating: 16.5 });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ value: 16.5, ratedBy: expect.any(String) });
+      const detail = await agent.get(`/api/wines/${wine.id}`);
+      expect(detail.body.wine.rating.value).toBe(16.5);
+      const bad = await agent.put(`/api/wines/${wine.id}/rating`).send({ rating: 16.3 });
+      expect(bad.status).toBe(400);
+      expect(bad.body.message).toBe('La note se donne par demi-point');
+      const cleared = await agent.delete(`/api/wines/${wine.id}/rating`);
+      expect(cleared.status).toBe(200);
+      expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.rating).toBeNull();
+      expect((await supertest(app.getHttpServer()).put(`/api/wines/${wine.id}/rating`).send({ rating: 12 })).status).toBe(401);
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);

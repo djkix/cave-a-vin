@@ -1,10 +1,13 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { AppUser } from '@prisma/client';
 import { z } from 'zod';
 import { manualApogeeSchema } from '../apogee/dto';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { inventorySchema } from '../movements/dto';
 import { MovementsService } from '../movements/movements.service';
 import { CaveService } from './cave.service';
+import { ratingSchema } from './rating.dto';
 
 const listQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
@@ -60,5 +63,17 @@ export class CaveController {
   @Delete('wines/:id/apogee')
   clearApogee(@Param('id', ParseUUIDPipe) id: string) {
     return this.cave.clearManualApogee(id);
+  }
+
+  @Put('wines/:id/rating')
+  setRating(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown, @CurrentUser() user: AppUser) {
+    const parsed = ratingSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
+    return this.cave.setRating(id, parsed.data.rating, user.id);
+  }
+
+  @Delete('wines/:id/rating')
+  clearRating(@Param('id', ParseUUIDPipe) id: string) {
+    return this.cave.clearRating(id);
   }
 }

@@ -148,3 +148,32 @@ describe('CaveService — apogée', () => {
     await expect(service(null, [cdp]).setManualApogee('nope', { min: 2030, max: 2035 })).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('CaveService — note de dégustation', () => {
+  it('expose la note avec son auteur, et null pour un vin non noté', async () => {
+    const rated = { ...cdp, id: 'r1', rating: 16.5, ratedAt: new Date('2026-10-05T10:00:00Z'), ratedBy: 'Franck' };
+    const items = await service(null, [rated, { ...cdp, id: 'r2' }]).list({});
+    expect(items.find((i) => i.id === 'r1')!.rating).toEqual({ value: 16.5, ratedAt: new Date('2026-10-05T10:00:00Z'), ratedBy: 'Franck' });
+    expect(items.find((i) => i.id === 'r2')!.rating).toBeNull();
+    expect(items[0]).not.toHaveProperty('ratedAt');
+    expect(items[0]).not.toHaveProperty('pairingDishes');
+  });
+
+  it('enregistre la note avec la date et l’auteur', async () => {
+    const s = service(null, [cdp]);
+    await s.setRating('w16', 16.5, 'u1');
+    expect((s as any).prisma.wine.update).toHaveBeenCalledWith({
+      where: { id: 'w16' }, data: { rating: 16.5, ratedAt: expect.any(Date), ratedById: 'u1' },
+    });
+  });
+
+  it('retire la note', async () => {
+    const s = service(null, [cdp]);
+    expect(await s.clearRating('w16')).toBeNull();
+    expect((s as any).prisma.wine.update).toHaveBeenCalledWith({ where: { id: 'w16' }, data: { rating: null, ratedAt: null, ratedById: null } });
+  });
+
+  it('répond 404 pour un vin inconnu', async () => {
+    await expect(service(null, [cdp]).setRating('nope', 12, 'u1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
