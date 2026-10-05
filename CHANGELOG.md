@@ -11,6 +11,17 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.4.1](https://github.com/djkix/cave-a-vin/compare/v1.4.0...v1.4.1) (2026-10-05)
 
+### Résumé
+
+Le stock affiché ne perd plus de mouvement. La vue `stock_courant` était une
+vue matérialisée rafraîchie après chaque mouvement : quand deux mouvements se
+croisaient, le second rafraîchissement repartait d'un instantané antérieur à
+la validation du premier, qui disparaissait du stock jusqu'au mouvement
+suivant. Elle devient une vue simple, calculée à chaque lecture (migration
+`20261006000000_stock_vue_simple`). Le stock se recalcule depuis le journal à
+la mise à jour : rien à recompter.
+
+### Détail par commit
 
 ### Corrections
 

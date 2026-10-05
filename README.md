@@ -495,6 +495,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.4.1 — 5 octobre 2026
+
+Publiée ([v1.4.1](https://github.com/djkix/cave-a-vin/releases/tag/v1.4.1)),
+images `ghcr.io/djkix/cave-a-vin-api:1.4.1` et `-web:1.4.1`.
+
+**Le stock ne perd plus de mouvement quand deux se croisent.** La vue
+`stock_courant` est désormais calculée à chaque lecture au lieu d'être
+rafraîchie après chaque mouvement. Migration
+`20261006000000_stock_vue_simple` ; le stock se recalcule depuis le journal à
+la mise à jour, rien à recompter.
+
 ### 1.4.0 — 5 octobre 2026
 
 Publiée ([v1.4.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.4.0)),
