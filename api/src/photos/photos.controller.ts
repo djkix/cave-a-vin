@@ -34,11 +34,16 @@ export class PhotosController {
     return { id: photo.id, status: photo.status, duplicate };
   }
 
-  // Déclaré avant `@Get(':id')` : sinon « queue-status » serait pris pour un
-  // identifiant de photo.
+  // Déclarées avant `@Get(':id')` : sinon « queue-status », « entry-inbox » et
+  // « pending-review » seraient pris pour des identifiants de photo.
   @Get('queue-status')
   queueStatus() {
     return this.photos.queueStatus();
+  }
+
+  @Get('entry-inbox')
+  entryInbox() {
+    return this.photos.entryInbox();
   }
 
   @Get('pending-review')
@@ -53,6 +58,13 @@ export class PhotosController {
       }
       return { ...p, extraction };
     });
+  }
+
+  @Post(':id/dismiss')
+  @HttpCode(200)
+  async dismiss(@Param('id') id: string) {
+    await this.photos.dismiss(id);
+    return { ok: true };
   }
 
   @Get(':id')

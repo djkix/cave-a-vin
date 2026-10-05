@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { mkdtempSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -214,5 +214,97 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
     const service = new PhotosService({ photo: { count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
     await service.queueStatus();
     expect(count).toHaveBeenCalledWith({ where: { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' } });
+  });
+});
+
+describe('PhotosService.entryInbox', () => {
+  function service(photos: any[]) {
+    const prisma = {
+      photo: {
+        findMany: jest.fn(async ({ where, orderBy }: any) => {
+          let rows = photos.filter((p) => p.purpose === where.purpose && p.dismissedAt === where.dismissedAt);
+          if (Array.isArray(where.status.in)) {
+            rows = rows.filter((p) => where.status.in.includes(p.status));
+          } else {
+            rows = rows.filter((p) => p.status === where.status);
+          }
+          rows = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+          void orderBy;
+          return rows.slice(0, 200);
+        }),
+      },
+    };
+    return { prisma, svc: new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any) };
+  }
+
+  it('répartit les photos d’entrée non écartées en trois sections, triées par date de création', async () => {
+    const t0 = new Date('2026-09-21T10:00:00Z');
+    const t1 = new Date('2026-09-21T11:00:00Z');
+    const photos = [
+      { id: 'done-1', purpose: 'ENTRY', status: 'DONE', dismissedAt: null, createdAt: t0, rawExtraction: null },
+      { id: 'pending-1', purpose: 'ENTRY', status: 'PENDING', dismissedAt: null, createdAt: t1, rawExtraction: null },
+      { id: 'processing-1', purpose: 'ENTRY', status: 'PROCESSING', dismissedAt: null, createdAt: t0, rawExtraction: null },
+      { id: 'failed-1', purpose: 'ENTRY', status: 'FAILED', dismissedAt: null, createdAt: t1, rawExtraction: null },
+    ];
+    const { svc } = service(photos);
+    const inbox = await svc.entryInbox();
+    expect(inbox.toConfirm.map((p) => p.id)).toEqual(['done-1']);
+    expect(inbox.inProgress.map((p) => p.id)).toEqual(['processing-1', 'pending-1']);
+    expect(inbox.failed.map((p) => p.id)).toEqual(['failed-1']);
+  });
+
+  it('exclut les photos de sortie et les photos écartées', async () => {
+    const t0 = new Date('2026-09-21T10:00:00Z');
+    const photos = [
+      { id: 'exit-done', purpose: 'EXIT', status: 'DONE', dismissedAt: null, createdAt: t0, rawExtraction: null },
+      { id: 'dismissed-done', purpose: 'ENTRY', status: 'DONE', dismissedAt: new Date(), createdAt: t0, rawExtraction: null },
+      { id: 'kept-done', purpose: 'ENTRY', status: 'DONE', dismissedAt: null, createdAt: t0, rawExtraction: null },
+    ];
+    const { svc } = service(photos);
+    const inbox = await svc.entryInbox();
+    expect(inbox.toConfirm.map((p) => p.id)).toEqual(['kept-done']);
+  });
+
+  it('fournit l’extraction analysée pour toConfirm, null si illisible', async () => {
+    const t0 = new Date('2026-09-21T10:00:00Z');
+    const photos = [
+      { id: 'bad-json', purpose: 'ENTRY', status: 'DONE', dismissedAt: null, createdAt: t0, rawExtraction: { not: 'valid' } },
+    ];
+    const { svc } = service(photos);
+    const inbox = await svc.entryInbox();
+    expect(inbox.toConfirm).toHaveLength(1);
+    expect(inbox.toConfirm[0].extraction).toBeNull();
+  });
+});
+
+describe('PhotosService.dismiss', () => {
+  it('rejette avec 404 quand la photo est introuvable', async () => {
+    const prisma = { photo: { findUnique: jest.fn(async () => null) } };
+    const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await expect(svc.dismiss('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejette avec 409 quand un mouvement référence déjà la photo', async () => {
+    const prisma = {
+      photo: {
+        findUnique: jest.fn(async () => ({ id: 'p1', movements: [{ id: 'm1' }] })),
+        update: jest.fn(),
+      },
+    };
+    const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await expect(svc.dismiss('p1')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.photo.update).not.toHaveBeenCalled();
+  });
+
+  it('écarte la photo (dismissedAt renseigné) quand aucun mouvement ne la référence', async () => {
+    const prisma = {
+      photo: {
+        findUnique: jest.fn(async () => ({ id: 'p1', movements: [] })),
+        update: jest.fn(async ({ data }: any) => ({ id: 'p1', ...data })),
+      },
+    };
+    const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await svc.dismiss('p1');
+    expect(prisma.photo.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { dismissedAt: expect.any(Date) } });
   });
 });
