@@ -1,10 +1,15 @@
 import { act, render } from '@testing-library/react';
-import { flushQueue } from './offline-queue';
+import { queueStats, subscribeQueueChanged } from './offline-queue';
+import { sendQueuedPhotos } from './photo-sender';
 import { useOfflineQueue } from './use-offline-queue';
 
 vi.mock('./offline-queue', () => ({
-  flushQueue: vi.fn().mockResolvedValue({ sent: 0, failed: 0 }),
   queueStats: vi.fn().mockResolvedValue({ count: 0, bytes: 0 }),
+  notifyQueueChanged: vi.fn(),
+  subscribeQueueChanged: vi.fn().mockReturnValue(vi.fn()),
+}));
+vi.mock('./photo-sender', () => ({
+  sendQueuedPhotos: vi.fn().mockResolvedValue(undefined),
 }));
 
 const flush = async () => {
@@ -20,40 +25,55 @@ function Probe() {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.mocked(flushQueue).mockClear();
+  vi.mocked(sendQueuedPhotos).mockClear();
+  vi.mocked(subscribeQueueChanged).mockClear();
+  vi.mocked(queueStats).mockClear();
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-it('flushes once on mount, once per 60s tick while mounted, once on online, and never after unmount', async () => {
+it('sends once on mount, once per 15s tick while mounted, once on online, and never after unmount', async () => {
   const { unmount } = render(<Probe />);
   await flush();
-  expect(flushQueue).toHaveBeenCalledTimes(1);
+  expect(sendQueuedPhotos).toHaveBeenCalledTimes(1);
 
   act(() => {
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(10_000);
   });
   await flush();
-  expect(flushQueue).toHaveBeenCalledTimes(1);
+  expect(sendQueuedPhotos).toHaveBeenCalledTimes(1);
 
   act(() => {
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(5_000);
   });
   await flush();
-  expect(flushQueue).toHaveBeenCalledTimes(2);
+  expect(sendQueuedPhotos).toHaveBeenCalledTimes(2);
 
   act(() => {
     window.dispatchEvent(new Event('online'));
   });
   await flush();
-  expect(flushQueue).toHaveBeenCalledTimes(3);
+  expect(sendQueuedPhotos).toHaveBeenCalledTimes(3);
 
   unmount();
   act(() => {
-    vi.advanceTimersByTime(120_000);
+    vi.advanceTimersByTime(60_000);
   });
   await flush();
-  expect(flushQueue).toHaveBeenCalledTimes(3);
+  expect(sendQueuedPhotos).toHaveBeenCalledTimes(3);
+});
+
+it('subscribes to queue changes to refresh stats, and unsubscribes on unmount', async () => {
+  const unsubscribe = vi.fn();
+  vi.mocked(subscribeQueueChanged).mockReturnValue(unsubscribe);
+
+  const { unmount } = render(<Probe />);
+  await flush();
+  expect(subscribeQueueChanged).toHaveBeenCalledTimes(1);
+  expect(unsubscribe).not.toHaveBeenCalled();
+
+  unmount();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
 });

@@ -6,19 +6,32 @@ export interface QueuedPhoto {
   blob: Blob;
   bytes: number;
   createdAt: number;
-  mode: 'single' | 'campaign';
+  mode: 'entry' | 'single' | 'campaign';
 }
 
 interface CaveDB extends DBSchema {
   photos: { key: string; value: QueuedPhoto; indexes: { byCreated: number } };
 }
 
-export const QUEUE_LIMITS = { maxItems: 20, maxBytes: 50 * 1024 * 1024 };
+export const QUEUE_LIMITS = { maxItems: 200, maxBytes: 200 * 1024 * 1024 };
 
 export class QueueFullError extends Error {
   constructor() {
-    super('File hors ligne pleine (20 photos / 50 Mo) — envoyez les photos en attente avant d’en prendre d’autres');
+    super('File d’envoi pleine (200 photos) — attendez que les envois partent');
   }
+}
+
+const listeners = new Set<() => void>();
+
+/** Signale que la file a changé (ajout, retrait) pour rafraîchir l'affichage. */
+export function notifyQueueChanged(): void {
+  listeners.forEach((l) => l());
+}
+
+/** S'abonne aux changements de la file ; renvoie une fonction de désabonnement. */
+export function subscribeQueueChanged(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /**

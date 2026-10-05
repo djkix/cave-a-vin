@@ -9,7 +9,7 @@ export function OfflineQueueBanner() {
     <aside className="banner banner--warn" role="status">
       <Icon name="cloud_off" />
       <span>
-        <strong className="num">{count} photo{count > 1 ? 's' : ''} en attente</strong>
+        <strong className="num">{count} photo{count > 1 ? 's' : ''} en cours d’envoi</strong>
         <br />
         <small>Envoi automatique dès que le réseau revient (app ouverte)</small>
       </span>
