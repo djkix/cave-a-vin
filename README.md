@@ -168,9 +168,9 @@ plus de bouteilles que la barre), par **couleur**, par **région** (8 premières
 puis *Autres*) et par **décennie
 de millésime** ; **mouvements sur 12 mois** (entrées et sorties par mois, heure
 de Paris ; annulations et inventaires exclus), avec le rythme moyen de
-consommation et la durée de cave qu'il donne ; et trois **classements** : les
+consommation et la durée de cave qu'il donne ; et quatre **classements** : les
 vins les plus bus sur 12 mois, les producteurs les plus présents, les
-bouteilles les plus chères au prix d'achat.
+bouteilles les plus chères au prix d'achat et les mieux notés.
 
 **Note de dégustation.** Sur la fiche d'un vin, le bloc *Ma note* permet à
 tout compte actif de noter le vin **sur 20, par demi-point** (« 16,5 » ou
@@ -179,13 +179,17 @@ s'affiche avec sa date et son auteur, sur la ligne du vin dans l'onglet Cave,
 dans la colonne *Note /20* de l'export Excel et dans le classement *Les mieux
 notés* de la page Stats. API : `PUT` et `DELETE /api/wines/:id/rating`.
 
-**Accords mets-vins.** Chaque vin reçoit, en tâche de fond, de 5 à 8 plats
+**Accords mets-vins.** Chaque vin reçoit, en tâche de fond, jusqu'à 8 plats
 suggérés par Gemini (file `wine-pairing` du worker, à la création du vin et au
-démarrage du worker pour les vins qui n'en ont pas encore). Comme pour les
-photos, une indisponibilité de Gemini relance la génération plus tard sans
-rien bloquer, et le plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` compte photos et
-accords ensemble. La fiche affiche les plats (« Suggestions générées par
-Gemini »), « Suggestions en préparation… » en attendant, et *Regénérer*
+démarrage du worker pour les vins qui n'en ont pas encore — ce rattrapage au
+démarrage génère les accords de tous les vins existants qui n'en ont pas,
+pour une fraction de centime chacun). Comme pour les photos, une
+indisponibilité de Gemini relance la génération plus tard sans rien bloquer,
+et le plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` compte photos et accords
+ensemble ; les accords ne se génèrent que tant que la dépense du mois reste
+sous 80 % de ce plafond, pour que les photos d'étiquette gardent toujours la
+priorité. La fiche affiche les plats (« Suggestions générées par
+Gemini »), « Suggestions en préparation… » en attendant, et *Régénérer*
 (`POST /api/wines/:id/pairing/regenerate`) ; une génération qui échoue pour un
 problème de configuration affiche « Génération impossible : configuration
 Gemini à vérifier », et une réponse inexploitable « Réponse de Gemini
@@ -502,11 +506,11 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   l'écart achat / marché attendent la cote iDealwine (lot 2c, reporté). La
   fenêtre des mouvements est fixe (12 mois).
 - **Accords suggérés, jamais saisis** : les plats viennent de Gemini et ne se
-  corrigent pas un à un (seulement *Regénérer*) ; aucun accord « vécu » n'est
+  corrigent pas un à un (seulement *Régénérer*) ; aucun accord « vécu » n'est
   enregistré. Une régénération remplace le coût de la précédente dans le
   plafond du mois. Si le plafond mensuel est atteint tôt dans le mois, un
   accord peut épuiser ses tentatives avant le changement de mois et rester
-  « indisponible » — utiliser alors *Regénérer* le mois suivant.
+  « indisponible » — utiliser alors *Régénérer* le mois suivant.
 - **Une seule note par vin**, sans commentaire ni historique.
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
