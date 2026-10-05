@@ -49,6 +49,11 @@ export class MovementsService {
     }
 
     const { wine } = await this.matching.matchOrCreate(input.wine);
+    // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
+    // la mesure « zéro saisie » la comparera à un formulaire vide.
+    const readingShown = input.photoId
+      ? (await this.prisma.photo.findUnique({ where: { id: input.photoId }, select: { status: true } }))?.status === 'DONE'
+      : false;
     try {
       const movement = await this.prisma.movement.create({
         data: {
@@ -59,6 +64,9 @@ export class MovementsService {
           priceUnitCents: input.priceUnitCents ?? null,
           note: input.note ?? null,
           idempotencyKey: input.idempotencyKey,
+          // La fiche telle que confirmée, comparée plus tard à la lecture de la
+          // photo pour mesurer la part de saisie manuelle (mesure « zéro saisie »).
+          ...(input.photoId ? { confirmedWine: { ...input.wine, readingShown } } : {}),
         },
       });
       // La première photo d'entrée devient la vignette du vin : c'est elle qui

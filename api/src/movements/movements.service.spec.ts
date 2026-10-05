@@ -32,6 +32,7 @@ function harness() {
       findUnique: async ({ where }: any) => (where.id === wine.id ? wine : null),
       updateMany: wine.updateMany,
     },
+    photo: { findUnique: async () => ({ status: 'DONE' }) },
     $transaction: async (fn: any) => fn(prisma),
     $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) =>
       strings.join('?').includes('FOR UPDATE') ? (values[0] === wine.id ? [{ id: wine.id }] : []) : [{ quantity: stock() }],
@@ -45,6 +46,28 @@ const input = {
   wine: { producer: 'Domaine Test', appellationRaw: 'Bandol', color: 'ROUGE' as const, formatCl: 75, vintage: 2019 },
   quantity: 6,
 };
+
+describe('MovementsService — fiche confirmée (mesure zéro saisie)', () => {
+  it('garde la fiche confirmée d’une entrée par photo, et si la lecture était affichée', async () => {
+    const h = harness();
+    h.prisma.photo = { findUnique: async () => ({ status: 'DONE' }) };
+    await h.service.createIn({ ...input, photoId: 'ph1' });
+    expect(h.movements[0].confirmedWine).toEqual({ ...input.wine, readingShown: true });
+  });
+
+  it('note qu’une entrée confirmée avant la fin de l’analyse n’a vu aucune lecture', async () => {
+    const h = harness();
+    h.prisma.photo = { findUnique: async () => ({ status: 'PROCESSING' }) };
+    await h.service.createIn({ ...input, photoId: 'ph1' });
+    expect(h.movements[0].confirmedWine.readingShown).toBe(false);
+  });
+
+  it('ne garde rien pour une entrée sans photo', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    expect(h.movements[0].confirmedWine).toBeUndefined();
+  });
+});
 
 describe('MovementsService', () => {
   it('creates a positive IN movement and returns the new stock', async () => {
@@ -133,6 +156,7 @@ describe('MovementsService', () => {
     let createCalls = 0;
     const findFirstArgs: any[] = [];
     const prisma = {
+      photo: { findUnique: async () => ({ status: 'DONE' }) },
       movement: {
         findUnique: async () => null,
         findFirst: async (args: any) => {

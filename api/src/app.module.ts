@@ -11,6 +11,7 @@ import { MovementsModule } from './movements/movements.module';
 import { PhotosModule } from './photos/photos.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
+import { ReadingQualityModule } from './reading-quality/reading-quality.module';
 import { WinesModule } from './wines/wines.module';
 
 // Pas de garde globale : seules les routes coûteuses ou sensibles (upload de photo,
@@ -21,6 +22,7 @@ import { WinesModule } from './wines/wines.module';
     PrismaModule,
     AuthModule,
     AdminModule,
+    ReadingQualityModule,
     ApogeeModule,
     AppellationsModule,
     WinesModule,

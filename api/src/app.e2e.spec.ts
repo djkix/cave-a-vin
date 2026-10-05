@@ -158,6 +158,38 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
+  it('measures « zéro saisie » from photo entries for an admin', async () => {
+    const photo = await prisma.photo.create({
+      data: {
+        contentHash: `e2e-zero-${Date.now()}`, storagePath: 'normalized/x.jpg', status: 'DONE',
+        rawExtraction: {
+          producteur: { value: 'Domaine e2e lecture', confidence: 0.9 }, cuvee: { value: null, confidence: 0 },
+          appellation: { value: 'Bandol', confidence: 0.9 }, millesime: { value: 2019, confidence: 0.9 },
+          couleur: { value: 'rouge', confidence: 0.9 }, format_cl: { value: 75, confidence: 0.9 }, degre: { value: null, confidence: 0 },
+          pays_region: { value: null, confidence: 0 }, nb_cols_carton: { value: null, confidence: 0 }, confiance_globale: 0.9,
+        },
+      },
+    });
+    const before = (await agent.get('/api/admin/reading-quality')).body;
+    const res = await agent.post('/api/movements').send({
+      idempotencyKey: crypto.randomUUID(), photoId: photo.id, quantity: 1,
+      wine: { producer: 'Domaine e2e lecture', appellationRaw: 'Bandol', vintage: 2018, color: 'ROUGE', formatCl: 75 },
+    });
+    expect(res.status).toBe(201);
+    try {
+      const after = await agent.get('/api/admin/reading-quality');
+      expect(after.status).toBe(200);
+      expect(after.body.days).toBe(90);
+      expect(after.body.entries).toBe(before.entries + 1);
+      const vintage = (b: { fields: { field: string; corrected: number }[] }) => b.fields.find((f) => f.field === 'vintage')!.corrected;
+      expect(vintage(after.body)).toBe(vintage(before) + 1);
+    } finally {
+      await prisma.movement.deleteMany({ where: { wineId: res.body.wine.id } });
+      await prisma.wine.delete({ where: { id: res.body.wine.id } });
+      await prisma.photo.delete({ where: { id: photo.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);
@@ -175,6 +207,7 @@ describeIfInfra('api HTTP', () => {
   it('refuses the apogee rules to an authenticated but non-admin account', async () => {
     expect((await agent.put('/api/admin/vintages').send({ region: 'Rhône', year: 2016, quality: 'GRAND' })).status).toBe(403);
     expect((await agent.get('/api/admin/guards?q=bandol')).status).toBe(403);
+    expect((await agent.get('/api/admin/reading-quality')).status).toBe(403);
   });
 
   // Garder ce cas en dernier : il épuise le quota de connexion locale.

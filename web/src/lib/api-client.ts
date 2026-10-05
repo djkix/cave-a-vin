@@ -167,3 +167,10 @@ export const searchGuards = (q: string) => apiFetch<GuardAppellation[]>(`/admin/
 export const putGuard = (input: { appellationId: string; color: WineColor | null; min: number; max: number }) =>
   apiFetch<{ id: string; color: WineColor | null; min: number; max: number }>('/admin/guards', { method: 'PUT', body: JSON.stringify(input) });
 export const deleteGuard = (id: string) => apiFetch<void>(`/admin/guards/${id}`, { method: 'DELETE' });
+
+export type ReadField = 'producer' | 'cuvee' | 'appellationRaw' | 'vintage' | 'color' | 'formatCl';
+export interface ReadingQuality {
+  days: number; entries: number; rate: number | null;
+  fields: Array<{ field: ReadField; corrected: number; rate: number | null }>;
+}
+export const getReadingQuality = () => apiFetch<ReadingQuality>('/admin/reading-quality');
