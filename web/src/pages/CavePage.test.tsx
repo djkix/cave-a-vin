@@ -46,7 +46,7 @@ it('transmet la recherche pré-remplie par l’URL', async () => {
   const getCave = vi.spyOn(api, 'getCave').mockResolvedValue([]);
   mount('/cave?q=tempier');
   await waitFor(() => expect(getCave).toHaveBeenCalledWith({ q: 'tempier', color: undefined, includeEmpty: false }));
-  expect(screen.getByRole('searchbox')).toHaveValue('tempier');
+  expect(screen.getByLabelText('Rechercher')).toHaveValue('tempier');
 });
 
 it('filtre par couleur et montre les épuisés sur demande', async () => {
@@ -78,6 +78,19 @@ it('montre une mention d’apogée sur la ligne', async () => {
   mount();
   const row = await screen.findByRole('link', { name: /Domaine Tempier/ });
   expect(within(row).getByText('À boire 2024-2036')).toBeInTheDocument();
+});
+
+it('cherche un vin pour accompagner un plat et dit lequel correspond', async () => {
+  const getCave = vi.spyOn(api, 'getCave').mockImplementation(async (f) =>
+    f.dish ? [{ ...rows[0], matchedDish: 'Agneau de sept heures' }] : rows,
+  );
+  mount();
+  await screen.findByText(/Domaine Leflaive/);
+  await userEvent.type(screen.getByLabelText('Accompagner un plat'), 'agneau');
+  await waitFor(() => expect(getCave).toHaveBeenLastCalledWith(expect.objectContaining({ dish: 'agneau' })));
+  const row = await screen.findByRole('link', { name: /Domaine Tempier/ });
+  expect(within(row).getByText('avec : Agneau de sept heures')).toBeInTheDocument();
+  expect(screen.queryByText(/Domaine Leflaive/)).not.toBeInTheDocument();
 });
 
 it('dit quand la cave est vide', async () => {

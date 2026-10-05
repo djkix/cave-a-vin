@@ -21,9 +21,10 @@ export function CavePage() {
   const [q, setQ] = useState(params.get('q') ?? '');
   const [color, setColor] = useState<WineColor | ''>('');
   const [includeEmpty, setIncludeEmpty] = useState(false);
+  const [dish, setDish] = useState('');
   // Un seul filtre d'apogée à la fois : « à boire en priorité » exclut par définition les vins sans estimation.
   const [apogeeFilter, setApogeeFilter] = useState<'' | 'drinkSoon' | 'noApogee'>(FILTER_FROM_URL[params.get('filtre') ?? ''] ?? '');
-  const base: CaveFilter = { q, color: color || undefined, includeEmpty };
+  const base: CaveFilter = { q, color: color || undefined, includeEmpty, ...(dish.trim() ? { dish: dish.trim() } : {}) };
   const filter: CaveFilter = apogeeFilter ? { ...base, [apogeeFilter]: true } : base;
   const cave = useQuery({ queryKey: ['cave', filter], queryFn: () => getCave(filter) });
   // Avec « à boire en priorité », les vins sans estimation ne sont pas oubliés : on les compte à part.
@@ -42,6 +43,7 @@ export function CavePage() {
       <main className="page">
         <section className="cave-filters">
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Domaine, cuvée, appellation…" aria-label="Rechercher" />
+          <input type="search" value={dish} onChange={(e) => setDish(e.target.value)} placeholder="Agneau, comté, poisson…" aria-label="Accompagner un plat" />
           {/* Libellé relié par htmlFor : enveloppé dans le <label>, le select aurait
               pour nom accessible « Couleur » suivi du texte de toutes ses options. */}
           <label htmlFor="cave-color" className="field__label">Couleur</label>
@@ -85,6 +87,7 @@ export function CavePage() {
                   <span className="list__meta" style={{ display: 'block' }}>{apogeeShortLabel(w.apogee)}</span>
                 )}
                 {w.rating && <span className="list__meta num" style={{ display: 'block' }}>{formatRatingShort(w.rating.value)}</span>}
+                {w.matchedDish && <span className="list__meta" style={{ display: 'block' }}>{`avec : ${w.matchedDish}`}</span>}
               </span>
               <span className="cave-row__qty num">{w.quantity}</span>
             </Link>
