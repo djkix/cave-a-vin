@@ -134,6 +134,30 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
+  it('filters the cave on « à boire en priorité » and « sans apogée »', async () => {
+    const wine = await prisma.wine.create({
+      data: {
+        matchKey: `e2e-drink-soon-${Date.now()}`, producer: 'Domaine e2e priorité', appellationRaw: 'Inconnue',
+        vintage: null, color: 'ROUGE', apogeeMin: 2000, apogeeMax: 2001, apogeeSource: 'MANUEL',
+      },
+    });
+    try {
+      const soon = await agent.get('/api/cave?drinkSoon=true&includeEmpty=true');
+      expect(soon.status).toBe(200);
+      expect(soon.body.map((w: { id: string }) => w.id)).toContain(wine.id);
+      const none = await agent.get('/api/cave?noApogee=true&includeEmpty=true');
+      expect(none.body.map((w: { id: string }) => w.id)).not.toContain(wine.id);
+      const both = await agent.get('/api/cave?drinkSoon=true&noApogee=true');
+      expect(both.status).toBe(400);
+      expect(both.body.message).toBe('Choisis « à boire en priorité » ou « sans apogée », pas les deux');
+      const badExport = await agent.get('/api/export.xlsx?drinkSoon=oui');
+      expect(badExport.status).toBe(400);
+      expect(badExport.body.message).toBe('Filtre d’export invalide');
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);

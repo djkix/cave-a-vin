@@ -24,3 +24,15 @@ it('lists movements, cancels with an inverse movement and never shows Annuler on
   await waitFor(() => expect(cancel).toHaveBeenCalledWith('m1', expect.stringMatching(/^[0-9a-f-]{36}$/)));
   expect(screen.getByRole('link', { name: /Exporter le classeur/ })).toHaveAttribute('href', '/api/export.xlsx');
 });
+
+it('exporte seulement les vins à boire en priorité sur demande', async () => {
+  vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter><JournalPage /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await userEvent.selectOptions(screen.getByLabelText('Filtre couleur'), 'ROUGE');
+  await userEvent.click(screen.getByLabelText('Seulement les vins à boire en priorité'));
+  expect(screen.getByRole('link', { name: /Exporter le classeur/ })).toHaveAttribute('href', '/api/export.xlsx?color=ROUGE&drinkSoon=true');
+});

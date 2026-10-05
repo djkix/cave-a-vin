@@ -90,10 +90,11 @@ export interface MovementWithWine {
 export const getRecentMovements = (limit = 20) => apiFetch<MovementWithWine[]>(`/movements/recent?limit=${limit}`);
 export const cancelMovement = (id: string, idempotencyKey: string) =>
   apiFetch<MovementResult>(`/movements/${id}/cancel`, { method: 'POST', body: JSON.stringify({ idempotencyKey }) });
-export function exportUrl(filter: { color?: WineColor; region?: string } = {}) {
+export function exportUrl(filter: { color?: WineColor; region?: string; drinkSoon?: boolean } = {}) {
   const q = new URLSearchParams();
   if (filter.color) q.set('color', filter.color);
   if (filter.region) q.set('region', filter.region);
+  if (filter.drinkSoon) q.set('drinkSoon', 'true');
   const s = q.toString();
   return `/api/export.xlsx${s ? `?${s}` : ''}`;
 }
@@ -112,11 +113,14 @@ export interface CaveRow {
   /** Toujours fourni par la liste et la fiche ; absent des candidats de sortie. */
   apogee?: Apogee;
 }
-export function getCave(filter: { q?: string; color?: WineColor; includeEmpty?: boolean }) {
+export interface CaveFilter { q?: string; color?: WineColor; includeEmpty?: boolean; drinkSoon?: boolean; noApogee?: boolean }
+export function getCave(filter: CaveFilter) {
   const q = new URLSearchParams();
   if (filter.q) q.set('q', filter.q);
   if (filter.color) q.set('color', filter.color);
   if (filter.includeEmpty) q.set('includeEmpty', 'true');
+  if (filter.drinkSoon) q.set('drinkSoon', 'true');
+  if (filter.noApogee) q.set('noApogee', 'true');
   const s = q.toString();
   return apiFetch<CaveRow[]>(`/cave${s ? `?${s}` : ''}`);
 }

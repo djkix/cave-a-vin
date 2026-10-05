@@ -32,6 +32,7 @@ export function JournalPage() {
   const qc = useQueryClient();
   const movements = useQuery({ queryKey: ['movements', 'recent'], queryFn: () => getRecentMovements(20) });
   const [color, setColor] = useState<WineColor | ''>('');
+  const [drinkSoon, setDrinkSoon] = useState(false);
   const cancel = useMutation({
     mutationFn: (id: string) => cancelMovement(id, crypto.randomUUID()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['movements'] }),
@@ -53,7 +54,11 @@ export function JournalPage() {
               <option value="PETILLANT">Pétillant</option>
             </select>
           </label>
-          <a className="btn btn--primary" style={{ width: '100%', marginTop: 'var(--space-sm)' }} href={exportUrl(color ? { color } : {})} download>
+          <label className="field__label" style={{ marginTop: 'var(--space-sm)' }}>
+            <input type="checkbox" checked={drinkSoon} onChange={(e) => setDrinkSoon(e.target.checked)} aria-label="Seulement les vins à boire en priorité" />
+            Seulement les vins à boire en priorité
+          </label>
+          <a className="btn btn--primary" style={{ width: '100%', marginTop: 'var(--space-sm)' }} href={exportUrl({ ...(color ? { color } : {}), drinkSoon })} download>
             <Icon name="download" />
             Exporter le classeur
           </a>

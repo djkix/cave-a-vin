@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, WineColor } from '@prisma/client';
 import ExcelJS from 'exceljs';
-import { ApogeeConfidence, estimateApogee } from '../apogee/apogee';
+import { ApogeeConfidence, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ExportFilter {
   color?: WineColor;
   region?: string;
+  /** Seulement les vins à boire en priorité, fin d'apogée la plus proche en premier. */
+  drinkSoon?: boolean;
 }
 
 const COLOR_LABEL: Record<WineColor, string> = { ROUGE: 'Rouge', BLANC: 'Blanc', ROSE: 'Rosé', PETILLANT: 'Pétillant' };
@@ -35,13 +37,27 @@ export class ExportService {
     const rules = await this.rules.load();
     const year = new Date().getFullYear();
 
-    const inStock = wines.filter((w) => {
-      const q = stockByWine.get(w.id) ?? 0;
-      if (q <= 0) return false;
-      if (filter.color && w.color !== filter.color) return false;
-      if (filter.region && (w.appellation?.region ?? '').toLowerCase() !== filter.region.toLowerCase()) return false;
-      return true;
-    });
+    const filtered = wines
+      .filter((w) => {
+        const q = stockByWine.get(w.id) ?? 0;
+        if (q <= 0) return false;
+        if (filter.color && w.color !== filter.color) return false;
+        if (filter.region && (w.appellation?.region ?? '').toLowerCase() !== filter.region.toLowerCase()) return false;
+        return true;
+      })
+      // Même calcul que l'application : l'export ne raconte jamais une autre apogée.
+      .map((w) => ({
+        w,
+        apogee: estimateApogee(
+          {
+            vintage: w.vintage, color: w.color, appellationId: w.appellationId, region: w.appellation?.region ?? null,
+            referenceGuardMin: w.appellation?.guardMinYears ?? null, referenceGuardMax: w.appellation?.guardMaxYears ?? null,
+            apogeeMin: w.apogeeMin, apogeeMax: w.apogeeMax, apogeeSource: w.apogeeSource,
+          },
+          rules, year,
+        ),
+      }));
+    const inStock = filter.drinkSoon ? sortByApogeeEnd(filtered.filter((i) => isDrinkSoon(i.apogee, year))) : filtered;
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Cave & Terroir';
@@ -63,18 +79,9 @@ export class ExportService {
       { header: "Prix d'achat unitaire (€)", key: 'price', width: 20 },
       { header: "Valeur d'achat (€)", key: 'value', width: 16 },
     ];
-    for (const w of inStock) {
+    for (const { w, apogee } of inStock) {
       const q = stockByWine.get(w.id) ?? 0;
       const price = lastPrice.has(w.id) ? lastPrice.get(w.id)! / 100 : null;
-      // Même calcul que l'application : l'export ne raconte jamais une autre apogée.
-      const apogee = estimateApogee(
-        {
-          vintage: w.vintage, color: w.color, appellationId: w.appellationId, region: w.appellation?.region ?? null,
-          referenceGuardMin: w.appellation?.guardMinYears ?? null, referenceGuardMax: w.appellation?.guardMaxYears ?? null,
-          apogeeMin: w.apogeeMin, apogeeMax: w.apogeeMax, apogeeSource: w.apogeeSource,
-        },
-        rules, year,
-      );
       const row = stock.addRow({
         producer: w.producer, cuvee: w.cuvee ?? '', appellation: w.appellationRaw, region: w.appellation?.region ?? '',
         vintage: w.vintage ?? 'NV', apogeeMin: apogee.min, apogeeMax: apogee.max,

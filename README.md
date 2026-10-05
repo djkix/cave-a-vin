@@ -6,11 +6,13 @@ tout moment l'état complet de la cave. Application auto-hébergée en Docker,
 utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
-- **État** : lot 0, lot 1, lot 2a et lot 2b livrés — socle, entrée de stock par
-  photo (Gemini), mode campagne, file hors ligne, journal et export Excel,
-  onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
-  estimation de l'apogée par règles avec correction manuelle par vin.
-- **À venir** : cote iDealwine (lot 2c). Voir `cahier-des-charges.md`.
+- **État** : lot 0, lot 1, lot 2a, lot 2b et lot 3a livrés — socle, entrée de
+  stock par photo (Gemini), mode campagne, file hors ligne, journal et export
+  Excel, onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
+  estimation de l'apogée par règles avec correction manuelle par vin, filtre
+  « à boire en priorité ».
+- **À venir** : alertes d'apogée (lot 3b), emplacements dans la cave (lot 3c),
+  cote iDealwine (lot 2c). Voir `cahier-des-charges.md`.
 
 ## Sommaire
 
@@ -125,9 +127,22 @@ faible) et d'ajuster la garde d'une appellation (pour toutes les couleurs ou
 une seule) ; les changements s'appliquent immédiatement partout, sur toutes
 les fiches concernées.
 
+**À boire en priorité.** Dans l'onglet *Cave*, la case *À boire en priorité*
+ne garde que les vins dont l'apogée se termine **au plus tard l'an prochain**
+(apogée passée, dernière année, ou fin l'an prochain — l'année de marge laisse
+le temps de prévoir l'occasion), la fin la plus proche en premier, puis par
+producteur. Une correction manuelle de l'apogée compte comme l'estimation. Les
+vins sans estimation n'y figurent jamais, mais ne sont pas oubliés : un bandeau
+« N vins sans apogée estimée » mène, par *À compléter*, à la case *Sans
+apogée*, qui les liste pour qu'on saisisse leur fourchette depuis la fiche. Les
+deux cases s'excluent ; elles se combinent avec la recherche, la couleur et les
+vins épuisés. Côté API : `GET /api/cave?drinkSoon=true` et
+`GET /api/cave?noApogee=true`.
+
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
-chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`) et un filtre
-optionnel par couleur. La feuille `Stock` ajoute *Apogée min*, *Apogée max* et
+chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
+optionnel par couleur et la case *Seulement les vins à boire en priorité*
+(même règle et même ordre que l'onglet Cave ; `GET /api/export.xlsx?drinkSoon=true`). La feuille `Stock` ajoute *Apogée min*, *Apogée max* et
 *Confiance* après *Millésime* ; une ligne dont l'apogée est déjà passée est
 mise en évidence par une teinte d'alerte.
 
@@ -448,8 +463,9 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   « moyen » (facteur 1,0).
 - **Pas d'estimation d'apogée pour les vins non millésimés** : la fiche
   l'indique et ne propose que la saisie manuelle.
-- **Vue « à boire cette année » et alertes** : lot 3, reste à venir. **Cote
-  iDealwine** : lot 2c, reste à venir.
+- **Pas encore d'alerte** : la liste « à boire en priorité » se consulte, elle
+  ne prévient pas (lot 3b, à venir). **Emplacements dans la cave** : lot 3c, à
+  venir. **Cote iDealwine** : lot 2c, à venir.
 - **Après « Annuler »**, le panneau de sortie de la fiche vin reste sur
   « Sortie annulée » jusqu'à ce qu'on quitte la page (pas de retour
   automatique à l'écran de sortie).

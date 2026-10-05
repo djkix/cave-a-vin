@@ -78,3 +78,37 @@ it('dit quand la cave est vide', async () => {
   mount();
   expect(await screen.findByText(/Aucun vin ne correspond/)).toBeInTheDocument();
 });
+
+const nv: api.CaveRow = {
+  id: 'w3', producer: 'Champagne Essai', cuvee: null, appellationRaw: 'Champagne', vintage: null, color: 'PETILLANT', formatCl: 75, referencePhotoId: null, quantity: 2,
+  apogee: { min: null, max: null, confidence: null, status: null, reason: 'NON_MILLESIME', source: null },
+};
+
+it('filtre « à boire en priorité » et signale les vins sans apogée, avec un lien vers eux', async () => {
+  const getCave = vi.spyOn(api, 'getCave').mockImplementation(async (f) => (f.noApogee ? [nv] : rows));
+  mount();
+  await screen.findByText(/Domaine Tempier/);
+  expect(screen.queryByText(/sans apogée estimée/)).not.toBeInTheDocument();
+  expect(getCave).not.toHaveBeenCalledWith(expect.objectContaining({ noApogee: true }));
+  await userEvent.click(screen.getByLabelText('À boire en priorité'));
+  await waitFor(() => expect(getCave).toHaveBeenCalledWith({ q: '', color: undefined, includeEmpty: false, drinkSoon: true }));
+  expect(await screen.findByText('1 vin sans apogée estimée')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'À compléter' }));
+  expect(screen.getByLabelText('Sans apogée')).toBeChecked();
+  expect(screen.getByLabelText('À boire en priorité')).not.toBeChecked();
+  expect(await screen.findByRole('link', { name: /Champagne Essai/ })).toBeInTheDocument();
+  expect(screen.queryByText(/sans apogée estimée/)).not.toBeInTheDocument();
+});
+
+it('ne coche jamais les deux filtres d’apogée ensemble', async () => {
+  const getCave = vi.spyOn(api, 'getCave').mockResolvedValue([]);
+  mount();
+  await userEvent.click(screen.getByLabelText('Sans apogée'));
+  await userEvent.click(screen.getByLabelText('À boire en priorité'));
+  expect(screen.getByLabelText('Sans apogée')).not.toBeChecked();
+  await waitFor(() => expect(getCave).toHaveBeenCalledWith(expect.objectContaining({ drinkSoon: true })));
+  expect(getCave).not.toHaveBeenCalledWith(expect.objectContaining({ drinkSoon: true, noApogee: true }));
+  await userEvent.click(screen.getByLabelText('À boire en priorité'));
+  expect(screen.getByLabelText('À boire en priorité')).not.toBeChecked();
+  expect(screen.getByLabelText('Sans apogée')).not.toBeChecked();
+});
