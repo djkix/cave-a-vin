@@ -11,6 +11,29 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.5.0](https://github.com/djkix/cave-a-vin/compare/v1.4.1...v1.5.0) (2026-10-05)
 
+### Résumé
+
+La mesure « zéro saisie » du cahier des charges : la part des champs que la
+lecture de l'étiquette n'a pas su remplir juste et qu'il a fallu corriger à
+la main, sur 90 jours, comparée à l'objectif de 15 %.
+
+### Fonctionnalités
+
+- **Fiche confirmée gardée** : chaque entrée par photo (unitaire ou en mode
+  campagne) enregistre la fiche telle que confirmée, et si la lecture était
+  affichée à ce moment (migration `20261007000000_zero_saisie`, colonne
+  `movement.confirmed_wine`). Les entrées antérieures ne sont pas mesurées.
+- **Qualité de la lecture** (Administration, administrateurs) : taux global
+  de champs corrigés, nombre d'entrées, badge par rapport à l'objectif, détail
+  par champ (producteur, cuvée, appellation, millésime, couleur, format).
+  `GET /api/admin/reading-quality`.
+
+### Corrections
+
+- **Entrée par photo** : la fiche se pré-remplit depuis une photo déjà lue
+  même quand le flux temps réel se coupe, au lieu de rester vide.
+
+### Détail par commit
 
 ### Fonctionnalités
 

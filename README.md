@@ -6,7 +6,7 @@ tout moment l'état complet de la cave. Application auto-hébergée en Docker,
 utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
-- **État** : lot 0, lot 1, lot 2a, lot 2b et lot 3a livrés — socle, entrée de
+- **État** : lot 0, lot 1, lot 2a, lot 2b, lot 3a et mesure « zéro saisie » livrés — socle, entrée de
   stock par photo (Gemini), mode campagne, file hors ligne, journal et export
   Excel, onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
   estimation de l'apogée par règles avec correction manuelle par vin, filtre
@@ -494,6 +494,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
+
+### 1.5.0 — 5 octobre 2026
+
+Publiée ([v1.5.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.5.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.5.0` et `-web:1.5.0`.
+
+**Mesure « zéro saisie ».** L'Administration affiche la part des champs
+corrigés à la main à l'entrée par photo sur 90 jours, par rapport à l'objectif
+de 15 %, avec le détail par champ. Correction : la fiche d'une photo déjà lue
+se pré-remplit même si le flux temps réel se coupe. Migration
+`20261007000000_zero_saisie`.
 
 ### 1.4.1 — 5 octobre 2026
 
