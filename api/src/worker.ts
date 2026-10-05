@@ -6,6 +6,8 @@ import { PairingProcessor } from './pairing/pairing.processor';
 import { requeueMissingPairings } from './pairing/pairing-recovery';
 import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, PairingJobData } from './pairing/pairing.queue';
 import { PrismaService } from './prisma/prisma.service';
+import { ENTRY_BATCH_TICK_MS, createEntryBatchLoop } from './queue/entry-batch';
+import { EntryBatchProcessor } from './queue/entry-batch.processor';
 import { ExtractionProcessor } from './queue/extraction.processor';
 import { EXTRACTION_QUEUE, ExtractionJobData, extractionBackoffDelay, redisConnection } from './queue/extraction.queue';
 import { requeueOrphanPhotos } from './queue/orphan-recovery';
@@ -56,10 +58,21 @@ async function main() {
   } catch (e) {
     console.error(`rattrapage des accords impossible : ${(e as Error).message}`);
   }
+  // Photos d'entrée : pas de travail BullMQ, la table photo sert de file. Un
+  // passage au démarrage reprend aussi les réservations échues d'un arrêt brutal.
+  const entryBatchLoop = createEntryBatchLoop(
+    () => app.get(EntryBatchProcessor).tick(),
+    ENTRY_BATCH_TICK_MS,
+    (e) => console.error(`lot d'entrée : ${(e as Error).message}`),
+  );
+  entryBatchLoop.start();
+  console.log(`worker prêt (photos d'entrée par lots, toutes les ${ENTRY_BATCH_TICK_MS / 1000} s)`);
+
   let stopping = false;
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    await entryBatchLoop.stop();
     await pairingWorker.close();
     await worker.close();
     await app.close();
