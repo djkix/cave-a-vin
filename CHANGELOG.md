@@ -11,6 +11,35 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.6.0](https://github.com/djkix/cave-a-vin/compare/v1.5.0...v1.6.0) (2026-10-05)
 
+### Résumé
+
+Le lot 4a donne une vue d'ensemble de la cave dans un 5e onglet, *Stats* :
+ce qu'elle vaut au prix payé, comment elle se répartit, ce qui reste à boire,
+à quel rythme elle se vide et ce qui y domine. Tout est calculé à la lecture,
+sans migration ni nouvelle variable d'environnement.
+
+### Fonctionnalités
+
+- **Valeur au prix d'achat** : bouteilles, références et valeur du stock au
+  dernier prix d'achat saisi (« sur N des M références » quand des prix
+  manquent, « Aucun prix d'achat saisi » quand aucun n'est connu).
+- **Répartition** par apogée (les barres *À boire vite*, *Passée* et *Sans
+  estimation* ouvrent l'onglet Cave déjà filtré, via `?filtre=priorite` ou
+  `?filtre=sans-apogee`), par couleur, par région (8 premières puis
+  *Autres*) et par décennie de millésime.
+- **Mouvements sur 12 mois** : entrées et sorties par mois à l'heure de
+  Paris, annulations et inventaires exclus, rythme moyen de consommation et
+  durée de cave qu'il donne.
+- **Classements** : les vins les plus bus sur 12 mois, les producteurs les
+  plus présents, les bouteilles les plus chères au prix d'achat.
+- `GET /api/stats`, ouvert à tout compte actif.
+
+### Corrections
+
+- **Export Excel** : le prix d'une entrée annulée n'est plus retenu comme
+  dernier prix d'achat ; l'export et les statistiques donnent la même valeur.
+
+### Détail par commit
 
 ### Fonctionnalités
 

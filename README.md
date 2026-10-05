@@ -514,6 +514,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.6.0 — 5 octobre 2026
+
+Publiée ([v1.6.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.6.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.6.0` et `-web:1.6.0`.
+
+**Statistiques.** Un 5e onglet *Stats* : valeur de la cave au prix d'achat,
+répartition par apogée, couleur, région et millésime, mouvements sur 12 mois
+avec le rythme de consommation, et trois classements. Correction : l'export
+Excel ignore désormais le prix d'une entrée annulée, comme les statistiques.
+Ni migration ni nouvelle variable d'environnement.
+
 ### 1.5.0 — 5 octobre 2026
 
 Publiée ([v1.5.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.5.0)),
