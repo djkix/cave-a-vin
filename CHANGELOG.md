@@ -9,6 +9,18 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.5.0](https://github.com/djkix/cave-a-vin/compare/v1.4.1...v1.5.0) (2026-10-05)
+
+
+### Fonctionnalités
+
+* **admin:** mesure « zéro saisie », part des champs corrigés à la main ([df8de8e](https://github.com/djkix/cave-a-vin/commit/df8de8ee87516d4e8fe37d130c04e603608d6794))
+
+
+### Corrections
+
+* **entree:** pré-remplit la fiche d'une photo déjà lue sans attendre le flux ([df8de8e](https://github.com/djkix/cave-a-vin/commit/df8de8ee87516d4e8fe37d130c04e603608d6794))
+
 ## [1.4.1](https://github.com/djkix/cave-a-vin/compare/v1.4.0...v1.4.1) (2026-10-05)
 
 ### Résumé
