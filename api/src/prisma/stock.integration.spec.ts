@@ -51,4 +51,35 @@ describeIfDb('stock journal (trigger + stock_courant)', () => {
       }),
     ).rejects.toThrow(/ne peut pas être nul/);
   });
+
+  it('reste exact quand deux mouvements se croisent', async () => {
+    // Un mouvement validé pendant qu'un autre s'enregistre ne doit jamais
+    // disparaître du stock (l'ancienne vue matérialisée le perdait).
+    const other = await prisma.wine.create({
+      data: { matchKey: `test-other|${Date.now()}`, producer: 'Domaine Croisé', appellationRaw: 'Test AOC', color: WineColor.ROUGE },
+    });
+    const second = new PrismaClient();
+    try {
+      await second.$queryRaw`SELECT 1`; // connexion ouverte avant la course
+      const before = await prisma.$queryRaw<{ quantity: number }[]>`SELECT quantity FROM stock_courant WHERE wine_id = ${wineId}`;
+      const start = before[0]?.quantity ?? 0;
+      let concurrent: Promise<unknown> | undefined;
+      await prisma.$transaction(async (tx) => {
+        await tx.movement.create({ data: { wineId, delta: 4, type: 'IN', idempotencyKey: `cross-a-${Date.now()}` } });
+        // .then() lance la requête tout de suite : une requête Prisma ne part qu'une fois attendue.
+        concurrent = second.movement.create({ data: { wineId: other.id, delta: 2, type: 'IN', idempotencyKey: `cross-b-${Date.now()}` } }).then((m) => m);
+        await new Promise((r) => setTimeout(r, 300));
+      });
+      await concurrent;
+      const rows = await prisma.$queryRaw<{ wine_id: string; quantity: number }[]>`
+        SELECT wine_id, quantity FROM stock_courant WHERE wine_id IN (${wineId}, ${other.id})`;
+      const stock = Object.fromEntries(rows.map((r) => [r.wine_id, Number(r.quantity)]));
+      expect(stock[wineId]).toBe(start + 4);
+      expect(stock[other.id]).toBe(2);
+    } finally {
+      await second.$disconnect();
+      await prisma.movement.deleteMany({ where: { wineId: other.id } });
+      await prisma.wine.delete({ where: { id: other.id } });
+    }
+  });
 });
