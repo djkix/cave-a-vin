@@ -4,9 +4,9 @@ import { getPhotoQueueStatus } from '../lib/api-client';
 import { Icon } from './Icon';
 
 /**
- * Une photo reportée n'apparaît nulle part : la revue groupée ne liste que les
- * analyses terminées, et le journal n'a encore aucun mouvement pour elle. Sans ce
- * bandeau, l'utilisateur croit sa photo perdue et la reprend inutilement.
+ * Une photo reportée n'a encore aucun mouvement dans le journal : sans ce
+ * bandeau, l'utilisateur croit sa photo perdue et la reprend inutilement. Le
+ * lien mène à « À confirmer », qui la montre dans « En cours d'analyse ».
  *
  * Complément du bandeau hors ligne : celui-ci compte les photos encore sur le
  * téléphone, celui-là les photos déjà reçues par le serveur.
@@ -26,8 +26,8 @@ export function AnalysisQueueBanner({ hideLink = false }: { hideLink?: boolean }
         <small>{status.data?.lastReason ?? 'Analyse automatique dès que le service de lecture répond'}</small>
       </span>
       {!hideLink && (
-        <Link to="/entree/campagne/revue" className="btn btn--outline">
-          Voir la revue
+        <Link to="/a-confirmer" className="btn btn--outline">
+          Voir la liste
         </Link>
       )}
     </aside>

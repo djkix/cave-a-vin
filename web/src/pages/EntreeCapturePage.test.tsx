@@ -1,50 +1,79 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
-import { _resetForTests, queueStats } from '../lib/offline-queue';
+import * as queue from '../lib/offline-queue';
+import { _resetForTests, QueueFullError, queueStats } from '../lib/offline-queue';
+import * as sender from '../lib/photo-sender';
+import { _resetSenderForTests } from '../lib/photo-sender';
 import { EntreeCapturePage } from './EntreeCapturePage';
 
-beforeEach(() => _resetForTests());
+beforeEach(async () => {
+  await _resetForTests();
+  _resetSenderForTests();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
+  _resetSenderForTests();
 });
 
-it('queues the photo and shows the French status when offline', async () => {
-  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
-
-  render(
+function mount() {
+  return render(
     <MemoryRouter>
       <EntreeCapturePage />
     </MemoryRouter>,
   );
+}
+
+const photo = (n: number) => new File([new Uint8Array(10 + n)], `p${n}.jpg`, { type: 'image/jpeg' });
+
+it('range trois photos dans la file sans attendre aucun envoi, et compte 3', async () => {
+  // L'envoi ne répond jamais : si l'écran l'attendait, le compteur resterait bloqué.
+  const upload = vi.spyOn(api, 'uploadPhoto').mockReturnValue(new Promise(() => {}));
+  const enqueue = vi.spyOn(queue, 'enqueuePhoto');
+  const kick = vi.spyOn(sender, 'kickSender');
+  mount();
 
   const input = screen.getByLabelText('Prendre une photo');
   expect(input).toHaveAttribute('accept', 'image/*');
   expect(input).toHaveAttribute('capture', 'environment');
+  expect(screen.getByRole('button', { name: /Prendre une photo/ })).toBeInTheDocument();
 
-  const file = new File([new Uint8Array(10)], 'p.jpg', { type: 'image/jpeg' });
-  fireEvent.change(input, { target: { files: [file] } });
+  fireEvent.change(input, { target: { files: [photo(1)] } });
+  fireEvent.change(input, { target: { files: [photo(2)] } });
+  fireEvent.change(input, { target: { files: [photo(3)] } });
 
-  expect(await screen.findByText(/Photo mise en attente/)).toBeInTheDocument();
-  expect(await queueStats()).toEqual({ count: 1, bytes: 10 });
+  expect(await screen.findByText('3 photos prises')).toBeInTheDocument();
+  // Le bandeau de file compte les photos encore sur le téléphone.
+  expect(await screen.findByText('3 photos en cours d’envoi')).toBeInTheDocument();
+  expect(enqueue).toHaveBeenCalledTimes(3);
+  enqueue.mock.calls.forEach((call) => expect(call[1]).toBe('entry'));
+  expect(kick).toHaveBeenCalledTimes(3);
+  expect((await queueStats()).count).toBe(3);
+  // L'envoyeur a bien été relancé, mais l'écran n'a pas attendu sa réponse.
+  await waitFor(() => expect(upload).toHaveBeenCalled());
+  expect(screen.getByRole('button', { name: /Photo suivante/ })).toBeEnabled();
+  expect(input).toHaveValue('');
 });
 
-it('queues the photo when the api answers 503 although the phone is online', async () => {
-  // `enqueueWithTimeout` renvoie un 503 exprès quand Redis est injoignable : la photo
-  // doit rester sur le téléphone et repartir plus tard, pas être perdue.
-  vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
-  vi.spyOn(api, 'uploadPhoto').mockRejectedValue(new api.ApiError(503, 'File de traitement indisponible'));
+it('accorde le compteur au singulier', async () => {
+  vi.spyOn(api, 'uploadPhoto').mockReturnValue(new Promise(() => {}));
+  mount();
+  fireEvent.change(screen.getByLabelText('Prendre une photo'), { target: { files: [photo(1)] } });
+  expect(await screen.findByText('1 photo prise')).toBeInTheDocument();
+});
 
-  render(
-    <MemoryRouter>
-      <EntreeCapturePage />
-    </MemoryRouter>,
-  );
+it('affiche l’erreur de file pleine et ne compte pas la photo', async () => {
+  vi.spyOn(queue, 'enqueuePhoto').mockRejectedValue(new QueueFullError());
+  const kick = vi.spyOn(sender, 'kickSender');
+  mount();
+  fireEvent.change(screen.getByLabelText('Prendre une photo'), { target: { files: [photo(1)] } });
+  expect(await screen.findByRole('alert')).toHaveTextContent('File d’envoi pleine (200 photos) — attendez que les envois partent');
+  expect(screen.getByText('0 photo prise')).toBeInTheDocument();
+  expect(kick).not.toHaveBeenCalled();
+});
 
-  const file = new File([new Uint8Array(10)], 'p.jpg', { type: 'image/jpeg' });
-  fireEvent.change(screen.getByLabelText('Prendre une photo'), { target: { files: [file] } });
-
-  expect(await screen.findByText(/Photo mise en attente/)).toBeInTheDocument();
-  expect((await queueStats()).count).toBe(1);
+it('mène à la liste des vins à confirmer', () => {
+  mount();
+  expect(screen.getByRole('link', { name: /Voir les vins à confirmer/ })).toHaveAttribute('href', '/a-confirmer');
 });

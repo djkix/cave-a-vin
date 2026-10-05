@@ -1,61 +1,60 @@
 import { ChangeEvent, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
+import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
-import { uploadPhoto } from '../lib/api-client';
-import { enqueuePhoto, isRetryableUploadError, QueueFullError } from '../lib/offline-queue';
-import { notifyQueueChanged } from '../lib/use-offline-queue';
+import { enqueuePhoto, notifyQueueChanged, QueueFullError } from '../lib/offline-queue';
+import { kickSender } from '../lib/photo-sender';
+import { shrinkPhoto } from '../lib/shrink-photo';
 
+/**
+ * Entrée en rafale : chaque photo est réduite, rangée dans la file locale, puis
+ * l'envoyeur est relancé sans être attendu. L'écran est aussitôt prêt pour la
+ * suivante — l'envoi et l'analyse se font en arrière-plan, la confirmation dans
+ * « À confirmer ».
+ */
 export function EntreeCapturePage() {
-  const navigate = useNavigate();
   const input = useRef<HTMLInputElement>(null);
+  const [taken, setTaken] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [queued, setQueued] = useState(false);
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    // Réinitialisé tout de suite : la même photo peut être reprise, et le champ
+    // est prêt pour la suivante pendant la réduction.
+    e.target.value = '';
     if (!file) return;
-    setBusy(true);
     setError(null);
-    setQueued(false);
     try {
-      if (!navigator.onLine) throw new TypeError('offline');
-      const { id } = await uploadPhoto(file);
-      navigate(`/entree/${id}`);
+      const blob = await shrinkPhoto(file);
+      await enqueuePhoto(blob, 'entry');
     } catch (err) {
-      if (isRetryableUploadError(err)) {
-        try {
-          await enqueuePhoto(file, 'single');
-          notifyQueueChanged();
-          setQueued(true);
-        } catch (q) {
-          setError(q instanceof QueueFullError ? q.message : 'File hors ligne indisponible');
-        }
-      } else {
-        setError(err instanceof Error ? err.message : 'Envoi impossible');
-      }
-    } finally {
-      setBusy(false);
-      e.target.value = '';
+      setError(err instanceof QueueFullError ? err.message : 'Photo non enregistrée sur le téléphone — reprenez-la');
+      return;
     }
+    notifyQueueChanged();
+    kickSender();
+    setTaken((n) => n + 1);
   }
 
   return (
     <>
       <TopBar title="Rentrer du vin" back="/" />
       <main className="page capture">
+        <OfflineQueueBanner />
         <p style={{ textAlign: 'center', color: 'var(--color-secondary)' }}>
-          Photographiez le carton (mentions imprimées) ou l’étiquette d’une bouteille.
+          Photographiez chaque carton (mentions imprimées) ou étiquette à la suite. L’envoi et l’analyse se font en arrière-plan ; vous confirmerez les vins ensuite.
         </p>
+        <p className="num" style={{ fontSize: 40, margin: 0 }} aria-hidden="true">{taken}</p>
+        <small>{taken} photo{taken > 1 ? 's' : ''} prise{taken > 1 ? 's' : ''}</small>
         <input ref={input} className="capture__input" type="file" accept="image/*" capture="environment" onChange={onFile} aria-label="Prendre une photo" />
-        <Button variant="primary" onClick={() => input.current?.click()} disabled={busy} style={{ width: '100%', minHeight: 'var(--size-action-height)' }}>
+        <Button variant="primary" onClick={() => input.current?.click()} style={{ width: '100%', minHeight: 'var(--size-action-height)' }}>
           <Icon name="photo_camera" />
-          {busy ? 'Envoi…' : 'Prendre la photo'}
+          {taken === 0 ? 'Prendre une photo' : 'Photo suivante'}
         </Button>
         {error && <p role="alert" className="text-error">{error}</p>}
-        {queued && <p role="status">Photo mise en attente — elle partira dès que le réseau revient. La confirmation se fera depuis la revue groupée.</p>}
+        <Link to="/a-confirmer" className="btn btn--outline">Voir les vins à confirmer</Link>
       </main>
     </>
   );
