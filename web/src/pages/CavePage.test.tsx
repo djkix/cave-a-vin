@@ -58,6 +58,13 @@ it('filtre par couleur et montre les épuisés sur demande', async () => {
   await waitFor(() => expect(getCave).toHaveBeenLastCalledWith({ q: '', color: 'BLANC', includeEmpty: true }));
 });
 
+it('montre la note sur la ligne d’un vin noté', async () => {
+  vi.spyOn(api, 'getCave').mockResolvedValue([{ ...rows[0], rating: { value: 16.5, ratedAt: '2026-10-05T10:00:00Z', ratedBy: null } }]);
+  mount();
+  const row = await screen.findByRole('link', { name: /Domaine Tempier/ });
+  expect(within(row).getByText('16,5/20')).toBeInTheDocument();
+});
+
 it('affiche la couleur du vin sur sa ligne', async () => {
   vi.spyOn(api, 'getCave').mockResolvedValue(rows);
   mount();

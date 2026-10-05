@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ApogeeBlock } from '../components/ApogeeBlock';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
+import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
@@ -85,6 +86,7 @@ export function WinePage() {
             <main> partageant la même clé troublent la réconciliation de React
             (avertissement « two children with the same key », rendu dupliqué). */}
         <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} />
+        <RatingBlock key={`rating-${wine.id}`} wine={wine} />
 
         <SortieConfirmation key={wine.id} wine={wine} />
 

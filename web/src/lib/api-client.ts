@@ -21,7 +21,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     throw new ApiError(res.status, message);
   }
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const text = await res.text();
+  if (text === '') return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export interface Me {
@@ -107,13 +109,19 @@ export interface Apogee {
   status: ApogeeStatus | null; reason: ApogeeReason | null; source: 'MANUEL' | 'REGLE' | null;
 }
 
+export interface Rating { value: number; ratedAt: string; ratedBy: string | null }
+export interface Pairing { status: 'PENDING' | 'DONE' | 'FAILED'; dishes: string[]; errorMessage: string | null; generatedAt: string | null }
+
 export interface CaveRow {
   id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null;
   color: WineColor; formatCl: number; referencePhotoId: string | null; quantity: number;
   /** Toujours fourni par la liste et la fiche ; absent des candidats de sortie. */
   apogee?: Apogee;
+  rating?: Rating | null;
+  /** Plat demandé en filtre, uniquement présent quand `GET /cave?dish=` l'a retenu. */
+  matchedDish?: string;
 }
-export interface CaveFilter { q?: string; color?: WineColor; includeEmpty?: boolean; drinkSoon?: boolean; noApogee?: boolean }
+export interface CaveFilter { q?: string; color?: WineColor; includeEmpty?: boolean; drinkSoon?: boolean; noApogee?: boolean; dish?: string }
 export function getCave(filter: CaveFilter) {
   const q = new URLSearchParams();
   if (filter.q) q.set('q', filter.q);
@@ -121,15 +129,21 @@ export function getCave(filter: CaveFilter) {
   if (filter.includeEmpty) q.set('includeEmpty', 'true');
   if (filter.drinkSoon) q.set('drinkSoon', 'true');
   if (filter.noApogee) q.set('noApogee', 'true');
+  if (filter.dish) q.set('dish', filter.dish);
   const s = q.toString();
   return apiFetch<CaveRow[]>(`/cave${s ? `?${s}` : ''}`);
 }
 
 export interface WineDetail {
-  wine: CaveRow;
+  wine: CaveRow & { pairing?: Pairing | null };
   movements: Array<{ id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null }>;
 }
 export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
+
+export const setRating = (wineId: string, rating: number) =>
+  apiFetch<Rating>(`/wines/${wineId}/rating`, { method: 'PUT', body: JSON.stringify({ rating }) });
+export const clearRating = (wineId: string) => apiFetch<null>(`/wines/${wineId}/rating`, { method: 'DELETE' });
+export const regeneratePairing = (wineId: string) => apiFetch<void>(`/wines/${wineId}/pairing/regenerate`, { method: 'POST' });
 
 export const createOut = (input: { idempotencyKey: string; wineId: string; quantity: number; photoId?: string | null }) =>
   apiFetch<MovementResult>('/movements/out', { method: 'POST', body: JSON.stringify(input) });
@@ -183,5 +197,6 @@ export interface Stats {
   months: Array<{ month: string; in: number; out: number }>;
   drinkRate: number; yearsLeft: number | null;
   mostDrunk: StatsRankedWine[]; topProducers: Array<{ producer: string; bottles: number }>; mostExpensive: StatsRankedWine[];
+  bestRated: StatsRankedWine[];
 }
 export const getStats = () => apiFetch<Stats>('/stats');
