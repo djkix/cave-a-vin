@@ -32,8 +32,10 @@ export class ExportService {
       this.prisma.appellation.findMany({ orderBy: { canonicalName: 'asc' } }),
     ]);
     const stockByWine = new Map(stockRows.map((r) => [r.wine_id, Number(r.quantity)]));
+    // Même règle que les statistiques : une entrée annulée (reprise par un ADJUST qui la référence) ne fixe pas le prix.
+    const cancelled = new Set(movements.filter((m) => m.reversesId).map((m) => m.reversesId as string));
     const lastPrice = new Map<string, number>();
-    for (const m of [...movements].reverse()) if (m.type === 'IN' && m.priceUnitCents != null) lastPrice.set(m.wineId, m.priceUnitCents);
+    for (const m of [...movements].reverse()) if (m.type === 'IN' && m.priceUnitCents != null && !cancelled.has(m.id)) lastPrice.set(m.wineId, m.priceUnitCents);
     const rules = await this.rules.load();
     const year = new Date().getFullYear();
 

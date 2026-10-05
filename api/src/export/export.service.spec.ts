@@ -99,6 +99,30 @@ describe('ExportService.buildWorkbook', () => {
     expect([6, 7, 8].map((c) => wb.getWorksheet('Stock')!.getRow(2).getCell(c).value)).toEqual([null, null, null]);
   });
 
+  it('ignore le prix d’une entrée annulée, comme les statistiques', async () => {
+    const prisma = fakePrisma();
+    const wine = {
+      id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75,
+      appellationId: 'a-bandol', apogeeMin: null, apogeeMax: null, apogeeSource: null,
+      appellation: { region: 'Provence', guardMinYears: 5, guardMaxYears: 20 },
+    };
+    prisma.wine.findMany = async () => [wine] as any;
+    prisma.$queryRaw = async () => [{ wine_id: 'w1', quantity: 12 }];
+    const movements = [
+      { id: 'm1', wineId: 'w1', delta: 12, type: 'IN', occurredAt: new Date('2026-09-01'), priceUnitCents: 4800, note: null, reversesId: null, wine },
+      { id: 'm2', wineId: 'w1', delta: 6, type: 'IN', occurredAt: new Date('2026-09-10'), priceUnitCents: 9000, note: null, reversesId: null, wine },
+      { id: 'm3', wineId: 'w1', delta: -6, type: 'ADJUST', occurredAt: new Date('2026-09-11'), priceUnitCents: null, note: 'Annulation', reversesId: 'm2', wine },
+    ];
+    prisma.movement.findMany = async () => [...movements].reverse();
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const wb = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
+    await wb.xlsx.load(buffer as any);
+    const stock = wb.getWorksheet('Stock')!;
+    expect(stock.getRow(2).getCell(12).value).toBe(48);
+    expect(stock.getRow(2).getCell(13).value).toBe(576); // 12 × 48 €
+  });
+
   it('« à boire en priorité » ne garde que les fins d’apogée jusqu’à l’an prochain, la plus proche en premier', async () => {
     // Seule la date est simulée : exceljs a besoin des vrais minuteurs.
     jest.useFakeTimers({ now: new Date('2026-06-01'), doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
