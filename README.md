@@ -157,9 +157,12 @@ saisi. API : `GET /api/admin/reading-quality`.
 lecture (`GET /api/stats`, tout compte actif) : bouteilles, références et
 **valeur au prix d'achat** (stock × dernier prix d'achat saisi, la même règle
 que l'export ; « sur N des M références » quand des prix manquent, « Aucun prix
-d'achat saisi » sinon) ; répartition du stock par **apogée** (les barres *À
-boire vite*, *Passée* et *Sans estimation* ouvrent l'onglet Cave déjà filtré),
-par **couleur**, par **région** (8 premières puis *Autres*) et par **décennie
+d'achat saisi » quand aucun prix n'est connu) ; répartition du stock par
+**apogée** (les barres *À boire vite*, *Passée* et *Sans estimation* ouvrent
+l'onglet Cave déjà filtré ; l'onglet Cave affiche alors toute la liste « à
+boire en priorité », apogée finie au plus tard l'an prochain, qui peut compter
+plus de bouteilles que la barre), par **couleur**, par **région** (8 premières
+puis *Autres*) et par **décennie
 de millésime** ; **mouvements sur 12 mois** (entrées et sorties par mois, heure
 de Paris ; annulations et inventaires exclus), avec le rythme moyen de
 consommation et la durée de cave qu'il donne ; et trois **classements** : les
