@@ -5,5 +5,5 @@ import { MovementsModule } from '../movements/movements.module';
 import { CaveController } from './cave.controller';
 import { CaveService } from './cave.service';
 
-@Module({ imports: [AuthModule, MovementsModule, ApogeeModule], controllers: [CaveController], providers: [CaveService] })
+@Module({ imports: [AuthModule, MovementsModule, ApogeeModule], controllers: [CaveController], providers: [CaveService], exports: [CaveService] })
 export class CaveModule {}
