@@ -108,6 +108,28 @@ describe('CaveService — apogée', () => {
     expect((await service(null, [nv]).detail('w16')).wine.apogee).toMatchObject({ min: 2027, max: 2029, confidence: 'SAISIE' });
   });
 
+  describe('filtres d’apogée', () => {
+    // Châteauneuf 2016 garde 8-20 → fin 2036 ; 2006 → fin 2026 ; 2007 → 2027 ; 2008 → 2028.
+    const at = (id: string, vintage: number | null, producer = 'P') => ({ ...cdp, id, vintage, producer });
+    const rows = [at('v08', 2008), at('v07', 2007, 'A'), at('v16', 2016), at('nv', null), at('v06', 2006), at('v07b', 2007, 'B')];
+
+    it('« à boire en priorité » garde les fins d’apogée jusqu’à l’an prochain, la plus proche en premier', async () => {
+      const items = await service(null, rows).list({ drinkSoon: true });
+      expect(items.map((i) => i.id)).toEqual(['v06', 'v07', 'v07b']);
+    });
+
+    it('« sans apogée » ne garde que les vins sans estimation', async () => {
+      const items = await service(null, rows).list({ noApogee: true });
+      expect(items.map((i) => i.id)).toEqual(['nv']);
+      expect(items[0].apogee.reason).toBe('NON_MILLESIME');
+    });
+
+    it('se combine avec la recherche et ignore les vins épuisés', async () => {
+      const r = [...rows, { ...at('vide', 2006), quantity: 0 }];
+      expect((await service(null, r).list({ drinkSoon: true, q: 'b' })).map((i) => i.id)).toEqual(['v07b']);
+    });
+  });
+
   it('enregistre une correction manuelle', async () => {
     const s = service(null, [cdp]);
     await s.setManualApogee('w16', { min: 2030, max: 2035 });

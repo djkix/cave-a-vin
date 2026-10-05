@@ -1,4 +1,4 @@
-import { apogeeStatus, ApogeeWineInput, compileApogeeRules, EMPTY_APOGEE_RULES, estimateApogee } from './apogee';
+import { apogeeStatus, ApogeeWineInput, compileApogeeRules, EMPTY_APOGEE_RULES, estimateApogee, isDrinkSoon, sortByApogeeEnd } from './apogee';
 
 const YEAR = 2026;
 const wine = (over: Partial<ApogeeWineInput> = {}): ApogeeWineInput => ({
@@ -126,5 +126,33 @@ describe('apogeeStatus', () => {
     [2020, 2025, 2026, 'PASSEE'],
   ])('min %i, max %i, année %i → %s', (min, max, year, expected) => {
     expect(apogeeStatus(min, max, year)).toBe(expected);
+  });
+});
+
+describe('à boire en priorité', () => {
+  const at = (max: number | null) => ({ min: max == null ? null : 2000, max, confidence: null, status: null, reason: null, source: null });
+
+  it('retient une fin d’apogée passée, de l’année en cours ou de l’an prochain', () => {
+    expect(isDrinkSoon(at(2020), YEAR)).toBe(true);
+    expect(isDrinkSoon(at(2026), YEAR)).toBe(true);
+    expect(isDrinkSoon(at(2027), YEAR)).toBe(true);
+  });
+
+  it('écarte une fin d’apogée dans deux ans ou plus', () => {
+    expect(isDrinkSoon(at(2028), YEAR)).toBe(false);
+  });
+
+  it('écarte un vin sans estimation', () => {
+    expect(isDrinkSoon(at(null), YEAR)).toBe(false);
+  });
+
+  it('prend en compte la correction manuelle', () => {
+    const manual = estimateApogee(wine({ apogeeMin: 2020, apogeeMax: 2027, apogeeSource: 'MANUEL' }), EMPTY_APOGEE_RULES, YEAR);
+    expect(isDrinkSoon(manual, YEAR)).toBe(true);
+  });
+
+  it('range la fin d’apogée la plus proche en premier, sans changer l’ordre des ex æquo', () => {
+    const items = [{ id: 'b', apogee: at(2027) }, { id: 'a', apogee: at(2020) }, { id: 'c', apogee: at(2027) }];
+    expect(sortByApogeeEnd(items).map((i) => i.id)).toEqual(['a', 'b', 'c']);
   });
 });

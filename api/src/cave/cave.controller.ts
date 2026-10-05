@@ -10,6 +10,8 @@ const listQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   color: z.enum(['ROUGE', 'BLANC', 'ROSE', 'PETILLANT']).optional(),
   includeEmpty: z.enum(['true', 'false']).optional(),
+  drinkSoon: z.enum(['true', 'false']).optional(),
+  noApogee: z.enum(['true', 'false']).optional(),
 });
 
 @Controller()
@@ -24,7 +26,11 @@ export class CaveController {
   list(@Query() query: unknown) {
     const parsed = listQuerySchema.safeParse(query);
     if (!parsed.success) throw new BadRequestException('Filtre de cave invalide');
-    return this.cave.list({ q: parsed.data.q, color: parsed.data.color, includeEmpty: parsed.data.includeEmpty === 'true' });
+    const { q, color, includeEmpty, drinkSoon, noApogee } = parsed.data;
+    if (drinkSoon === 'true' && noApogee === 'true') {
+      throw new BadRequestException('Choisis « à boire en priorité » ou « sans apogée », pas les deux');
+    }
+    return this.cave.list({ q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true' });
   }
 
   @Get('wines/:id')

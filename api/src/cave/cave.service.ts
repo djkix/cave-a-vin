@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee } from '../apogee/apogee';
+import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { ManualApogeeInput } from '../apogee/dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,7 +60,10 @@ export class CaveService {
   async list(filter: CaveFilter): Promise<CaveItem[]> {
     const [rows, rules] = await Promise.all([this.allWithStock(), this.rules.load()]);
     const year = new Date().getFullYear();
-    return filterCave(rows, filter).map((r) => toItem(r, rules, year));
+    const items = filterCave(rows, filter).map((r) => toItem(r, rules, year));
+    if (filter.drinkSoon) return sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
+    if (filter.noApogee) return items.filter((i) => i.apogee.max == null);
+    return items;
   }
 
   async detail(id: string) {

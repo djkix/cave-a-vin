@@ -98,4 +98,27 @@ describe('ExportService.buildWorkbook', () => {
     await wb.xlsx.load(buffer as any);
     expect([6, 7, 8].map((c) => wb.getWorksheet('Stock')!.getRow(2).getCell(c).value)).toEqual([null, null, null]);
   });
+
+  it('« à boire en priorité » ne garde que les fins d’apogée jusqu’à l’an prochain, la plus proche en premier', async () => {
+    // Seule la date est simulée : exceljs a besoin des vrais minuteurs.
+    jest.useFakeTimers({ now: new Date('2026-06-01'), doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
+    try {
+      const prisma = fakePrisma();
+      const bandol = (id: string, producer: string, vintage: number) => ({ id, producer, cuvee: null, appellationRaw: 'Bandol', vintage, color: 'ROUGE', formatCl: 75,
+        appellationId: 'a-bandol', apogeeMin: null, apogeeMax: null, apogeeSource: null, appellation: { region: 'Provence', guardMinYears: 5, guardMaxYears: 20 } });
+      // Fins d'apogée : 2027, 2028, 2020.
+      prisma.wine.findMany = async () => [bandol('w7', 'Sept', 2007), bandol('w8', 'Huit', 2008), bandol('w0', 'Zéro', 2000)] as any;
+      prisma.$queryRaw = async () => [{ wine_id: 'w7', quantity: 1 }, { wine_id: 'w8', quantity: 1 }, { wine_id: 'w0', quantity: 1 }];
+      const { buffer, rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook({ drinkSoon: true }, 'u1');
+      const wb = new ExcelJS.Workbook();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
+      await wb.xlsx.load(buffer as any);
+      const stock = wb.getWorksheet('Stock')!;
+      expect(rowCount).toBe(2);
+      expect([2, 3].map((r) => stock.getRow(r).getCell(1).value)).toEqual(['Zéro', 'Sept']);
+      expect(prisma.exportLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ filter: { drinkSoon: true } }) }));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

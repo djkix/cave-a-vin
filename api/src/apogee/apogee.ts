@@ -110,3 +110,19 @@ export function estimateApogee(wine: ApogeeWineInput, rules: CompiledApogeeRules
     status: apogeeStatus(min, max, currentYear), reason: null, source: 'REGLE',
   };
 }
+
+/**
+ * « À boire en priorité » : fin d'apogée passée, cette année ou l'an prochain.
+ * L'an de marge laisse le temps de prévoir l'occasion d'ouvrir la bouteille.
+ * Un vin sans estimation n'en fait jamais partie : il a son propre filtre.
+ */
+export const DRINK_SOON_MARGIN_YEARS = 1;
+
+export function isDrinkSoon(apogee: Apogee, currentYear: number): boolean {
+  return apogee.max != null && apogee.max <= currentYear + DRINK_SOON_MARGIN_YEARS;
+}
+
+/** Fin d'apogée la plus proche d'abord ; le tri est stable, l'ordre reçu départage les ex æquo. */
+export function sortByApogeeEnd<T extends { apogee: Apogee }>(items: T[]): T[] {
+  return [...items].sort((a, b) => (a.apogee.max ?? Infinity) - (b.apogee.max ?? Infinity));
+}

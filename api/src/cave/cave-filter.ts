@@ -16,6 +16,10 @@ export interface CaveFilter {
   q?: string;
   color?: string;
   includeEmpty?: boolean;
+  /** Fin d'apogée au plus tard l'an prochain ; appliqué après le calcul de l'apogée. */
+  drinkSoon?: boolean;
+  /** Vins sans estimation d'apogée ; appliqué après le calcul de l'apogée. */
+  noApogee?: boolean;
 }
 
 /** Tous les mots cherchés doivent apparaître, sans accents ni casse, dans producteur, cuvée ou appellation. */
