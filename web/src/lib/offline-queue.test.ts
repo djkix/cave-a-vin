@@ -32,6 +32,9 @@ it('refuses beyond 200 items or 200 Mo with a French message', async () => {
   );
   await _resetForTests();
   await expect(enqueuePhoto(blob(200 * 1024 * 1024 + 1), 'entry')).rejects.toBeInstanceOf(QueueFullError);
+  await expect(enqueuePhoto(blob(200 * 1024 * 1024 + 1), 'entry')).rejects.toThrow(
+    'File d’envoi pleine (200 photos) — attendez que les envois partent',
+  );
 });
 
 it('notifies subscribers when the queue changes', () => {

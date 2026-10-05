@@ -11,7 +11,11 @@ const JPEG_QUALITY = 0.8;
 export async function shrinkPhoto(file: Blob): Promise<Blob> {
   if (typeof createImageBitmap !== 'function') return file;
   try {
-    const bitmap = await createImageBitmap(file);
+    // `imageOrientation: 'from-image'` applique la rotation EXIF à la bitmap
+    // (largeur/hauteur déjà dans le bon sens) : sans ça, une photo portrait
+    // prise au téléphone ressortirait couchée une fois le canvas ré-encodé,
+    // l'EXIF n'étant pas conservé par toBlob.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     try {
       const { width, height } = bitmap;
       const longest = Math.max(width, height);
