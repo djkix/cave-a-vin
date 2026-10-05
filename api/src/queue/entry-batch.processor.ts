@@ -168,6 +168,12 @@ export class EntryBatchProcessor {
       }
     }
     if (readable.length === 0) return;
+    if (readable.length === 1) {
+      // Une photo seule passe par l'appel simple : sa consigne (un objet) est
+      // celle que le modèle suit le mieux, et le coût est celui de cet appel.
+      await this.readEachAlone(readable, now, settled);
+      return;
+    }
 
     let batch;
     try {

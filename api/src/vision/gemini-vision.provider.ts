@@ -15,15 +15,26 @@ export class VisionBatchMismatchError extends Error {
   }
 }
 
-const PROMPT = `Tu lis une étiquette de vin (ou un carton de vin) photographiée. Réponds UNIQUEMENT par un objet JSON strict de cette forme :
-${EXTRACTION_JSON_SCHEMA_DESCRIPTION}
-Règles :
+/** Règles de lecture communes aux consignes simple et de lot : une seule source, pour qu'elles ne divergent pas. */
+const READING_RULES = `Règles :
 - N'invente jamais un champ absent de l'image : un champ illisible ou absent vaut null avec confidence 0.
 - Donne une confiance par champ, entre 0 et 1.
 - Distingue le nom du producteur (domaine, château, maison) du nom de la cuvée.
 - Sur un carton, lis le nombre de bouteilles s'il est imprimé (« 6 bouteilles », « caisse de 12 »), sinon null.
 - "couleur" ∈ rouge | blanc | rosé | pétillant.
 - "format_cl" en centilitres (75 par défaut uniquement si l'image le confirme, sinon null).`;
+
+const PROMPT = `Tu lis une étiquette de vin (ou un carton de vin) photographiée. Réponds UNIQUEMENT par un objet JSON strict de cette forme :
+${EXTRACTION_JSON_SCHEMA_DESCRIPTION}
+${READING_RULES}`;
+
+/** Consigne de lot : la réponse attendue est un tableau, jamais un objet (sinon le modèle hésite entre les deux). */
+const batchPrompt = (n: number) =>
+  `Tu lis des étiquettes de vin (ou des cartons de vin) photographiées. Tu reçois ${n} images numérotées de 1 à ${n}.
+Réponds UNIQUEMENT par un tableau JSON de ${n} éléments, un par image, dans l'ordre des images.
+Chaque élément est un objet avec un champ "image" (le numéro de l'image, de 1 à ${n}) et exactement les champs suivants :
+${EXTRACTION_JSON_SCHEMA_DESCRIPTION}
+${READING_RULES}`;
 
 // Ordre de grandeur pour le plafond mensuel ; ajuster si la grille tarifaire change.
 const PRICE_PER_1K_TOKENS_CENTS = { input: 0.01, output: 0.04 };
@@ -48,8 +59,16 @@ function pairingCostCentsOf(usage: { promptTokenCount?: number; candidatesTokenC
 
 const stripFences = (text: string) => text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
-const BATCH_INSTRUCTION = (n: number) =>
-  `Tu reçois ${n} images numérotées de 1 à ${n}. Réponds par un tableau JSON de ${n} objets, dans l'ordre, chacun avec un champ "image" (numéro) et les champs ci-dessus.`;
+/**
+ * Le modèle enveloppe parfois le tableau demandé dans un objet (`{"items": […]}`) :
+ * un objet dont une seule propriété est un tableau est ramené à ce tableau, tout
+ * autre forme reste telle quelle (et sera refusée comme lot mélangé).
+ */
+function unwrapArray(value: unknown): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+  const arrays = Object.values(value).filter(Array.isArray);
+  return arrays.length === 1 ? arrays[0] : value;
+}
 
 const COLOR_WORD: Record<string, string> = { ROUGE: 'rouge', BLANC: 'blanc', ROSE: 'rosé', PETILLANT: 'pétillant' };
 
@@ -100,7 +119,7 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
   async extractWineLabels(images: Array<{ data: Buffer; mimeType: string }>): Promise<BatchVisionResult> {
     const n = images.length;
     const parts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [
-      { text: `${PROMPT}\n${BATCH_INSTRUCTION(n)}` },
+      { text: batchPrompt(n) },
     ];
     images.forEach((image, i) => {
       parts.push({ text: `Image ${i + 1} :` });
@@ -118,7 +137,7 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
 
     let rawArray: unknown;
     try {
-      rawArray = JSON.parse(text);
+      rawArray = unwrapArray(JSON.parse(text));
     } catch {
       throw new VisionBatchMismatchError('Sortie du modèle invalide (JSON illisible)', costCents);
     }

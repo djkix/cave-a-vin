@@ -313,7 +313,7 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
     const p = h.add({ createdAt: at(-60_000), costCents: 3 });
     await h.processor.tick(NOW);
     expect(p.status).toBe('DONE');
-    expect(p.costCents).toBe(3 + 10);
+    expect(p.costCents).toBe(3 + 2); // photo seule : coût de l'appel simple
   });
 
   it('un item invalide reçoit aussi sa part du coût', async () => {
@@ -374,6 +374,32 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
   });
 });
 
+describe('EntryBatchProcessor.tick — lot d’une seule photo', () => {
+  it('une photo seule est lue par l’appel simple, jamais par l’appel de lot, et paie cet appel', async () => {
+    const h = harness();
+    const p = h.add({ createdAt: at(-46_000) });
+    expect(await h.processor.tick(NOW)).toEqual({ processed: 1 });
+    expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(1);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledWith(Buffer.from(`img-${p.id}`), 'image/jpeg');
+    expect(p.status).toBe('DONE');
+    expect(p.rawExtraction).toEqual({ seul: `img-${p.id}` });
+    expect(p.model).toBe('gemini-test');
+    expect(p.latencyMs).toBe(300);
+    expect(p.costCents).toBe(2);
+  });
+
+  it('une photo seule en panne passagère est reportée', async () => {
+    const h = harness();
+    const p = h.add({ createdAt: at(-46_000) });
+    h.vision.extractWineLabel.mockRejectedValueOnce(GEMINI_503);
+    await h.processor.tick(NOW);
+    expect(p.status).toBe('PENDING');
+    expect(p.attempts).toBe(1);
+    expect(p.nextAttemptAt).toEqual(at(30_000));
+  });
+});
+
 describe('EntryBatchProcessor.tick — pannes', () => {
   it('panne passagère : tout le lot repart en attente, première attente 30 s', async () => {
     const h = harness();
@@ -391,7 +417,7 @@ describe('EntryBatchProcessor.tick — pannes', () => {
   it('l’attente croît avec les tentatives : 2 échecs passés → 2 min', async () => {
     const h = harness();
     const p = h.add({ createdAt: at(-600_000), attempts: 2, nextAttemptAt: at(-1) });
-    h.vision.extractWineLabels.mockRejectedValueOnce(GEMINI_503);
+    h.vision.extractWineLabel.mockRejectedValueOnce(GEMINI_503); // photo seule : appel simple
     await h.processor.tick(NOW);
     expect(p.attempts).toBe(3);
     expect(p.nextAttemptAt).toEqual(at(120_000));
@@ -400,7 +426,7 @@ describe('EntryBatchProcessor.tick — pannes', () => {
   it('abandonne après EXTRACTION_ATTEMPTS tentatives', async () => {
     const h = harness();
     const p = h.add({ createdAt: at(-600_000), attempts: 999, nextAttemptAt: at(-1) });
-    h.vision.extractWineLabels.mockRejectedValueOnce(GEMINI_503);
+    h.vision.extractWineLabel.mockRejectedValueOnce(GEMINI_503); // photo seule : appel simple
     await h.processor.tick(NOW);
     expect(p.status).toBe('FAILED');
     expect(p.attempts).toBe(1000);

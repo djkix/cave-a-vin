@@ -181,6 +181,56 @@ describe('GeminiVisionProvider.extractWineLabels', () => {
     expect(texts).toContain('Image 3 :');
   });
 
+  it('la consigne de lot demande un tableau de N éléments, jamais « un objet JSON strict »', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    await new GeminiVisionProvider(model as any, 'gemini-test').extractWineLabels(images);
+    const prompt = model.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    expect(prompt).toMatch(/tableau JSON de 3 éléments/);
+    expect(prompt).not.toMatch(/objet JSON strict/);
+    expect(prompt).toContain('"image"');
+    expect(prompt).toContain('nb_cols_carton');
+  });
+
+  it('les consignes simple et de lot partagent les mêmes règles de lecture', async () => {
+    const single = fakeModel(validJson);
+    await new GeminiVisionProvider(single as any, 'g').extractWineLabel(Buffer.from('x'), 'image/jpeg');
+    const singlePrompt = single.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const batch = fakeModel(JSON.stringify(arr));
+    await new GeminiVisionProvider(batch as any, 'g').extractWineLabels(images);
+    const batchPrompt = batch.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    expect(singlePrompt).toMatch(/objet JSON strict/);
+    for (const rule of [
+      'null avec confidence 0',
+      'producteur (domaine, château, maison) du nom de la cuvée',
+      'nombre de bouteilles',
+      'rouge | blanc | rosé | pétillant',
+      'format_cl',
+    ]) {
+      expect(singlePrompt).toContain(rule);
+      expect(batchPrompt).toContain(rule);
+    }
+  });
+
+  it('accepte un tableau enveloppé dans un objet à une seule propriété tableau', async () => {
+    const arr = [{ image: 2, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
+    for (const key of ['items', 'resultats']) {
+      const provider = new GeminiVisionProvider(fakeModel(JSON.stringify({ [key]: arr })) as any, 'g');
+      const res = await provider.extractWineLabels(images);
+      expect(res.items).toHaveLength(3);
+      expect(res.items.every((i) => 'extraction' in i)).toBe(true);
+    }
+  });
+
+  it('rejette un objet à plusieurs propriétés tableau, ou sans tableau', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    for (const body of [{ a: arr, b: [] }, { items: { image: 1 } }]) {
+      const provider = new GeminiVisionProvider(fakeModel(JSON.stringify(body)) as any, 'g');
+      await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+    }
+  });
+
   it('facture le coût de l’appel entier (pas divisé ici)', async () => {
     const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
     const model = fakeModel(JSON.stringify(arr), { promptTokenCount: 3000, candidatesTokenCount: 600 });

@@ -31,8 +31,10 @@ describeIfDb('analyse par lot — réservation (base réelle)', () => {
         costCents: 8,
       };
     },
-    extractWineLabel: async () => {
-      throw new Error('relecture unitaire inattendue');
+    // Une photo seule (ou un reste de lot de 1 entre deux passages) passe par l'appel simple.
+    extractWineLabel: async (data: Buffer) => {
+      await new Promise((r) => setTimeout(r, 200));
+      return { raw: { lu: data.toString() }, extraction: {} as never, model: 'faux', latencyMs: 200, costCents: 1 };
     },
   };
   const budget = { assertUnderCap: async () => undefined };
