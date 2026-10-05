@@ -1,5 +1,5 @@
 import { UnrecoverableError } from 'bullmq';
-import { VisionBudgetExceededError } from '../queue/vision-budget.service';
+import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError } from '../queue/vision-budget.service';
 import { PairingInvalidOutputError } from '../vision/pairing-output';
 import { PairingProcessor } from './pairing.processor';
 
@@ -16,14 +16,15 @@ function harness(opts: { wine?: unknown; suggest?: jest.Mock; overCap?: boolean 
     pairing: { upsert, update },
   };
   const provider = { suggestPairings: opts.suggest ?? jest.fn(async () => ({ dishes: ['Agneau', 'Daube'], model: 'gemini-test', costCents: 1 })) };
-  const budget = { assertUnderCap: jest.fn(async () => { if (opts.overCap) throw new VisionBudgetExceededError(); }) };
-  return { upsert, update, provider, processor: new PairingProcessor(prisma as any, provider as any, budget as any) };
+  const budget = { assertUnderShare: jest.fn(async () => { if (opts.overCap) throw new VisionBudgetExceededError(); }) };
+  return { upsert, update, provider, budget, processor: new PairingProcessor(prisma as any, provider as any, budget as any) };
 }
 
 describe('PairingProcessor', () => {
   it('enregistre les plats suggérés', async () => {
     const h = harness();
     await h.processor.process('w1');
+    expect(h.budget.assertUnderShare).toHaveBeenCalledWith(PAIRING_BUDGET_SHARE);
     expect(h.provider.suggestPairings).toHaveBeenCalledWith({
       producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellation: 'Bandol', region: 'Provence', color: 'ROUGE', vintage: 2019,
     });

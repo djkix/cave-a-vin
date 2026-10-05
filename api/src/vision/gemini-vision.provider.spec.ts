@@ -39,19 +39,25 @@ describe('GeminiVisionProvider', () => {
 
 describe('GeminiVisionProvider.suggestPairings', () => {
   const wine = { producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellation: 'Bandol', region: 'Provence', color: 'ROUGE', vintage: 2019 };
-  const fake = (text: string) => ({
-    generateContent: jest.fn(async () => ({ response: { text: () => text, usageMetadata: { promptTokenCount: 200, candidatesTokenCount: 50 } } })),
+  const fake = (text: string, usage = { promptTokenCount: 200, candidatesTokenCount: 50 }) => ({
+    generateContent: jest.fn(async () => ({ response: { text: () => text, usageMetadata: usage } })),
   });
 
-  it('demande des plats en français pour ce vin et rend la liste vérifiée avec son coût', async () => {
+  it('demande des plats en français pour ce vin et rend la liste vérifiée avec un coût arrondi (quasi nul pour un appel courant)', async () => {
     const model = fake('{"plats":["Agneau de sept heures","Daube provençale"]}');
     const r = await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings(wine);
-    expect(r).toEqual({ dishes: ['Agneau de sept heures', 'Daube provençale'], model: 'gemini-test', costCents: 1 });
+    expect(r).toEqual({ dishes: ['Agneau de sept heures', 'Daube provençale'], model: 'gemini-test', costCents: 0 });
     const prompt = (model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text as string;
     expect(prompt).toContain('Domaine Tempier');
     expect(prompt).toContain('La Tourtine');
     expect(prompt).toContain('Bandol');
     expect(prompt).toContain('2019');
+  });
+
+  it('arrondit (ne majore jamais) le coût d’un accord, contrairement à l’analyse de photo', async () => {
+    const model = fake('{"plats":["Agneau"]}', { promptTokenCount: 200000, candidatesTokenCount: 50000 });
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings(wine);
+    expect(r.costCents).toBe(4);
   });
 
   it('nomme un vin non millésimé comme tel', async () => {

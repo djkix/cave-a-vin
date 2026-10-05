@@ -19,11 +19,22 @@ Règles :
 // Ordre de grandeur pour le plafond mensuel ; ajuster si la grille tarifaire change.
 const PRICE_PER_1K_TOKENS_CENTS = { input: 0.01, output: 0.04 };
 
-function costCentsOf(usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined): number {
-  return Math.ceil(
+function rawCostCentsOf(usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined): number {
+  return (
     ((usage?.promptTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.input +
-      ((usage?.candidatesTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.output,
+    ((usage?.candidatesTokenCount ?? 0) / 1000) * PRICE_PER_1K_TOKENS_CENTS.output
   );
+}
+
+/** Une photo facturée par Gemini ne doit jamais être comptée à coût nul : on majore toujours. */
+function costCentsOf(usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined): number {
+  return Math.ceil(rawCostCentsOf(usage));
+}
+
+/** Un accord coûte un ordre de grandeur de moins qu'une photo (~0,004 ct) : arrondir plutôt que
+ * majorer évite qu'il consomme systématiquement 1 ct du plafond mensuel partagé avec les photos. */
+function pairingCostCentsOf(usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined): number {
+  return Math.round(rawCostCentsOf(usage));
 }
 
 const stripFences = (text: string) => text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -85,6 +96,6 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
     } catch {
       throw new PairingInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
     }
-    return { dishes: parsePairingOutput(raw), model: this.modelName, costCents: costCentsOf(result.response.usageMetadata) };
+    return { dishes: parsePairingOutput(raw), model: this.modelName, costCents: pairingCostCentsOf(result.response.usageMetadata) };
   }
 }

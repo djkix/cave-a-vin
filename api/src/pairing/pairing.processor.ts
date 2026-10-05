@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { deferralReason, isTransientVisionFailure } from '../queue/transient-failure';
-import { VisionBudgetService } from '../queue/vision-budget.service';
+import { PAIRING_BUDGET_SHARE, VisionBudgetService } from '../queue/vision-budget.service';
 import { PairingInvalidOutputError } from '../vision/pairing-output';
 import { PAIRING_PROVIDER, PairingProvider } from '../vision/pairing-provider.interface';
 
@@ -26,7 +26,7 @@ export class PairingProcessor {
     if (!wine) return; // vin supprimé depuis la mise en file
     await this.prisma.pairing.upsert({ where: { wineId }, create: { wineId }, update: {} });
     try {
-      await this.budget.assertUnderCap();
+      await this.budget.assertUnderShare(PAIRING_BUDGET_SHARE);
       const result = await this.provider.suggestPairings({
         producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellation?.canonicalName ?? wine.appellationRaw,
         region: wine.appellation?.region ?? null, color: wine.color, vintage: wine.vintage,
