@@ -12,6 +12,7 @@ import { JournalPage } from './pages/JournalPage';
 import { LoginPage } from './pages/LoginPage';
 import { SortieCapturePage } from './pages/SortieCapturePage';
 import { SortieResolutionPage } from './pages/SortieResolutionPage';
+import { StatsPage } from './pages/StatsPage';
 import { WinePage } from './pages/WinePage';
 
 export const router = createBrowserRouter([
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
           { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
           { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
           { path: '/journal', element: <JournalPage /> },
+          { path: '/stats', element: <StatsPage /> },
           { path: '/cave', element: <CavePage /> },
           { path: '/cave/:wineId', element: <WinePage /> },
           { path: '/sortie', element: <SortieCapturePage /> },
