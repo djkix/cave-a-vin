@@ -228,7 +228,30 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
     const findFirst = jest.fn(async () => null);
     const service = new PhotosService({ photo: { count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
     await service.queueStatus();
-    expect(count).toHaveBeenCalledWith({ where: { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' } });
+    expect(count).toHaveBeenCalledWith({ where: expect.objectContaining({ status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' }) });
+  });
+
+  it('ne compte pas dans l’attente les photos écartées', async () => {
+    const rows = [
+      { status: 'PENDING', purpose: 'ENTRY', dismissedAt: null, createdAt: new Date('2026-10-05T10:00:00Z'), errorMessage: null },
+      { status: 'PENDING', purpose: 'ENTRY', dismissedAt: new Date(), createdAt: new Date('2026-10-05T09:00:00Z'), errorMessage: 'motif ancien' },
+    ];
+    const keep = (where: any) =>
+      rows.filter(
+        (r) =>
+          where.status.in.includes(r.status) &&
+          r.purpose === where.purpose &&
+          ('dismissedAt' in where ? r.dismissedAt === where.dismissedAt : true) &&
+          (where.errorMessage ? r.errorMessage !== null : true),
+      );
+    const count = jest.fn(async ({ where }: any) => keep(where).length);
+    const findFirst = jest.fn(async ({ where }: any) => keep(where)[0] ?? null);
+    const service = new PhotosService({ photo: { count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    const status = await service.queueStatus();
+    expect(status.waiting).toBe(1);
+    expect(status.oldestWaitingAt).toEqual(new Date('2026-10-05T10:00:00Z'));
+    expect(status.lastReason).toBeNull();
+    expect(count).toHaveBeenCalledWith({ where: expect.objectContaining({ dismissedAt: null }) });
   });
 });
 

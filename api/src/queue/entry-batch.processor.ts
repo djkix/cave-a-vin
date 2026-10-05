@@ -6,7 +6,7 @@ import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
 import { EXTRACTION_ATTEMPTS, extractionBackoffDelay } from './extraction.queue';
-import { deferralReason, isTransientVisionFailure } from './transient-failure';
+import { CONFIGURATION_DEFERRAL_REASON, deferralReason, isConfigurationError, isTransientVisionFailure } from './transient-failure';
 import { VisionBudgetService } from './vision-budget.service';
 
 interface Reserved {
@@ -19,6 +19,9 @@ interface Reserved {
 type Readable = Reserved & { data: Buffer };
 
 const MIME = 'image/jpeg';
+
+/** Seul message stocké pour une lecture en échec : le texte brut (SDK, Zod) reste dans les logs. */
+const UNREADABLE = 'Lecture de l’étiquette inexploitable';
 
 /**
  * Analyse des photos d'entrée par lots : la table `photo` sert de file. Chaque
@@ -197,7 +200,7 @@ export class EntryBatchProcessor {
       const photo = readable[i];
       spend(photo, share);
       if (!item || 'error' in item) {
-        await this.fail(photo, item?.error ?? 'Lecture de l’étiquette inexploitable', settled);
+        await this.fail(photo, UNREADABLE, settled);
         continue;
       }
       await this.done(photo, { raw: item.raw, model: batch.model, latencyMs: batch.latencyMs }, settled);
@@ -206,9 +209,10 @@ export class EntryBatchProcessor {
   }
 
   /**
-   * Lot mélangé : chaque photo est relue seule, aucune lecture ne peut être
-   * attribuée à une autre. À la première panne passagère, les photos restantes
-   * sont reportées sans appel : le service est indisponible pour toutes.
+   * Lot mélangé (ou photo seule) : chaque photo est relue seule, aucune lecture
+   * ne peut être attribuée à une autre. À la première panne passagère ou erreur
+   * de configuration, les photos restantes sont reportées sans appel : le
+   * service est indisponible pour toutes.
    */
   private async readEachAlone(photos: Readable[], now: Date, settled: Set<string>): Promise<void> {
     for (let i = 0; i < photos.length; i++) {
@@ -217,7 +221,7 @@ export class EntryBatchProcessor {
       try {
         r = await this.withTimeout(this.vision.extractWineLabel(photo.data, MIME));
       } catch (e) {
-        if (isTransientVisionFailure(e)) {
+        if (isDeferred(e)) {
           await this.settleFailure(photos.slice(i), e, now, settled);
           return;
         }
@@ -243,21 +247,23 @@ export class EntryBatchProcessor {
   }
 
   /**
-   * Panne passagère (plafond compris) : les photos repartent en attente avec une
-   * attente croissante, puis échouent après `EXTRACTION_ATTEMPTS` tentatives.
-   * Erreur définitive : échec immédiat, la saisie manuelle est proposée.
+   * Panne passagère (plafond compris) ou erreur de configuration (clé Gemini) :
+   * les photos repartent en attente avec une attente croissante, puis échouent
+   * après `EXTRACTION_ATTEMPTS` tentatives. Autre erreur définitive : échec
+   * immédiat, la saisie manuelle est proposée. Le texte brut de l'erreur ne va
+   * que dans les logs ; la photo ne porte qu'un message en français.
    */
   private async settleFailure(photos: Reserved[], error: unknown, now: Date, settled: Set<string>): Promise<void> {
     const message = messageOf(error);
-    const transient = isTransientVisionFailure(error);
-    this.logger.warn(`Lot d'entrée de ${photos.length} photo(s) ${transient ? 'reporté' : 'en échec'} : ${message}`);
+    const deferred = isDeferred(error);
+    this.logger.warn(`Lot d'entrée de ${photos.length} photo(s) ${deferred ? 'reporté' : 'en échec'} : ${message}`);
     for (const photo of photos) {
-      if (!transient) {
-        await this.fail(photo, message, settled);
+      if (!deferred) {
+        await this.fail(photo, UNREADABLE, settled);
         continue;
       }
       const attempts = photo.attempts + 1;
-      const reason = deferralReason(error);
+      const reason = isConfigurationError(error) ? CONFIGURATION_DEFERRAL_REASON : deferralReason(error);
       const exhausted = attempts >= EXTRACTION_ATTEMPTS;
       await this.prisma.photo.update({
         where: { id: photo.id },
@@ -309,6 +315,11 @@ function spend(photo: Reserved, cents: number): void {
 
 function costData(photo: Reserved): { costCents?: number } {
   return photo.costCents === null ? {} : { costCents: photo.costCents };
+}
+
+/** Photo d'entrée : une panne passagère comme une erreur de configuration reporte l'analyse. */
+function isDeferred(e: unknown): boolean {
+  return isTransientVisionFailure(e) || isConfigurationError(e);
 }
 
 function messageOf(e: unknown): string {

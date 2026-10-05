@@ -144,7 +144,8 @@ export class PhotosService {
    * analyses terminées) ni dans le journal, et elle passe pour perdue.
    */
   async queueStatus(): Promise<{ waiting: number; oldestWaitingAt: Date | null; lastReason: string | null }> {
-    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' };
+    // Une photo écartée n'est plus analysée : elle ne compte pas dans l'attente.
+    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY', dismissedAt: null };
     const [waiting, oldest, lastDeferred] = await Promise.all([
       this.prisma.photo.count({ where }),
       this.prisma.photo.findFirst({ where, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),

@@ -6,7 +6,12 @@ import { VisionBudgetExceededError } from './vision-budget.service';
 const NOW = new Date('2026-10-05T12:00:00.000Z');
 const at = (deltaMs: number) => new Date(NOW.getTime() + deltaMs);
 const GEMINI_503 = new Error('[503 Service Unavailable] This model is currently experiencing high demand.');
-const BAD_KEY = new Error('[400 Bad Request] API key not valid. Please pass a valid API key.');
+const BAD_KEY = new Error(
+  '[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini:generateContent: [400 Bad Request] API key not valid. Please pass a valid API key. [{"reason":"API_KEY_INVALID"}]',
+);
+const CONFIG_REASON = 'Analyse reportée : service de lecture mal configuré (clé Gemini à vérifier), reprise automatique';
+const UNREADABLE = 'Lecture de l’étiquette inexploitable';
+const ZOD_OUTPUT = new Error('Sortie du modèle invalide : ZodError: [{"code":"invalid_type","path":["couleur"]}]');
 
 type Row = {
   id: string;
@@ -436,16 +441,111 @@ describe('EntryBatchProcessor.tick — pannes', () => {
     );
   });
 
-  it('erreur définitive : tout le lot FAILED avec le message', async () => {
+  it('clé Gemini invalide : le lot est reporté avec un motif en français, sans le texte du SDK', async () => {
     const h = harness();
     const all = h.addMany(8);
     h.vision.extractWineLabels.mockRejectedValueOnce(BAD_KEY);
     await h.processor.tick(NOW);
     all.forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.attempts).toBe(1);
+      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.errorMessage).toBe(CONFIG_REASON);
+    });
+  });
+
+  it.each([
+    'API key not valid. Please pass a valid API key.',
+    '[400 Bad Request] {"reason":"API_KEY_INVALID"}',
+    '[400 Bad Request] API key expired. Please renew the API key.',
+    '[403 Forbidden] PERMISSION_DENIED',
+    '[403 Forbidden] Generative Language API has not been used in project 123 before',
+    '[404 Not Found] models/gemini-x is not found for API version v1beta',
+  ])('erreur de configuration « %s » : lot reporté, jamais en échec', async (text) => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new Error(`[GoogleGenerativeAI Error]: ${text}`));
+    await h.processor.tick(NOW);
+    all.forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.errorMessage).toBe(CONFIG_REASON);
+    });
+  });
+
+  it('erreur de configuration persistante : abandon après EXTRACTION_ATTEMPTS avec le motif français', async () => {
+    const h = harness();
+    const p = h.add({ createdAt: at(-600_000), attempts: 999, nextAttemptAt: at(-1) });
+    h.vision.extractWineLabel.mockRejectedValueOnce(BAD_KEY);
+    await h.processor.tick(NOW);
+    expect(p.status).toBe('FAILED');
+    expect(p.errorMessage).toBe(`${CONFIG_REASON} — abandon après 1000 tentatives`);
+  });
+
+  it('autre erreur définitive : tout le lot FAILED avec un message en français', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new Error('[GoogleGenerativeAI Error]: [400 Bad Request] Invalid argument'));
+    await h.processor.tick(NOW);
+    all.forEach((r) => {
       expect(r.status).toBe('FAILED');
-      expect(r.errorMessage).toBe(BAD_KEY.message);
+      expect(r.errorMessage).toBe(UNREADABLE);
       expect(r.nextAttemptAt).toBeNull();
     });
+  });
+
+  it('relecture seule à la sortie Zod invalide : FAILED avec le message français', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)'));
+    h.vision.extractWineLabel.mockImplementation(async (image: Buffer) => {
+      if (image.toString() === `img-${all[2].id}`) throw ZOD_OUTPUT;
+      return { raw: {}, extraction: {} as any, model: 'm', latencyMs: 1, costCents: 1 };
+    });
+    await h.processor.tick(NOW);
+    expect(all[2].status).toBe('FAILED');
+    expect(all[2].errorMessage).toBe(UNREADABLE);
+  });
+
+  it('relecture seule avec une clé invalide : la photo et les suivantes sont reportées sans autre appel', async () => {
+    const h = harness();
+    const all = h.addMany(8);
+    h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)'));
+    h.vision.extractWineLabel.mockImplementation(async (image: Buffer) => {
+      if (image.toString() === `img-${all[2].id}`) throw BAD_KEY;
+      return { raw: {}, extraction: {} as any, model: 'm', latencyMs: 1, costCents: 1 };
+    });
+    await h.processor.tick(NOW);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(3);
+    all.slice(2).forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.errorMessage).toBe(CONFIG_REASON);
+    });
+  });
+
+  it('aucun message stocké ne reprend le texte brut du SDK ou de Zod', async () => {
+    const scenarios: Array<(h: ReturnType<typeof harness>) => void> = [
+      (h) => h.vision.extractWineLabels.mockRejectedValueOnce(BAD_KEY),
+      (h) => h.vision.extractWineLabels.mockRejectedValueOnce(ZOD_OUTPUT),
+      (h) => h.vision.extractWineLabels.mockRejectedValueOnce(new Error('[GoogleGenerativeAI Error]: [400 Bad Request] Invalid argument')),
+      (h) => h.vision.extractWineLabels.mockRejectedValueOnce(Object.assign(new Error('[{"code":"invalid_type"}]'), { name: 'ZodError' })),
+      (h) => {
+        h.vision.extractWineLabels.mockRejectedValueOnce(new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)'));
+        h.vision.extractWineLabel.mockRejectedValue(ZOD_OUTPUT);
+      },
+    ];
+    for (const arrange of scenarios) {
+      const h = harness();
+      const all = h.addMany(8);
+      arrange(h);
+      await h.processor.tick(NOW);
+      all.forEach((r) => {
+        expect(r.errorMessage).not.toBeNull();
+        expect(r.errorMessage).not.toContain('[GoogleGenerativeAI');
+        expect(r.errorMessage).not.toContain('ZodError');
+        expect(r.errorMessage).not.toContain('Sortie du modèle');
+      });
+    }
   });
 
   it('plafond atteint : aucun appel, le lot est reporté avec le motif du plafond', async () => {

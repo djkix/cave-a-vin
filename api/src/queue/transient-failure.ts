@@ -25,13 +25,12 @@ const TRANSIENT_NETWORK = [
 ];
 
 /**
- * Erreurs dont on sait qu'un réessai ne changera rien : l'appel a bien abouti et
- * c'est la réponse qui est inexploitable, ou la configuration qui est fausse. Elles
- * doivent échouer tout de suite pour que la saisie manuelle soit proposée, au lieu
- * d'occuper la file pendant des jours.
+ * Erreurs de configuration (clé Gemini invalide ou expirée, API non activée,
+ * modèle inconnu) : un réessai immédiat ne changera rien, mais elles se
+ * corrigent sans toucher à la photo. Les photos d'entrée sont alors reportées
+ * (voir `isConfigurationError`) plutôt que perdues.
  */
-const DEFINITIVE = [
-  'Sortie du modèle invalide',
+const CONFIGURATION = [
   'API key not valid',
   'API_KEY_INVALID',
   'API key expired',
@@ -39,6 +38,28 @@ const DEFINITIVE = [
   'has not been used in project',
   'is not found for API version',
 ];
+
+/**
+ * Erreurs dont on sait qu'un réessai ne changera rien : l'appel a bien abouti et
+ * c'est la réponse qui est inexploitable, ou la configuration qui est fausse. Elles
+ * doivent échouer tout de suite pour que la saisie manuelle soit proposée, au lieu
+ * d'occuper la file pendant des jours.
+ */
+const DEFINITIVE = ['Sortie du modèle invalide', ...CONFIGURATION];
+
+/** Motif stocké sur une photo d'entrée reportée pour cause de configuration. */
+export const CONFIGURATION_DEFERRAL_REASON =
+  'Analyse reportée : service de lecture mal configuré (clé Gemini à vérifier), reprise automatique';
+
+/**
+ * Clé Gemini invalide, API non activée… Pour les photos d'entrée, l'analyse ne
+ * doit jamais bloquer : la photo est reportée comme pour une panne passagère et
+ * réanalysée une fois la configuration corrigée.
+ */
+export function isConfigurationError(error: unknown): boolean {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return CONFIGURATION.some((needle) => message.includes(needle));
+}
 
 /**
  * Le statut apparaît entre crochets n'importe où dans le message, jamais en tête :
