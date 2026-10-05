@@ -46,6 +46,20 @@ const input = {
   quantity: 6,
 };
 
+describe('MovementsService — fiche confirmée (mesure zéro saisie)', () => {
+  it('garde la fiche confirmée d’une entrée par photo', async () => {
+    const h = harness();
+    await h.service.createIn({ ...input, photoId: 'ph1' });
+    expect(h.movements[0].confirmedWine).toEqual(input.wine);
+  });
+
+  it('ne garde rien pour une entrée sans photo', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    expect(h.movements[0].confirmedWine).toBeUndefined();
+  });
+});
+
 describe('MovementsService', () => {
   it('creates a positive IN movement and returns the new stock', async () => {
     const h = harness();

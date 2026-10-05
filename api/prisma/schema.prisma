@@ -95,6 +95,7 @@ model Movement {
   note           String?
   idempotencyKey String       @unique @map("idempotency_key")
   reversesId     String?      @map("reverses_id")
+  confirmedWine  Json?        @map("confirmed_wine")
 
   @@index([wineId, occurredAt])
   @@map("movement")

@@ -141,6 +141,18 @@ deux cases s'excluent ; elles se combinent avec la recherche, la couleur et les
 vins épuisés. Côté API : `GET /api/cave?drinkSoon=true` et
 `GET /api/cave?noApogee=true`.
 
+**Mesure « zéro saisie ».** Chaque entrée par photo (unitaire ou en mode
+campagne) garde la fiche telle qu'elle a été confirmée. L'espace
+Administration affiche, pour les administrateurs, la section *Qualité de la
+lecture* : la part des champs corrigés à la main sur les 90 derniers jours
+(objectif du cahier des charges : moins de 15 %), avec le détail par champ
+(producteur, cuvée, appellation, millésime, couleur, format) pour voir lequel
+la lecture rate le plus. Un champ est corrigé quand la valeur confirmée
+diffère de celle que l'écran avait pré-remplie : espaces autour ignorés,
+majuscules et accents comptés, valeurs par défaut gardées (rouge, 75 cl) non
+comptées. Une photo dont l'analyse a échoué compte pour tout ce qui a été
+saisi. API : `GET /api/admin/reading-quality`.
+
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
 optionnel par couleur et la case *Seulement les vins à boire en priorité*
@@ -439,6 +451,10 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 
 ## Limites
 
+- **Mesure « zéro saisie » à partir de la 1.5.0** : les entrées antérieures
+  n'ont pas gardé leur fiche confirmée et ne comptent pas. Une entrée confirmée
+  avant la fin de l'analyse est comparée à la lecture arrivée ensuite, que
+  l'écran n'a pas montrée.
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
   conservée telle qu'elle a été lue ou saisie ; seule une correspondance quasi

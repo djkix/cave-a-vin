@@ -59,6 +59,9 @@ export class MovementsService {
           priceUnitCents: input.priceUnitCents ?? null,
           note: input.note ?? null,
           idempotencyKey: input.idempotencyKey,
+          // La fiche telle que confirmée, comparée plus tard à la lecture de la
+          // photo pour mesurer la part de saisie manuelle (mesure « zéro saisie »).
+          ...(input.photoId ? { confirmedWine: input.wine } : {}),
         },
       });
       // La première photo d'entrée devient la vignette du vin : c'est elle qui

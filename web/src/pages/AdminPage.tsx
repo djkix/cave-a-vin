@@ -3,6 +3,7 @@ import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { TopBar } from '../components/TopBar';
 import { GuardsSection } from '../components/admin/GuardsSection';
+import { ReadingQualitySection } from '../components/admin/ReadingQualitySection';
 import { VintagesSection } from '../components/admin/VintagesSection';
 import { AdminUser, getAdminUsers, getMe, updateAdminUser } from '../lib/api-client';
 
@@ -74,6 +75,7 @@ export function AdminPage() {
               ))}
               {users.data?.length === 0 && <p className="centered">Aucun compte.</p>}
             </div>
+            <ReadingQualitySection />
             <VintagesSection />
             <GuardsSection />
           </>
