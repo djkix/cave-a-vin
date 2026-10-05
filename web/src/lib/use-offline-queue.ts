@@ -1,47 +1,36 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { uploadPhoto } from './api-client';
-import { flushQueue, queueStats } from './offline-queue';
+import { useCallback, useEffect, useState } from 'react';
+import { notifyQueueChanged, queueStats, subscribeQueueChanged } from './offline-queue';
+import { sendQueuedPhotos } from './photo-sender';
 
-const listeners = new Set<() => void>();
-export function notifyQueueChanged() {
-  listeners.forEach((l) => l());
-}
+// Ré-exporté pour compatibilité : les écrans de capture notifient la file
+// depuis ce module historique.
+export { notifyQueueChanged };
 
+/**
+ * État de la file locale pour l'affichage (bandeau) et envoi forcé à la demande.
+ * L'envoi automatique (minuterie, retour du réseau…) est porté une seule fois
+ * pour toute l'application par `useBackgroundSender`.
+ */
 export function useOfflineQueue() {
   const [stats, setStats] = useState({ count: 0, bytes: 0 });
   const [flushing, setFlushing] = useState(false);
-  const inFlight = useRef(false);
 
   const refresh = useCallback(() => void queueStats().then(setStats), []);
 
   const flushNow = useCallback(async () => {
-    if (inFlight.current || !navigator.onLine) return;
-    inFlight.current = true;
+    if (!navigator.onLine) return;
     setFlushing(true);
     try {
-      await flushQueue(uploadPhoto);
+      await sendQueuedPhotos();
     } finally {
-      inFlight.current = false;
       setFlushing(false);
-      notifyQueueChanged();
     }
   }, []);
 
   useEffect(() => {
     refresh();
-    listeners.add(refresh);
-    const onVisible = () => { if (document.visibilityState === 'visible') void flushNow(); };
-    window.addEventListener('online', flushNow);
-    document.addEventListener('visibilitychange', onVisible);
-    const timer = window.setInterval(flushNow, 60_000);
-    void flushNow();
-    return () => {
-      listeners.delete(refresh);
-      window.removeEventListener('online', flushNow);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.clearInterval(timer);
-    };
-  }, [refresh, flushNow]);
+    return subscribeQueueChanged(refresh);
+  }, [refresh]);
 
   return { ...stats, flushing, flushNow };
 }

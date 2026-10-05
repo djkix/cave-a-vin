@@ -26,7 +26,7 @@ it('annonce les photos en attente avec le motif du dernier report', async () => 
   mount();
   expect(await screen.findByText(/2 photos en attente d’analyse/)).toBeInTheDocument();
   expect(screen.getByText(/momentanément saturé/)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /Voir la revue/ })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /Voir la liste/ })).toHaveAttribute('href', '/a-confirmer');
 });
 
 it('accorde le singulier et se passe de motif quand il n’y en a pas', async () => {
@@ -43,9 +43,9 @@ it('disparaît quand la file est vide', async () => {
   expect(container.querySelector('.banner')).toBeNull();
 });
 
-it('masque le lien vers la revue quand on y est déjà', async () => {
+it('masque le lien vers la liste quand on y est déjà', async () => {
   vi.spyOn(api, 'getPhotoQueueStatus').mockResolvedValue({ waiting: 3, oldestWaitingAt: null, lastReason: null });
   mount({ hideLink: true });
   expect(await screen.findByText(/3 photos en attente d’analyse/)).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: /Voir la revue/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Voir la liste/ })).not.toBeInTheDocument();
 });

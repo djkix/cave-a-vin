@@ -1,5 +1,15 @@
 import { ApiError } from './api-client';
-import { enqueuePhoto, flushQueue, listQueue, queueStats, QueueFullError, _resetForTests } from './offline-queue';
+import {
+  enqueuePhoto,
+  flushQueue,
+  listQueue,
+  notifyQueueChanged,
+  queueStats,
+  QUEUE_LIMITS,
+  QueueFullError,
+  subscribeQueueChanged,
+  _resetForTests,
+} from './offline-queue';
 
 const blob = (size: number) => new Blob([new Uint8Array(size)], { type: 'image/jpeg' });
 
@@ -8,15 +18,33 @@ beforeEach(() => _resetForTests());
 it('stores photos and reports stats', async () => {
   await enqueuePhoto(blob(10), 'single');
   await enqueuePhoto(blob(20), 'campaign');
-  expect(await queueStats()).toEqual({ count: 2, bytes: 30 });
-  expect((await listQueue()).map((p) => p.mode)).toEqual(['single', 'campaign']);
+  await enqueuePhoto(blob(5), 'entry');
+  expect(await queueStats()).toEqual({ count: 3, bytes: 35 });
+  expect((await listQueue()).map((p) => p.mode).sort()).toEqual(['campaign', 'entry', 'single']);
 });
 
-it('refuses beyond 20 items or 50 MB', async () => {
-  for (let i = 0; i < 20; i++) await enqueuePhoto(blob(1), 'single');
-  await expect(enqueuePhoto(blob(1), 'single')).rejects.toBeInstanceOf(QueueFullError);
+it('refuses beyond 200 items or 200 Mo with a French message', async () => {
+  expect(QUEUE_LIMITS).toEqual({ maxItems: 200, maxBytes: 200 * 1024 * 1024 });
+  for (let i = 0; i < 200; i++) await enqueuePhoto(blob(1), 'entry');
+  await expect(enqueuePhoto(blob(1), 'entry')).rejects.toBeInstanceOf(QueueFullError);
+  await expect(enqueuePhoto(blob(1), 'entry')).rejects.toThrow(
+    'File d’envoi pleine (200 photos) — attendez que les envois partent',
+  );
   await _resetForTests();
-  await expect(enqueuePhoto(blob(50 * 1024 * 1024 + 1), 'single')).rejects.toBeInstanceOf(QueueFullError);
+  await expect(enqueuePhoto(blob(200 * 1024 * 1024 + 1), 'entry')).rejects.toBeInstanceOf(QueueFullError);
+  await expect(enqueuePhoto(blob(200 * 1024 * 1024 + 1), 'entry')).rejects.toThrow(
+    'File d’envoi pleine (200 photos) — attendez que les envois partent',
+  );
+});
+
+it('notifies subscribers when the queue changes', () => {
+  const listener = vi.fn();
+  const unsubscribe = subscribeQueueChanged(listener);
+  notifyQueueChanged();
+  expect(listener).toHaveBeenCalledTimes(1);
+  unsubscribe();
+  notifyQueueChanged();
+  expect(listener).toHaveBeenCalledTimes(1);
 });
 
 it('flushes in order, removes sent items and stops at the first failure', async () => {

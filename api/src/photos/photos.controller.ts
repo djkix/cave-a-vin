@@ -6,7 +6,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import { z } from 'zod';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
-import { parseExtraction } from '../vision/extraction-schema';
+import { safeParseExtraction } from '../vision/extraction-schema';
 import { PhotosService } from './photos.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -34,25 +34,29 @@ export class PhotosController {
     return { id: photo.id, status: photo.status, duplicate };
   }
 
-  // Déclaré avant `@Get(':id')` : sinon « queue-status » serait pris pour un
-  // identifiant de photo.
+  // Déclarées avant `@Get(':id')` : sinon « queue-status », « entry-inbox » et
+  // « pending-review » seraient pris pour des identifiants de photo.
   @Get('queue-status')
   queueStatus() {
     return this.photos.queueStatus();
   }
 
+  @Get('entry-inbox')
+  entryInbox() {
+    return this.photos.entryInbox();
+  }
+
   @Get('pending-review')
   async pendingReview() {
     const photos = await this.photos.listPendingReview();
-    return photos.map((p) => {
-      let extraction = null;
-      try {
-        extraction = p.rawExtraction ? parseExtraction(p.rawExtraction) : null;
-      } catch {
-        extraction = null;
-      }
-      return { ...p, extraction };
-    });
+    return photos.map((p) => ({ ...p, extraction: safeParseExtraction(p.rawExtraction) }));
+  }
+
+  @Post(':id/dismiss')
+  @HttpCode(200)
+  async dismiss(@Param('id') id: string) {
+    await this.photos.dismiss(id);
+    return { ok: true };
   }
 
   @Get(':id')

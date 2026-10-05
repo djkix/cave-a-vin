@@ -1,8 +1,7 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
 import { RequireAuth } from './components/RequireAuth';
 import { AdminPage } from './pages/AdminPage';
-import { CampagneCapturePage } from './pages/CampagneCapturePage';
-import { CampagneReviewPage } from './pages/CampagneReviewPage';
+import { AConfirmerPage } from './pages/AConfirmerPage';
 import { CavePage } from './pages/CavePage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
@@ -15,7 +14,7 @@ import { SortieResolutionPage } from './pages/SortieResolutionPage';
 import { StatsPage } from './pages/StatsPage';
 import { WinePage } from './pages/WinePage';
 
-export const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   {
     // Route racine sans chemin : elle ne sert qu'à porter l'errorElement, pour que
     // toute exception de rendu affiche un message en français au lieu de l'écran
@@ -28,8 +27,10 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/entree', element: <EntreeCapturePage /> },
-          { path: '/entree/campagne', element: <CampagneCapturePage /> },
-          { path: '/entree/campagne/revue', element: <CampagneReviewPage /> },
+          // Anciennes adresses du mode campagne, remplacé par la rafale et « À confirmer ».
+          { path: '/entree/campagne', element: <Navigate to="/entree" replace /> },
+          { path: '/entree/campagne/revue', element: <Navigate to="/a-confirmer" replace /> },
+          { path: '/a-confirmer', element: <AConfirmerPage /> },
           { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
           { path: '/journal', element: <JournalPage /> },
           { path: '/stats', element: <StatsPage /> },
@@ -45,4 +46,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);

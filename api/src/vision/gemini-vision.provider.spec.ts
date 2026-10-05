@@ -1,13 +1,16 @@
-import { GeminiVisionProvider } from './gemini-vision.provider';
+import { GeminiVisionProvider, VisionBatchMismatchError } from './gemini-vision.provider';
 import { PairingInvalidOutputError } from './pairing-output';
 
-const validJson = JSON.stringify({
+const validObj = (overrides: Record<string, unknown> = {}) => ({
   producteur: { value: 'Domaine Tempier', confidence: 0.98 }, cuvee: { value: null, confidence: 0 },
   appellation: { value: 'Bandol', confidence: 0.97 }, millesime: { value: 2019, confidence: 0.94 },
   couleur: { value: 'rouge', confidence: 0.99 }, format_cl: { value: 75, confidence: 0.9 },
   degre: { value: null, confidence: 0 }, pays_region: { value: 'Provence', confidence: 0.7 },
   nb_cols_carton: { value: 6, confidence: 0.85 }, confiance_globale: 0.93,
+  ...overrides,
 });
+
+const validJson = JSON.stringify(validObj());
 
 function fakeModel(text: string, usage = { promptTokenCount: 1000, candidatesTokenCount: 200 }) {
   return { generateContent: jest.fn().mockResolvedValue({ response: { text: () => text, usageMetadata: usage } }) };
@@ -68,5 +71,171 @@ describe('GeminiVisionProvider.suggestPairings', () => {
 
   it('refuse un JSON illisible', async () => {
     await expect(new GeminiVisionProvider(fake('pas du json') as any, 'm').suggestPairings(wine)).rejects.toThrow(PairingInvalidOutputError);
+  });
+});
+
+describe('GeminiVisionProvider.extractWineLabels', () => {
+  const images = [
+    { data: Buffer.from('img1'), mimeType: 'image/jpeg' },
+    { data: Buffer.from('img2'), mimeType: 'image/jpeg' },
+    { data: Buffer.from('img3'), mimeType: 'image/jpeg' },
+  ];
+
+  it('rend les 3 extractions à l’indice de leur photo, même si le tableau du modèle est désordonné', async () => {
+    const arr = [
+      { image: 3, ...validObj({ appellation: { value: 'Appellation 3', confidence: 0.9 } }) },
+      { image: 1, ...validObj({ appellation: { value: 'Appellation 1', confidence: 0.9 } }) },
+      { image: 2, ...validObj({ appellation: { value: 'Appellation 2', confidence: 0.9 } }) },
+    ];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    const res = await provider.extractWineLabels(images);
+
+    expect(res.model).toBe('gemini-test');
+    expect(res.items).toHaveLength(3);
+    expect((res.items[0] as any).extraction.appellation.value).toBe('Appellation 1');
+    expect((res.items[1] as any).extraction.appellation.value).toBe('Appellation 2');
+    expect((res.items[2] as any).extraction.appellation.value).toBe('Appellation 3');
+  });
+
+  it('isole un objet invalide : seul son indice devient une erreur', async () => {
+    const arr = [
+      { image: 1, ...validObj() },
+      { image: 2, couleur: { value: 'turquoise', confidence: 0.5 } },
+      { image: 3, ...validObj() },
+    ];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    const res = await provider.extractWineLabels(images);
+
+    expect((res.items[0] as any).extraction).toBeDefined();
+    expect(res.items[1]).toEqual({ error: 'Lecture de l’étiquette inexploitable' });
+    expect((res.items[2] as any).extraction).toBeDefined();
+  });
+
+  it('rejette une longueur de tableau différente de N', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(/sortie du modèle invalide/i);
+  });
+
+  it('rejette un indice dupliqué', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+  });
+
+  it('rejette un JSON illisible', async () => {
+    const model = fakeModel('pas du json');
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+  });
+
+  it('rejette une réponse qui n’est pas un tableau', async () => {
+    const model = fakeModel(JSON.stringify(validObj()));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+  });
+
+  it('rejette un indice manquant (laissant un trou dans la plage 1..N)', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 2, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+  });
+
+  it('un lot mélangé porte le coût de l’appel, déjà payé', async () => {
+    const ok = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const expected = (await new GeminiVisionProvider(fakeModel(JSON.stringify(ok)) as any, 'g').extractWineLabels(images)).costCents;
+    expect(expected).toBeGreaterThan(0);
+    const bad = [{ image: 1, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
+    const err = await new GeminiVisionProvider(fakeModel(JSON.stringify(bad)) as any, 'g').extractWineLabels(images).catch((e) => e);
+    expect(err).toBeInstanceOf(VisionBatchMismatchError);
+    expect(err.costCents).toBe(expected);
+    const unreadable = await new GeminiVisionProvider(fakeModel('pas du json') as any, 'g').extractWineLabels(images).catch((e) => e);
+    expect(unreadable.costCents).toBe(expected);
+  });
+
+  it('rejette un indice hors bornes', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 5, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+  });
+
+  it('numérote les images de 1 à N dans la consigne et précède chaque image de « Image i : »', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    await provider.extractWineLabels(images);
+
+    const call = model.generateContent.mock.calls[0][0];
+    const parts = call.contents[0].parts;
+    const texts = parts.filter((p: any) => typeof p.text === 'string').map((p: any) => p.text);
+    expect(texts.some((t: string) => /3 images numérotées de 1 à 3/.test(t))).toBe(true);
+    expect(texts).toContain('Image 1 :');
+    expect(texts).toContain('Image 2 :');
+    expect(texts).toContain('Image 3 :');
+  });
+
+  it('la consigne de lot demande un tableau de N éléments, jamais « un objet JSON strict »', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr));
+    await new GeminiVisionProvider(model as any, 'gemini-test').extractWineLabels(images);
+    const prompt = model.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    expect(prompt).toMatch(/tableau JSON de 3 éléments/);
+    expect(prompt).not.toMatch(/objet JSON strict/);
+    expect(prompt).toContain('"image"');
+    expect(prompt).toContain('nb_cols_carton');
+  });
+
+  it('les consignes simple et de lot partagent les mêmes règles de lecture', async () => {
+    const single = fakeModel(validJson);
+    await new GeminiVisionProvider(single as any, 'g').extractWineLabel(Buffer.from('x'), 'image/jpeg');
+    const singlePrompt = single.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const batch = fakeModel(JSON.stringify(arr));
+    await new GeminiVisionProvider(batch as any, 'g').extractWineLabels(images);
+    const batchPrompt = batch.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    expect(singlePrompt).toMatch(/objet JSON strict/);
+    for (const rule of [
+      'null avec confidence 0',
+      'producteur (domaine, château, maison) du nom de la cuvée',
+      'nombre de bouteilles',
+      'rouge | blanc | rosé | pétillant',
+      'format_cl',
+    ]) {
+      expect(singlePrompt).toContain(rule);
+      expect(batchPrompt).toContain(rule);
+    }
+  });
+
+  it('accepte un tableau enveloppé dans un objet à une seule propriété tableau', async () => {
+    const arr = [{ image: 2, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
+    for (const key of ['items', 'resultats']) {
+      const provider = new GeminiVisionProvider(fakeModel(JSON.stringify({ [key]: arr })) as any, 'g');
+      const res = await provider.extractWineLabels(images);
+      expect(res.items).toHaveLength(3);
+      expect(res.items.every((i) => 'extraction' in i)).toBe(true);
+    }
+  });
+
+  it('rejette un objet à plusieurs propriétés tableau, ou sans tableau', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    for (const body of [{ a: arr, b: [] }, { items: { image: 1 } }]) {
+      const provider = new GeminiVisionProvider(fakeModel(JSON.stringify(body)) as any, 'g');
+      await expect(provider.extractWineLabels(images)).rejects.toThrow(VisionBatchMismatchError);
+    }
+  });
+
+  it('facture le coût de l’appel entier (pas divisé ici)', async () => {
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }, { image: 3, ...validObj() }];
+    const model = fakeModel(JSON.stringify(arr), { promptTokenCount: 3000, candidatesTokenCount: 600 });
+    const provider = new GeminiVisionProvider(model as any, 'gemini-test');
+    const res = await provider.extractWineLabels(images);
+    expect(res.costCents).toBe(Math.ceil((3000 / 1000) * 0.01 + (600 / 1000) * 0.04));
   });
 });

@@ -1,4 +1,6 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException,
+} from '@nestjs/common';
 import { Photo, PhotoPurpose, Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
@@ -6,6 +8,7 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
+import { parseExtraction, safeParseExtraction } from '../vision/extraction-schema';
 import { ImageNormalizationService } from './image-normalization.service';
 
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
@@ -69,14 +72,20 @@ export class PhotosService {
       throw e;
     }
 
-    try {
-      await this.enqueueWithTimeout(photo.id, purpose);
-    } catch (e) {
-      this.logger.warn(`Mise en file d'attente impossible pour la photo ${photo.id} : ${(e as Error).message}`);
-      await this.prisma.photo.delete({ where: { id: photo.id } });
-      await unlinkIgnoringMissing(originalAbsolutePath);
-      await unlinkIgnoringMissing(normalizedAbsolutePath);
-      throw new ServiceUnavailableException('File de traitement indisponible, réessayez dans un instant');
+    // L'analyse d'entrée se fait désormais par lot, directement depuis la table
+    // photo (voir worker de rafale) : créer un travail BullMQ ici ferait analyser
+    // la photo deux fois. Seule la sortie (EXIT) garde un travail immédiat,
+    // puisque l'utilisateur est devant la bouteille et attend le résultat.
+    if (purpose === 'EXIT') {
+      try {
+        await this.enqueueWithTimeout(photo.id, purpose);
+      } catch (e) {
+        this.logger.warn(`Mise en file d'attente impossible pour la photo ${photo.id} : ${(e as Error).message}`);
+        await this.prisma.photo.delete({ where: { id: photo.id } });
+        await unlinkIgnoringMissing(originalAbsolutePath);
+        await unlinkIgnoringMissing(normalizedAbsolutePath);
+        throw new ServiceUnavailableException('File de traitement indisponible, réessayez dans un instant');
+      }
     }
 
     return { photo, duplicate: false };
@@ -135,7 +144,8 @@ export class PhotosService {
    * analyses terminées) ni dans le journal, et elle passe pour perdue.
    */
   async queueStatus(): Promise<{ waiting: number; oldestWaitingAt: Date | null; lastReason: string | null }> {
-    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' };
+    // Une photo écartée n'est plus analysée : elle ne compte pas dans l'attente.
+    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY', dismissedAt: null };
     const [waiting, oldest, lastDeferred] = await Promise.all([
       this.prisma.photo.count({ where }),
       this.prisma.photo.findFirst({ where, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
@@ -150,12 +160,49 @@ export class PhotosService {
 
   listPendingReview(): Promise<Photo[]> {
     return this.prisma.photo.findMany({
-      // Une photo de sortie analysée n'est pas un vin à rentrer.
-      where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} } },
+      // Une photo de sortie analysée n'est pas un vin à rentrer, une photo
+      // écartée ne doit pas réapparaître dans la revue groupée.
+      where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null },
       orderBy: { createdAt: 'asc' },
       // La revue groupée est un écran de téléphone : au-delà de 200 fiches la
       // réponse (extractions JSON incluses) devient inutilisable.
       take: 200,
     });
+  }
+
+  /**
+   * Écran « À confirmer » : toutes les photos d'entrée encore sans mouvement et
+   * non écartées, réparties par état. `toConfirm` porte l'extraction déjà
+   * analysée (même logique que `listPendingReview` : `null` si illisible),
+   * pour que l'écran de confirmation n'ait pas de second aller-retour à faire.
+   */
+  async entryInbox(): Promise<{
+    toConfirm: (Photo & { extraction: ReturnType<typeof parseExtraction> | null })[];
+    inProgress: Photo[];
+    failed: Photo[];
+  }> {
+    const base: Prisma.PhotoWhereInput = { purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null };
+    const [toConfirmRows, inProgress, failed] = await Promise.all([
+      this.prisma.photo.findMany({ where: { ...base, status: 'DONE' }, orderBy: { createdAt: 'asc' }, take: 200 }),
+      this.prisma.photo.findMany({ where: { ...base, status: { in: ['PENDING', 'PROCESSING'] } }, orderBy: { createdAt: 'asc' }, take: 200 }),
+      this.prisma.photo.findMany({ where: { ...base, status: 'FAILED' }, orderBy: { createdAt: 'asc' }, take: 200 }),
+    ]);
+    const toConfirm = toConfirmRows.map((p) => ({ ...p, extraction: safeParseExtraction(p.rawExtraction) }));
+    return { toConfirm, inProgress, failed };
+  }
+
+  /**
+   * Écarte une photo d'entrée qui n'a servi à aucune entrée en stock : l'utilisateur
+   * ne veut pas de ce vin ou s'est trompé de prise. Interdit si un mouvement
+   * référence déjà la photo (409), pour ne jamais décrocher une preuve d'achat
+   * d'une entrée déjà faite.
+   */
+  async dismiss(id: string): Promise<void> {
+    const photo = (await this.prisma.photo.findUnique({ where: { id }, include: { movements: true } })) as
+      | (Photo & { movements: unknown[] })
+      | null;
+    if (!photo) throw new NotFoundException('Photo introuvable');
+    if (photo.movements.length > 0) throw new ConflictException('Photo déjà utilisée par une entrée');
+    await this.prisma.photo.update({ where: { id }, data: { dismissedAt: new Date() } });
   }
 }

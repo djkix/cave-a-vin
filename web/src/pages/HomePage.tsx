@@ -5,13 +5,16 @@ import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
-import { getMe, getRecentMovements } from '../lib/api-client';
+import { getEntryInbox, getMe, getRecentMovements } from '../lib/api-client';
 import { MovementRow } from './JournalPage';
 
 export function HomePage() {
   const movements = useQuery({ queryKey: ['movements', 'recent'], queryFn: () => getRecentMovements(3) });
   // Même clé que RequireAuth : réutilise la session déjà en cache, aucun appel réseau en plus.
   const me = useQuery({ queryKey: ['me'], queryFn: getMe });
+  // Fiches à valider et photos illisibles : tout ce qui attend une décision.
+  const inbox = useQuery({ queryKey: ['entry-inbox'], queryFn: getEntryInbox, refetchInterval: 30_000 });
+  const toConfirm = (inbox.data?.toConfirm.length ?? 0) + (inbox.data?.failed.length ?? 0);
   return (
     <>
       <TopBar />
@@ -36,9 +39,12 @@ export function HomePage() {
             <Icon name="arrow_forward" />
           </Link>
         </section>
-        <Link to="/entree/campagne" className="btn btn--outline">
-          Mode campagne (reprise de la cave)
-        </Link>
+        {toConfirm > 0 && (
+          <Link to="/a-confirmer" className="btn btn--outline">
+            <Icon name="fact_check" />
+            <span className="num">{toConfirm}</span> vin{toConfirm > 1 ? 's' : ''} à confirmer
+          </Link>
+        )}
         <h2 style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)' }}>DERNIERS MOUVEMENTS</h2>
         <div className="list">
           {movements.data?.map((m) => <MovementRow key={m.id} m={m} />)}

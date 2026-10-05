@@ -26,8 +26,16 @@ export interface VisionResult {
   costCents: number;
 }
 
+export interface BatchVisionResult {
+  items: Array<{ raw: unknown; extraction: WineExtraction } | { error: string }>;
+  model: string;
+  latencyMs: number;
+  costCents: number;
+}
+
 export interface VisionProvider {
   extractWineLabel(image: Buffer, mimeType: string): Promise<VisionResult>;
+  extractWineLabels(images: Array<{ data: Buffer; mimeType: string }>): Promise<BatchVisionResult>;
 }
 
 export const VISION_PROVIDER = 'VISION_PROVIDER';

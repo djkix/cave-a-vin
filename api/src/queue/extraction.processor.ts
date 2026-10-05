@@ -20,6 +20,16 @@ export class ExtractionProcessor {
   ) {}
 
   async process(photoId: string, isLastAttempt = true): Promise<void> {
+    // Une entrée analysée par lot ne doit jamais être traitée ici : le seul cas où
+    // ce travail existe encore pour une photo ENTRY est la bascule rare d'une
+    // photo de sortie reprise en entrée (mêmes octets) après la mise en file de
+    // son travail de sortie. On lit la photo sans la modifier avant de décider.
+    const current = await this.prisma.photo.findUnique({ where: { id: photoId } });
+    if (current?.purpose === 'ENTRY') {
+      this.logger.log(`Photo ${photoId} ignorée : analyse par lot`);
+      return;
+    }
+
     const photo = await this.prisma.photo.update({ where: { id: photoId }, data: { status: 'PROCESSING' } });
     const attempts = photo.purpose === 'EXIT' ? EXIT_ATTEMPTS : EXTRACTION_ATTEMPTS;
     try {

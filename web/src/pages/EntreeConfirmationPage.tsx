@@ -172,7 +172,7 @@ export function EntreeConfirmationPage() {
               <br />
               <small>
                 Ta photo est enregistrée sur le serveur. Elle sera analysée automatiquement dès que le service répond, puis tu la
-                valideras dans la revue groupée — rien n’est perdu si tu quittes cet écran.
+                valideras dans « À confirmer » — rien n’est perdu si tu quittes cet écran.
               </small>
             </p>
             <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { loadEnv } from '../config/env';
 import { PhotosModule } from '../photos/photos.module';
 import { VisionModule } from '../vision/vision.module';
+import { EntryBatchProcessor } from './entry-batch.processor';
 import { ExtractionProcessor } from './extraction.processor';
 import { VISION_MONTHLY_CAP_CENTS, VisionBudgetService } from './vision-budget.service';
 
@@ -9,9 +10,10 @@ import { VISION_MONTHLY_CAP_CENTS, VisionBudgetService } from './vision-budget.s
   imports: [PhotosModule, VisionModule],
   providers: [
     ExtractionProcessor,
+    EntryBatchProcessor,
     VisionBudgetService,
     { provide: VISION_MONTHLY_CAP_CENTS, useFactory: () => loadEnv().GEMINI_MONTHLY_CAP_CENTS },
   ],
-  exports: [ExtractionProcessor, VisionBudgetService],
+  exports: [ExtractionProcessor, EntryBatchProcessor, VisionBudgetService],
 })
 export class QueueModule {}

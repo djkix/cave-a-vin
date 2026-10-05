@@ -7,13 +7,13 @@ utilisée depuis un téléphone (PWA installable).
 
 - **URL publique** : <https://cave.djkix.ovh/>
 - **État** : lot 0, lot 1, lot 2a, lot 2b, lot 3a, mesure « zéro saisie », lot 4a
-  (statistiques) et lots 4b et 4c (note de dégustation, accords mets-vins)
-  livrés — socle, entrée de
-  stock par photo (Gemini), mode campagne, file hors ligne, journal et export
-  Excel, onglet Cave, fiche vin et sortie de stock (par la liste ou par photo),
-  estimation de l'apogée par règles avec correction manuelle par vin, filtre
-  « à boire en priorité », statistiques de la cave, note de dégustation et
-  accords mets-vins.
+  (statistiques), lots 4b et 4c (note de dégustation, accords mets-vins) et
+  entrée en rafale avec analyse par lot livrés — socle, entrée de stock par
+  photo en rafale (Gemini, analyse par lot en arrière-plan), liste « À
+  confirmer », file hors ligne, journal et export Excel, onglet Cave, fiche vin
+  et sortie de stock (par la liste ou par photo), estimation de l'apogée par
+  règles avec correction manuelle par vin, filtre « à boire en priorité »,
+  statistiques de la cave, note de dégustation et accords mets-vins.
 - **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
   (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
   liste « à boire en priorité » se consulte dans l'application. Voir
@@ -33,18 +33,42 @@ utilisée depuis un téléphone (PWA installable).
 
 ## Fonctionnalités
 
-**Entrée de stock par photo.** Bouton *Rentrer*, l'appareil photo du téléphone
-s'ouvre, la photo part vers le serveur et l'analyse se fait en arrière-plan. La
-fiche revient pré-remplie (domaine, cuvée, appellation, millésime, couleur,
-format) avec un indicateur de confiance par champ ; les champs douteux sont
-surlignés. La quantité se choisit en un tap (1 · 6 · 12 · 18 ou libre) et le
-nombre de cols lu sur le carton est présélectionné. Rien n'est écrit en stock
-avant la validation explicite.
+**Entrée de stock par photo, en rafale.** Bouton *Rentrer*, un grand bouton photo
+et un compteur « N photos prises » : on enchaîne photo après photo, sans
+attendre ni confirmer une fiche entre deux prises. Chaque photo est réduite sur
+le téléphone (côté le plus long 1 600 px, JPEG qualité 0,8 ; si la réduction
+échoue, la photo part telle quelle), rangée dans une file locale, et l'écran est
+aussitôt prêt pour la suivante. La file locale accepte jusqu'à 200 photos (ou
+200 Mo) ; un envoyeur unique les envoie une par une en arrière-plan, relancé
+après chaque prise, au retour du réseau, au retour au premier plan et toutes
+les 15 s tant que la file n'est pas vide, quelle que soit la page ouverte
+(il est porté une seule fois, à la racine des pages protégées) — il ne
+fonctionne que tant que l'application est ouverte. Sur le serveur, un travail planifié passe toutes les
+15 s et analyse les photos d'entrée par lots : jusqu'à 8 photos en un seul
+appel Gemini (un lot part dès 8 photos en attente, ou dès que la plus ancienne
+patiente depuis 45 s), pour limiter le coût par photo ; une photo seule part
+en appel simple, au coût de cet appel. Le résultat arrive donc
+en général en 15 s à 1 min plutôt qu'immédiatement. Si la réponse du lot est
+incohérente (nombre ou ordre des fiches mélangé), chaque photo du lot est relue
+seule, sans attribution croisée.
 
-**Mode campagne.** Pour reprendre une cave existante : photo, suivant, photo,
-suivant, sans confirmation unitaire. Un écran de revue groupée liste ensuite les
-fiches extraites, les moins fiables en premier, et une seule validation crée tous
-les mouvements.
+Les fiches lues rejoignent la liste **« À confirmer »** (lien sur l'accueil,
+avec un badge « N vins à confirmer »), en trois sections : *À valider* (fiche
+pré-remplie — domaine, cuvée, appellation, millésime, couleur, format — avec un
+indicateur de confiance par champ, quantité lue sur le carton sinon 1 et
+modifiable ; *Valider* fiche par fiche ou *Tout valider* d'un coup ; *Mettre
+de côté* sort la fiche de *Tout valider* pour la visite en cours seulement —
+elle reste à confirmer et revient à la prochaine ouverture ; *Écarter* retire
+définitivement la photo sans créer de mouvement, après confirmation « Écarter
+cette photo ? Elle ne sera plus proposée. »), *En cours d'analyse* (photos pas
+encore lues, avec le motif d'un report éventuel) et *Lecture impossible*
+(photos en échec, avec *Saisir à la main* vers l'écran de confirmation unitaire
+et *Écarter*). La liste se rafraîchit toutes les 10 s. Rien n'est jamais écrit
+en stock avant une validation explicite. Les anciennes URL du mode campagne
+(`/entree/campagne` et `/entree/campagne/revue`) redirigent respectivement vers
+la rafale et vers « À confirmer » ; le mode campagne lui-même a disparu,
+fusionné dans ce parcours. Côté API : `GET /api/photos/entry-inbox` (les trois
+sections) et `POST /api/photos/:id/dismiss` (écarter une photo).
 
 **La cave et la sortie.** L'onglet *Cave* liste les vins en stock avec
 vignette (photo de l'entrée, ou un pictogramme de bouteille s'il n'y a pas de
@@ -73,7 +97,7 @@ si l'analyse échoue d'emblée ou n'a pas abouti au bout de 12 s, l'écran bascu
 sur « Chercher dans la cave ». Rien n'est jamais sorti sans confirmation
 explicite. Les photos de sortie ne sont **jamais reportées** : deux tentatives
 à 3 s d'intervalle puis abandon (l'utilisateur sort par la liste) ; elles
-n'apparaissent ni dans la revue groupée ni dans le bandeau « en attente
+n'apparaissent ni dans « À confirmer » ni dans le bandeau « en attente
 d'analyse », et ne sont pas remises en file au démarrage du worker.
 
 **Analyse différée, jamais bloquante.** L'analyse ne dépend pas de la
@@ -82,15 +106,23 @@ sur le serveur ; si le service de lecture est saturé, injoignable ou à quota
 (erreurs 429, 500, 502, 503, 504, coupure réseau, plafond mensuel atteint), la
 photo **retourne en attente au lieu d'échouer** et le worker la reprend
 automatiquement — 30 s, 1 min, 2, 4, 8, puis toutes les 15 minutes, pendant une
-dizaine de jours si nécessaire. Un bandeau « N photos en attente d'analyse »,
-avec le motif du dernier report, reste visible sur l'accueil et dans la revue
-groupée. L'écran d'entrée unitaire n'attend jamais plus de vingt secondes : il
-annonce le report et propose de partir ou de saisir la fiche à la main. À
-l'inverse, une erreur dont un réessai ne changera rien (étiquette inexploitable,
-clé d'API invalide) échoue immédiatement et propose la saisie manuelle, sans
-occuper la file. Au démarrage, le worker remet en file les photos en attente que
-Redis aurait oubliées : une photo reçue n'est jamais perdue, même après un
-redémarrage de la pile.
+dizaine de jours si nécessaire. Une photo d'entrée est aussi **reportée, et non
+mise en échec, quand le service de lecture est mal configuré** (clé Gemini
+invalide ou expirée, API non activée, modèle inconnu) : elle affiche « Analyse
+reportée : service de lecture mal configuré (clé Gemini à vérifier), reprise
+automatique » et repart d'elle-même une fois la clé corrigée. Le motif du
+report s'affiche sous la photo dans la section *En cours d'analyse* de « À
+confirmer », et un bandeau « N photos en attente d'analyse » (sans compter les
+photos écartées), avec le motif du dernier report, reste visible sur l'accueil.
+Seule une étiquette réellement inexploitable échoue tout de suite, avec le
+message « Lecture de l’étiquette inexploitable », et rejoint *Lecture
+impossible* pour une saisie manuelle ; les messages bruts du service de lecture
+ne sont jamais affichés, ils restent dans les journaux du worker. Les photos
+d'entrée n'ont pas de travail Redis : la table des photos sert elle-même de
+file, si bien qu'un redémarrage du worker ou de Redis ne leur fait perdre ni
+leur place ni leur analyse — une réservation interrompue est reprise au bout de
+cinq minutes. Une photo reçue n'est jamais perdue, même après un redémarrage
+de la pile.
 
 **Version affichée en permanence.** Le numéro de version est visible en haut à
 droite de chaque écran, et sur l'écran de connexion avant même de s'identifier —
@@ -101,9 +133,11 @@ construite depuis `main` affiche ce numéro suivi de l'empreinte du commit
 la dernière version ; une construction locale affiche `dev`.
 
 **Hors ligne.** La cave est souvent un sous-sol sans réseau : les photos sont
-mises en file dans le navigateur (20 photos ou 50 Mo maximum) et envoyées dès que
-l'application est rouverte avec du réseau. Un compteur « N photos en attente »
-reste visible.
+mises en file dans le navigateur (200 photos ou 200 Mo maximum) et envoyées une
+par une dès que le réseau revient, ou que l'application revient au premier
+plan. Le bandeau « N photos en cours d'envoi » reste visible ; file pleine,
+il annonce « File d'envoi pleine (200 photos) — attendez que les envois
+partent ».
 
 **Journal et annulation.** Les 20 derniers mouvements sont consultables et
 annulables en un tap. Une annulation écrit un mouvement inverse : rien n'est
@@ -144,8 +178,9 @@ deux cases s'excluent ; elles se combinent avec la recherche, la couleur et les
 vins épuisés. Côté API : `GET /api/cave?drinkSoon=true` et
 `GET /api/cave?noApogee=true`.
 
-**Mesure « zéro saisie ».** Chaque entrée par photo (unitaire ou en mode
-campagne) garde la fiche telle qu'elle a été confirmée. L'espace
+**Mesure « zéro saisie ».** Chaque entrée par photo (en rafale, ou saisie à la
+main après une lecture impossible) garde la fiche telle qu'elle a été
+confirmée. L'espace
 Administration affiche, pour les administrateurs, la section *Qualité de la
 lecture* : la part des champs corrigés à la main sur les 90 derniers jours
 (objectif du cahier des charges : moins de 15 %), avec le détail par champ
@@ -242,7 +277,7 @@ ouverte : il n'attend pas une prochaine connexion.
 | --- | --- | --- | --- |
 | `web` | nginx + PWA compilée, relaie `/api/` | **3100** sur l'hôte → 80 | **seul port publié** (`WEB_PORT`) |
 | `api` | REST, authentification, règles métier, export | 3000 | réseau Docker interne |
-| `worker` | extraction Gemini via BullMQ | — | réseau Docker interne |
+| `worker` | extraction Gemini via BullMQ (sorties, accords) ; analyse des entrées par lots toutes les 15 s | — | réseau Docker interne |
 | `postgres` | données (PostgreSQL 16 + `pg_trgm`) | 5432 | réseau Docker interne |
 | `redis` | file de travaux et sessions | 6379 | réseau Docker interne |
 | `db-backup` | `pg_dump` quotidien avec rotation | — | réseau Docker interne |
@@ -546,6 +581,20 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Après « Annuler »**, le panneau de sortie de la fiche vin reste sur
   « Sortie annulée » jusqu'à ce qu'on quitte la page (pas de retour
   automatique à l'écran de sortie).
+- **Envoi des photos d'entrée seulement application ouverte** : l'envoyeur en
+  arrière-plan tourne tant que l'onglet ou la PWA est ouvert, il n'y a pas de
+  synchronisation en arrière-plan une fois l'application fermée — les photos
+  prises partent dès la réouverture.
+- **Analyse par lot plus lente qu'une analyse unitaire** : le résultat met en
+  général de 15 s à 1 min à apparaître dans « À confirmer », le temps qu'un lot
+  se forme (8 photos, ou 45 s d'attente) puis soit traité par le passage
+  suivant du worker (toutes les 15 s).
+- **L'écran de confirmation par photo subsiste uniquement pour la saisie
+  manuelle** d'une photo en « Lecture impossible » ; la rafale et « À
+  confirmer » ne l'utilisent plus pour le flux normal.
+- **Pas de notification temps réel pour les entrées** : contrairement à la
+  sortie par photo, la liste « À confirmer » ne suit pas l'avancement de
+  l'analyse par flux SSE, elle se rafraîchit toutes les 10 s.
 
 ## Journal des modifications
 

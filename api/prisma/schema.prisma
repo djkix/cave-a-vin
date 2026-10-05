@@ -125,8 +125,12 @@ model Photo {
   costCents     Int?         @map("cost_cents")
   errorMessage  String?      @map("error_message")
   createdAt     DateTime     @default(now()) @map("created_at")
+  attempts      Int          @default(0)
+  nextAttemptAt DateTime?    @map("next_attempt_at")
+  dismissedAt   DateTime?    @map("dismissed_at")
   movements     Movement[]
 
+  @@index([purpose, status, nextAttemptAt])
   @@map("photo")
 }
 

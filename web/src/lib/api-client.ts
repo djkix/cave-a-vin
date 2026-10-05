@@ -80,7 +80,14 @@ export const getPhotoQueueStatus = () => apiFetch<PhotoQueueStatus>('/photos/que
 export const createMovement = (input: CreateMovementInput) =>
   apiFetch<MovementResult>('/movements', { method: 'POST', body: JSON.stringify(input) });
 
-export const getPendingReviewPhotos = () => apiFetch<PhotoDto[]>('/photos/pending-review');
+/**
+ * Écran « À confirmer » : photos d'entrée sans mouvement et non écartées, par état.
+ * `toConfirm` porte déjà l'extraction lue (`null` si illisible).
+ */
+export interface EntryInbox { toConfirm: PhotoDto[]; inProgress: PhotoDto[]; failed: PhotoDto[] }
+export const getEntryInbox = () => apiFetch<EntryInbox>('/photos/entry-inbox');
+/** Écarte une photo d'entrée restée sans mouvement (409 si elle a déjà servi). */
+export const dismissPhoto = (id: string) => apiFetch<{ ok: true }>(`/photos/${id}/dismiss`, { method: 'POST' });
 export type BulkResult = Array<{ ok: true; idempotencyKey: string; result: MovementResult } | { ok: false; idempotencyKey: string; error: string }>;
 export const createMovementsBulk = (items: CreateMovementInput[]) =>
   apiFetch<BulkResult>('/movements/bulk', { method: 'POST', body: JSON.stringify(items) });

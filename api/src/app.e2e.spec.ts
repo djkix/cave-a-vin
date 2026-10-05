@@ -71,6 +71,61 @@ describeIfInfra('api HTTP', () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 
+  it('serves /photos/entry-inbox as three sections', async () => {
+    const res = await agent.get('/api/photos/entry-inbox');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.toConfirm)).toBe(true);
+    expect(Array.isArray(res.body.inProgress)).toBe(true);
+    expect(Array.isArray(res.body.failed)).toBe(true);
+  });
+
+  it('refuses /photos/:id/dismiss without a session', async () => {
+    const res = await supertest(app.getHttpServer()).post('/api/photos/00000000-0000-0000-0000-000000000000/dismiss');
+    expect(res.status).toBe(401);
+  });
+
+  it('dismisses an entry photo without a movement, and refuses one already used', async () => {
+    const free = await prisma.photo.create({
+      data: { contentHash: `e2e-dismiss-free-${Date.now()}`, storagePath: 'normalized/x.jpg', status: 'DONE', purpose: 'ENTRY' },
+    });
+    const used = await prisma.photo.create({
+      data: { contentHash: `e2e-dismiss-used-${Date.now()}`, storagePath: 'normalized/y.jpg', status: 'DONE', purpose: 'ENTRY' },
+    });
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-dismiss-${Date.now()}`, producer: 'Domaine e2e écarté', appellationRaw: 'Inconnue', color: 'ROUGE' },
+    });
+    const movement = await prisma.movement.create({
+      data: {
+        wineId: wine.id, delta: 1, type: 'IN', photoId: used.id, idempotencyKey: `e2e-dismiss-${Date.now()}`,
+      },
+    });
+    try {
+      const notFound = await agent.post('/api/photos/00000000-0000-0000-0000-000000000000/dismiss');
+      expect(notFound.status).toBe(404);
+      expect(notFound.body.message).toBe('Photo introuvable');
+
+      const conflict = await agent.post(`/api/photos/${used.id}/dismiss`);
+      expect(conflict.status).toBe(409);
+      expect(conflict.body.message).toBe('Photo déjà utilisée par une entrée');
+
+      const ok = await agent.post(`/api/photos/${free.id}/dismiss`);
+      expect(ok.status).toBe(200);
+      expect(ok.body).toEqual({ ok: true });
+      const reloaded = await prisma.photo.findUniqueOrThrow({ where: { id: free.id } });
+      expect(reloaded.dismissedAt).not.toBeNull();
+
+      // pending-review doit refléter exactement entry-inbox.toConfirm : une photo
+      // écartée ne doit réapparaître dans aucun des deux.
+      const pending = await agent.get('/api/photos/pending-review');
+      expect(pending.body.map((p: { id: string }) => p.id)).not.toContain(free.id);
+    } finally {
+      await prisma.movement.delete({ where: { id: movement.id } });
+      await prisma.wine.delete({ where: { id: wine.id } });
+      await prisma.photo.delete({ where: { id: free.id } });
+      await prisma.photo.delete({ where: { id: used.id } });
+    }
+  });
+
   it('downloads the Excel workbook as an attachment', async () => {
     const res = await agent.get('/api/export.xlsx');
     expect(res.status).toBe(200);
