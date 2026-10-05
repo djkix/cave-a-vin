@@ -8,7 +8,7 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
-import { parseExtraction } from '../vision/extraction-schema';
+import { parseExtraction, safeParseExtraction } from '../vision/extraction-schema';
 import { ImageNormalizationService } from './image-normalization.service';
 
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
@@ -159,8 +159,9 @@ export class PhotosService {
 
   listPendingReview(): Promise<Photo[]> {
     return this.prisma.photo.findMany({
-      // Une photo de sortie analysée n'est pas un vin à rentrer.
-      where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} } },
+      // Une photo de sortie analysée n'est pas un vin à rentrer, une photo
+      // écartée ne doit pas réapparaître dans la revue groupée.
+      where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null },
       orderBy: { createdAt: 'asc' },
       // La revue groupée est un écran de téléphone : au-delà de 200 fiches la
       // réponse (extractions JSON incluses) devient inutilisable.
@@ -185,15 +186,7 @@ export class PhotosService {
       this.prisma.photo.findMany({ where: { ...base, status: { in: ['PENDING', 'PROCESSING'] } }, orderBy: { createdAt: 'asc' }, take: 200 }),
       this.prisma.photo.findMany({ where: { ...base, status: 'FAILED' }, orderBy: { createdAt: 'asc' }, take: 200 }),
     ]);
-    const toConfirm = toConfirmRows.map((p) => {
-      let extraction: ReturnType<typeof parseExtraction> | null = null;
-      try {
-        extraction = p.rawExtraction ? parseExtraction(p.rawExtraction) : null;
-      } catch {
-        extraction = null;
-      }
-      return { ...p, extraction };
-    });
+    const toConfirm = toConfirmRows.map((p) => ({ ...p, extraction: safeParseExtraction(p.rawExtraction) }));
     return { toConfirm, inProgress, failed };
   }
 

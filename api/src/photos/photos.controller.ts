@@ -6,7 +6,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import { z } from 'zod';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
-import { parseExtraction } from '../vision/extraction-schema';
+import { safeParseExtraction } from '../vision/extraction-schema';
 import { PhotosService } from './photos.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -49,15 +49,7 @@ export class PhotosController {
   @Get('pending-review')
   async pendingReview() {
     const photos = await this.photos.listPendingReview();
-    return photos.map((p) => {
-      let extraction = null;
-      try {
-        extraction = p.rawExtraction ? parseExtraction(p.rawExtraction) : null;
-      } catch {
-        extraction = null;
-      }
-      return { ...p, extraction };
-    });
+    return photos.map((p) => ({ ...p, extraction: safeParseExtraction(p.rawExtraction) }));
   }
 
   @Post(':id/dismiss')

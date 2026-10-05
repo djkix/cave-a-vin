@@ -113,6 +113,11 @@ describeIfInfra('api HTTP', () => {
       expect(ok.body).toEqual({ ok: true });
       const reloaded = await prisma.photo.findUniqueOrThrow({ where: { id: free.id } });
       expect(reloaded.dismissedAt).not.toBeNull();
+
+      // pending-review doit refléter exactement entry-inbox.toConfirm : une photo
+      // écartée ne doit réapparaître dans aucun des deux.
+      const pending = await agent.get('/api/photos/pending-review');
+      expect(pending.body.map((p: { id: string }) => p.id)).not.toContain(free.id);
     } finally {
       await prisma.movement.delete({ where: { id: movement.id } });
       await prisma.wine.delete({ where: { id: wine.id } });

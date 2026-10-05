@@ -205,7 +205,22 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
     const findMany = jest.fn(async () => []);
     const service = new PhotosService({ photo: { findMany } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
     await service.listPendingReview();
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} } } }));
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null } }),
+    );
+  });
+
+  it('exclut une photo écartée de la revue groupée', async () => {
+    const photos = [
+      { id: 'kept', status: 'DONE', purpose: 'ENTRY', dismissedAt: null, createdAt: new Date() },
+      { id: 'dismissed', status: 'DONE', purpose: 'ENTRY', dismissedAt: new Date(), createdAt: new Date() },
+    ];
+    const findMany = jest.fn(async ({ where }: any) => photos.filter(
+      (p) => p.status === where.status && p.purpose === where.purpose && p.dismissedAt === where.dismissedAt,
+    ));
+    const service = new PhotosService({ photo: { findMany } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    const result = await service.listPendingReview();
+    expect(result.map((p) => p.id)).toEqual(['kept']);
   });
 
   it('ne compte dans l’attente que les photos d’entrée', async () => {

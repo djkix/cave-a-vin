@@ -52,3 +52,17 @@ export function parseExtraction(raw: unknown): WineExtraction {
     globalConfidence: r.confiance_globale,
   };
 }
+
+/**
+ * Même lecture que `parseExtraction`, mais jamais levée : utilisée partout où
+ * une extraction illisible ne doit pas faire tomber la liste qui la contient
+ * (revue groupée, écran « à confirmer »), seulement cette fiche.
+ */
+export function safeParseExtraction(raw: unknown): WineExtraction | null {
+  if (!raw) return null;
+  try {
+    return parseExtraction(raw);
+  } catch {
+    return null;
+  }
+}
