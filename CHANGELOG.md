@@ -9,6 +9,18 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.4.0](https://github.com/djkix/cave-a-vin/compare/v1.3.0...v1.4.0) (2026-10-05)
+
+
+### Fonctionnalités
+
+* **cave:** filtre « à boire en priorité » et « sans apogée », export filtré ([76370f1](https://github.com/djkix/cave-a-vin/commit/76370f156418c7b2d714b784d55268416d2e069f))
+
+
+### Corrections
+
+* **cave:** valide l'export par schéma et signale l'échec du comptage ([c172dc4](https://github.com/djkix/cave-a-vin/commit/c172dc4282a68eaa09c0acfec24a1e65406d6733))
+
 ## [1.3.0](https://github.com/djkix/cave-a-vin/compare/v1.2.0...v1.3.0) (2026-10-04)
 
 ### Résumé
