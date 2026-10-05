@@ -37,7 +37,7 @@ function fakePrisma() {
 describe('PhotosService.ingest', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cave-photos-'));
 
-  it('stores original + normalized and creates a PENDING row', async () => {
+  it('stores original + normalized and creates a PENDING row, sans travail BullMQ pour une entrée', async () => {
     const prisma = fakePrisma();
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
@@ -47,10 +47,12 @@ describe('PhotosService.ingest', () => {
     expect(photo.status).toBe('PENDING');
     expect(existsSync(join(dir, 'original', `${photo.id}.jpg`))).toBe(true);
     expect(existsSync(join(dir, 'normalized', `${photo.id}.jpg`))).toBe(true);
-    expect(queue.add).toHaveBeenCalledWith('extract', { photoId: photo.id }, { jobId: photo.id });
+    // L'analyse d'entrée se fait désormais par lot depuis la base : aucun travail
+    // BullMQ n'est créé pour une photo ENTRY.
+    expect(queue.add).not.toHaveBeenCalled();
   });
 
-  it('returns the existing row for the same bytes', async () => {
+  it('returns the existing row for the same bytes, toujours sans travail BullMQ', async () => {
     const prisma = fakePrisma();
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
@@ -60,7 +62,7 @@ describe('PhotosService.ingest', () => {
     expect(b.duplicate).toBe(true);
     expect(b.photo.id).toBe(a.photo.id);
     expect(prisma.photos).toHaveLength(1);
-    expect(queue.add).toHaveBeenCalledTimes(1);
+    expect(queue.add).not.toHaveBeenCalled();
   });
 
   it('rend à l’entrée une photo de sortie sans mouvement quand les mêmes octets arrivent en entrée', async () => {
@@ -136,12 +138,12 @@ describe('PhotosService.ingest', () => {
     expect(queue.add).not.toHaveBeenCalled();
   });
 
-  it('rolls back the photo row and files, and returns 503, when the queue cannot accept the job', async () => {
+  it('rolls back the photo row and files, and returns 503, when the queue cannot accept the job (sortie, seule à encore mettre en file)', async () => {
     const prisma = fakePrisma();
     const queue = { add: jest.fn(async () => { throw new Error('redis down'); }) };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#333' } }).jpeg().toBuffer();
-    await expect(service.ingest(img, 'image/jpeg')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(service.ingest(img, 'image/jpeg', 'EXIT')).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(prisma.photo.delete).toHaveBeenCalledTimes(1);
     const deletedId = (prisma.photo.delete as jest.Mock).mock.calls[0][0].where.id;
     expect(prisma.photos).toHaveLength(0);

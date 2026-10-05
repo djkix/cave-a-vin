@@ -7,7 +7,12 @@ const GEMINI_503 = new Error('[503 Service Unavailable] This model is currently 
 
 function harness(opts: { visionError?: Error } = {}) {
   const photo: any = { id: 'p1', status: 'PENDING' };
-  const prisma = { photo: { update: jest.fn(async ({ data }: any) => Object.assign(photo, data)) } };
+  const prisma = {
+    photo: {
+      findUnique: jest.fn(async () => photo),
+      update: jest.fn(async ({ data }: any) => Object.assign(photo, data)),
+    },
+  };
   const photos = { readNormalized: jest.fn(async () => Buffer.from('img')) };
   const vision = {
     extractWineLabel: jest.fn(async () => {
@@ -18,6 +23,17 @@ function harness(opts: { visionError?: Error } = {}) {
   const budget = { assertUnderCap: jest.fn(async () => undefined) };
   return { photo, prisma, photos, vision, budget, processor: new ExtractionProcessor(prisma as any, photos as any, vision as any, budget as any) };
 }
+
+describe('ExtractionProcessor.process — photo ENTRY ignorée (analyse par lot)', () => {
+  it('ne touche pas une photo ENTRY : aucun update, aucun appel vision', async () => {
+    const h = harness();
+    h.photo.purpose = 'ENTRY';
+    await h.processor.process('p1');
+    expect(h.prisma.photo.update).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+    expect(h.photo.status).toBe('PENDING');
+  });
+});
 
 describe('ExtractionProcessor.process', () => {
   it('marks PROCESSING then DONE with the raw JSON kept verbatim', async () => {

@@ -69,14 +69,20 @@ export class PhotosService {
       throw e;
     }
 
-    try {
-      await this.enqueueWithTimeout(photo.id, purpose);
-    } catch (e) {
-      this.logger.warn(`Mise en file d'attente impossible pour la photo ${photo.id} : ${(e as Error).message}`);
-      await this.prisma.photo.delete({ where: { id: photo.id } });
-      await unlinkIgnoringMissing(originalAbsolutePath);
-      await unlinkIgnoringMissing(normalizedAbsolutePath);
-      throw new ServiceUnavailableException('File de traitement indisponible, réessayez dans un instant');
+    // L'analyse d'entrée se fait désormais par lot, directement depuis la table
+    // photo (voir worker de rafale) : créer un travail BullMQ ici ferait analyser
+    // la photo deux fois. Seule la sortie (EXIT) garde un travail immédiat,
+    // puisque l'utilisateur est devant la bouteille et attend le résultat.
+    if (purpose === 'EXIT') {
+      try {
+        await this.enqueueWithTimeout(photo.id, purpose);
+      } catch (e) {
+        this.logger.warn(`Mise en file d'attente impossible pour la photo ${photo.id} : ${(e as Error).message}`);
+        await this.prisma.photo.delete({ where: { id: photo.id } });
+        await unlinkIgnoringMissing(originalAbsolutePath);
+        await unlinkIgnoringMissing(normalizedAbsolutePath);
+        throw new ServiceUnavailableException('File de traitement indisponible, réessayez dans un instant');
+      }
     }
 
     return { photo, duplicate: false };

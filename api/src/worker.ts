@@ -7,13 +7,7 @@ import { requeueMissingPairings } from './pairing/pairing-recovery';
 import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, PairingJobData } from './pairing/pairing.queue';
 import { PrismaService } from './prisma/prisma.service';
 import { ExtractionProcessor } from './queue/extraction.processor';
-import {
-  EXTRACTION_QUEUE,
-  EXTRACTION_QUEUE_TOKEN,
-  ExtractionJobData,
-  extractionBackoffDelay,
-  redisConnection,
-} from './queue/extraction.queue';
+import { EXTRACTION_QUEUE, ExtractionJobData, extractionBackoffDelay, redisConnection } from './queue/extraction.queue';
 import { requeueOrphanPhotos } from './queue/orphan-recovery';
 
 async function main() {
@@ -53,7 +47,7 @@ async function main() {
   // cela, un simple redémarrage suffit à laisser une photo stockée sur le disque
   // sans personne pour l'analyser.
   try {
-    await requeueOrphanPhotos(app.get(PrismaService), app.get(EXTRACTION_QUEUE_TOKEN), (m) => console.log(m));
+    await requeueOrphanPhotos(app.get(PrismaService), (m) => console.log(m));
   } catch (e) {
     console.error(`reprise au démarrage impossible : ${(e as Error).message}`);
   }
