@@ -3,7 +3,13 @@ import { UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { deferralReason, isTransientVisionFailure } from '../queue/transient-failure';
 import { VisionBudgetService } from '../queue/vision-budget.service';
+import { PairingInvalidOutputError } from '../vision/pairing-output';
 import { PAIRING_PROVIDER, PairingProvider } from '../vision/pairing-provider.interface';
+
+/** Une réponse mal formée n'est pas une erreur de configuration (clé refusée, droits) : on les distingue. */
+function definitiveReason(e: unknown): string {
+  return e instanceof PairingInvalidOutputError ? 'Réponse de Gemini inexploitable' : 'Génération impossible : configuration Gemini à vérifier';
+}
 
 @Injectable()
 export class PairingProcessor {
@@ -38,7 +44,7 @@ export class PairingProcessor {
       }
       await this.prisma.pairing.update({
         where: { wineId },
-        data: { status: 'FAILED', errorMessage: transient ? `${deferralReason(e)} — abandon` : 'Réponse de Gemini inexploitable' },
+        data: { status: 'FAILED', errorMessage: transient ? `${deferralReason(e)} — abandon` : definitiveReason(e) },
       });
       throw transient ? e : new UnrecoverableError(e instanceof Error ? e.message : String(e));
     }

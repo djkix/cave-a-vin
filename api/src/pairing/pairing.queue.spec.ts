@@ -31,4 +31,15 @@ describe('schedulePairing', () => {
     expect(remove).toHaveBeenCalled();
     expect(queue.add).toHaveBeenCalledTimes(1);
   });
+
+  it('tolère un retrait qui échoue (deux régénérations simultanées) et remet quand même en file', async () => {
+    const remove = jest.fn(async () => { throw new Error('Missing key for job pairing-w1'); });
+    const queue = {
+      getJob: jest.fn(async () => ({ getState: async () => 'completed', remove })),
+      add: jest.fn(async () => undefined),
+    };
+    await expect(schedulePairing(queue as any, 'w1')).resolves.toBeUndefined();
+    expect(remove).toHaveBeenCalled();
+    expect(queue.add).toHaveBeenCalledWith('pairing', { wineId: 'w1' }, { jobId: 'pairing-w1' });
+  });
 });

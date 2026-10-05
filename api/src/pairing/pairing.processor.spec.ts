@@ -58,4 +58,13 @@ describe('PairingProcessor', () => {
     await expect(h.processor.process('w1', false)).rejects.toBeInstanceOf(UnrecoverableError);
     expect(h.update).toHaveBeenCalledWith({ where: { wineId: 'w1' }, data: { status: 'FAILED', errorMessage: 'Réponse de Gemini inexploitable' } });
   });
+
+  it('échoue définitivement sur une erreur de configuration, sans l’attribuer à la réponse', async () => {
+    const h = harness({ suggest: jest.fn(async () => { throw new Error('[GoogleGenerativeAI Error]: [400 Bad Request] API key not valid'); }) });
+    await expect(h.processor.process('w1', false)).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(h.update).toHaveBeenCalledWith({
+      where: { wineId: 'w1' },
+      data: { status: 'FAILED', errorMessage: 'Génération impossible : configuration Gemini à vérifier' },
+    });
+  });
 });

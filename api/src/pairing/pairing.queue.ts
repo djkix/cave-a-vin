@@ -33,7 +33,10 @@ export async function schedulePairing(queue: PairingQueueLike, wineId: string): 
   if (job) {
     const state = await job.getState();
     if (state !== 'completed' && state !== 'failed') return;
-    await job.remove();
+    // Deux régénérations quasi simultanées voient toutes deux le travail terminé :
+    // le second retrait échoue (déjà retiré). On poursuit : `add` remet le vin en
+    // file, ou ne fait rien si l'autre demande l'a déjà fait.
+    await job.remove().catch(() => undefined);
   }
   await queue.add('pairing', { wineId }, { jobId: id });
 }

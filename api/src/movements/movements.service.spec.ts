@@ -536,4 +536,13 @@ describe('MovementsService — accords à la création d’un vin', () => {
     const r = await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn(input);
     expect(r.created).toBe(true);
   });
+
+  it('n’attend jamais la file d’accords : une file bloquée (Redis injoignable) ne retient pas l’entrée', async () => {
+    const h = harness();
+    const schedule = jest.fn(() => new Promise<void>(() => undefined));
+    const matching = { matchOrCreate: async () => ({ wine: h.wine, created: true, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    const r = await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn(input);
+    expect(r.created).toBe(true);
+    expect(schedule).toHaveBeenCalledWith('w1');
+  });
 });

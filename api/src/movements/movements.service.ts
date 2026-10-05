@@ -84,10 +84,12 @@ export class MovementsService {
       }
 
       // Nouveau vin : ses accords sont suggérés en tâche de fond. Une file
-      // indisponible ne doit jamais faire échouer l'entrée — le rattrapage du
-      // worker reprendra ce vin au prochain démarrage.
+      // indisponible ne doit jamais faire échouer ni retenir l'entrée : on
+      // n'attend pas la mise en file (Redis injoignable, la connexion BullMQ met
+      // les commandes en attente sans fin), le rattrapage du worker reprendra ce
+      // vin au prochain démarrage.
       if (wineCreated && this.pairings) {
-        await this.pairings.schedule(wine.id).catch((e: unknown) =>
+        void this.pairings.schedule(wine.id).catch((e: unknown) =>
           this.logger.warn(`Accords de ${wine.id} non mis en file : ${e instanceof Error ? e.message : String(e)}`),
         );
       }
