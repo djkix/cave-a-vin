@@ -80,6 +80,13 @@ it('montre une mention d’apogée sur la ligne', async () => {
   expect(within(row).getByText('À boire 2024-2036')).toBeInTheDocument();
 });
 
+it('limite la longueur du plat recherché', async () => {
+  vi.spyOn(api, 'getCave').mockResolvedValue(rows);
+  mount();
+  await screen.findByText(/Domaine Tempier/);
+  expect(screen.getByLabelText('Accompagner un plat')).toHaveAttribute('maxLength', '100');
+});
+
 it('cherche un vin pour accompagner un plat et dit lequel correspond', async () => {
   const getCave = vi.spyOn(api, 'getCave').mockImplementation(async (f) =>
     f.dish ? [{ ...rows[0], matchedDish: 'Agneau de sept heures' }] : rows,

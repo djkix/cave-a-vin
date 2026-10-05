@@ -1,7 +1,11 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAIRING_QUEUE_TOKEN, PairingJobData, schedulePairing } from './pairing.queue';
+
+/** Au-delà, on répond quand même (202) : la ligne est déjà PENDING et la reprise au
+ * démarrage du worker régénérera l'accord si la planification n'a jamais abouti. */
+const SCHEDULE_TIMEOUT_MS = 3000;
 
 @Injectable()
 export class PairingScheduler {
@@ -14,6 +18,8 @@ export class PairingScheduler {
 
 @Injectable()
 export class PairingService {
+  private readonly logger = new Logger(PairingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduler: PairingScheduler,
@@ -27,6 +33,18 @@ export class PairingService {
       create: { wineId },
       update: { status: 'PENDING', errorMessage: null },
     });
-    await this.scheduler.schedule(wineId);
+
+    // Si Redis est indisponible, schedule() peut ne jamais se résoudre : on ne bloque pas la
+    // réponse HTTP pour autant, la ligne est déjà PENDING et la reprise au démarrage du worker
+    // régénérera l'accord si la planification n'a finalement pas abouti.
+    let timeoutId: NodeJS.Timeout;
+    const timeout = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(() => {
+        this.logger.warn(`Planification de l'accord ${wineId} toujours en cours après ${SCHEDULE_TIMEOUT_MS} ms : réponse envoyée sans attendre, la reprise du worker prendra le relais si besoin`);
+        resolve();
+      }, SCHEDULE_TIMEOUT_MS);
+    });
+    await Promise.race([this.scheduler.schedule(wineId), timeout]);
+    clearTimeout(timeoutId!);
   }
 }

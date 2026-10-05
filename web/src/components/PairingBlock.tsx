@@ -32,7 +32,12 @@ export function PairingBlock({ wineId, pairing }: { wineId: string; pairing: Pai
   return (
     <section className="card">
       <h3 style={{ fontSize: 16, margin: 0 }}>Accords mets-vins</h3>
-      {pending && <p className="list__meta">Suggestions en préparation…</p>}
+      {pending && (
+        <>
+          <p className="list__meta">Suggestions en préparation…</p>
+          {pairing?.errorMessage && <p className="list__meta" style={{ margin: 0 }}>{pairing.errorMessage}</p>}
+        </>
+      )}
       {pairing?.status === 'DONE' && (
         <>
           <ul className="dish-pills">
@@ -48,8 +53,8 @@ export function PairingBlock({ wineId, pairing }: { wineId: string; pairing: Pai
         </>
       )}
       {error && <p role="alert" className="text-error">{error}</p>}
-      {!pending && (
-        <Button variant="link" disabled={busy} onClick={regenerate}>Regénérer</Button>
+      {pairing && (
+        <Button variant="link" disabled={busy} onClick={regenerate}>Régénérer</Button>
       )}
     </section>
   );

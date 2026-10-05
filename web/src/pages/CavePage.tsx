@@ -43,7 +43,7 @@ export function CavePage() {
       <main className="page">
         <section className="cave-filters">
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Domaine, cuvée, appellation…" aria-label="Rechercher" />
-          <input type="search" value={dish} onChange={(e) => setDish(e.target.value)} placeholder="Agneau, comté, poisson…" aria-label="Accompagner un plat" />
+          <input type="search" value={dish} onChange={(e) => setDish(e.target.value)} placeholder="Agneau, comté, poisson…" aria-label="Accompagner un plat" maxLength={100} />
           {/* Libellé relié par htmlFor : enveloppé dans le <label>, le select aurait
               pour nom accessible « Couleur » suivi du texte de toutes ses options. */}
           <label htmlFor="cave-color" className="field__label">Couleur</label>
