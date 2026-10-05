@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { parseExtraction } from '../vision/extraction-schema';
 import { ExitCandidate, ExitOutcome, ExitRead, rankExitCandidates } from '../wines/exit-ranking';
 import { CaveFilter, CaveRow, filterCave } from './cave-filter';
+import { matchDish } from './dish-filter';
 
 export type ExitCandidatesResponse =
   | { status: 'PENDING' | 'PROCESSING' }
@@ -98,9 +99,21 @@ export class CaveService {
   async list(filter: CaveFilter): Promise<CaveItem[]> {
     const [rows, rules] = await Promise.all([this.allWithStock(), this.rules.load()]);
     const year = new Date().getFullYear();
-    const items = filterCave(rows, filter).map((r) => toItem(r, rules, year));
-    if (filter.drinkSoon) return sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
-    if (filter.noApogee) return items.filter((i) => i.apogee.max == null);
+    const kept = filterCave(rows, filter);
+    let items = kept.map((r) => toItem(r, rules, year));
+    if (filter.drinkSoon) items = sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
+    else if (filter.noApogee) items = items.filter((i) => i.apogee.max == null);
+    if (filter.dish) {
+      const dishesById = new Map(kept.map((r) => [r.id, r.pairingDishes ?? null]));
+      const query = filter.dish;
+      items = items.flatMap((i) => {
+        const matchedDish = matchDish(dishesById.get(i.id), query);
+        return matchedDish ? [{ ...i, matchedDish }] : [];
+      });
+      // Pour un plat, les bouteilles à boire en priorité passent devant.
+      const soon = sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
+      items = [...soon, ...items.filter((i) => !isDrinkSoon(i.apogee, year))];
+    }
     return items;
   }
 

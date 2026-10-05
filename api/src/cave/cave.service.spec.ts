@@ -155,6 +155,18 @@ describe('CaveService — apogée', () => {
   it('répond 404 pour un vin inconnu', async () => {
     await expect(service(null, [cdp]).setManualApogee('nope', { min: 2030, max: 2035 })).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('cherche par plat, à boire en priorité d’abord, et dit quel plat correspond', async () => {
+    const at = (id: string, vintage: number, producer: string, dishes: string[] | null) => ({ ...cdp, id, vintage, producer, pairingDishes: dishes });
+    const rows = [
+      at('young', 2016, 'A', ['Gigot d’agneau']),       // fin 2036
+      at('none', 2016, 'B', null),
+      at('soon', 2006, 'C', ['Agneau de sept heures']), // fin 2026
+      at('fish', 2006, 'D', ['Bar grillé']),
+    ];
+    const items = await service(null, rows).list({ dish: 'agneau' });
+    expect(items.map((i) => [i.id, i.matchedDish])).toEqual([['soon', 'Agneau de sept heures'], ['young', 'Gigot d’agneau']]);
+  });
 });
 
 describe('CaveService — note de dégustation', () => {

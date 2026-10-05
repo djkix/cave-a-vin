@@ -20,6 +20,8 @@ export interface CaveFilter {
   drinkSoon?: boolean;
   /** Vins sans estimation d'apogée ; appliqué après le calcul de l'apogée. */
   noApogee?: boolean;
+  /** Plat à accompagner ; appliqué après le calcul de l'apogée. */
+  dish?: string;
 }
 
 /** Tous les mots cherchés doivent apparaître, sans accents ni casse, dans producteur, cuvée ou appellation. */

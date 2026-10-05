@@ -235,6 +235,11 @@ describeIfInfra('api HTTP', () => {
       expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.pairing).toMatchObject({ status: 'PENDING', dishes: [] });
       expect((await agent.post('/api/wines/00000000-0000-4000-8000-000000000000/pairing/regenerate')).status).toBe(404);
       expect((await supertest(app.getHttpServer()).post(`/api/wines/${wine.id}/pairing/regenerate`)).status).toBe(401);
+      await prisma.pairing.update({ where: { wineId: wine.id }, data: { status: 'DONE', dishes: ['Agneau de sept heures'] } });
+      const found = await agent.get('/api/cave?dish=AGNEAU&includeEmpty=true');
+      expect(found.status).toBe(200);
+      expect(found.body.find((w: { id: string }) => w.id === wine.id)?.matchedDish).toBe('Agneau de sept heures');
+      expect((await agent.get(`/api/cave?dish=${'x'.repeat(101)}`)).status).toBe(400);
     } finally {
       await prisma.wine.delete({ where: { id: wine.id } });
     }
