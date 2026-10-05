@@ -511,3 +511,29 @@ describe('MovementsService.adjustTo — clé d’idempotence déjà prise par un
     );
   });
 });
+
+describe('MovementsService — accords à la création d’un vin', () => {
+  it('met en file les accords d’un vin créé par l’entrée', async () => {
+    const h = harness();
+    const schedule = jest.fn(async () => undefined);
+    const matching = { matchOrCreate: async () => ({ wine: h.wine, created: true, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn(input);
+    expect(schedule).toHaveBeenCalledWith('w1');
+  });
+
+  it('ne fait rien pour un vin déjà connu', async () => {
+    const h = harness();
+    const schedule = jest.fn(async () => undefined);
+    const matching = { matchOrCreate: async () => ({ wine: h.wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn(input);
+    expect(schedule).not.toHaveBeenCalled();
+  });
+
+  it('n’échoue jamais à cause de la file d’accords', async () => {
+    const h = harness();
+    const schedule = jest.fn(async () => { throw new Error('Redis injoignable'); });
+    const matching = { matchOrCreate: async () => ({ wine: h.wine, created: true, appellation: { kind: 'none', raw: 'Bandol' } }) };
+    const r = await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn(input);
+    expect(r.created).toBe(true);
+  });
+});

@@ -1,5 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Movement, Prisma, Wine } from '@prisma/client';
+import { PairingScheduler } from '../pairing/pairing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WineMatchingService } from '../wines/wine-matching.service';
 import { CreateMovementInput, CreateOutInput, InventoryInput } from './dto';
@@ -27,9 +28,12 @@ function isUniqueViolation(e: unknown, target: string): e is Prisma.PrismaClient
 
 @Injectable()
 export class MovementsService {
+  private readonly logger = new Logger(MovementsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly matching: WineMatchingService,
+    @Optional() private readonly pairings?: PairingScheduler,
   ) {}
 
   async stockOf(wineId: string): Promise<number> {
@@ -48,7 +52,7 @@ export class MovementsService {
       return { movement, wine, stock: await this.stockOf(existing.wineId), created: false };
     }
 
-    const { wine } = await this.matching.matchOrCreate(input.wine);
+    const { wine, created: wineCreated } = await this.matching.matchOrCreate(input.wine);
     // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
     // la mesure « zéro saisie » la comparera à un formulaire vide.
     const readingShown = input.photoId
@@ -77,6 +81,15 @@ export class MovementsService {
         // valeur lue en mémoire. Deux premières entrées concurrentes ne gagnent
         // donc pas toutes les deux — la seconde ne modifie plus aucune ligne.
         await this.prisma.wine.updateMany({ where: { id: wine.id, referencePhotoId: null }, data: { referencePhotoId: input.photoId } });
+      }
+
+      // Nouveau vin : ses accords sont suggérés en tâche de fond. Une file
+      // indisponible ne doit jamais faire échouer l'entrée — le rattrapage du
+      // worker reprendra ce vin au prochain démarrage.
+      if (wineCreated && this.pairings) {
+        await this.pairings.schedule(wine.id).catch((e: unknown) =>
+          this.logger.warn(`Accords de ${wine.id} non mis en file : ${e instanceof Error ? e.message : String(e)}`),
+        );
       }
 
       return { movement, wine, stock: await this.stockOf(wine.id), created: true };

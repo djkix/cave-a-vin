@@ -45,6 +45,14 @@ export function apogeeOf(row: CaveDbRow, rules: CompiledApogeeRules, currentYear
   );
 }
 
+export interface PairingView { status: string; dishes: string[]; errorMessage: string | null; generatedAt: Date | null }
+
+export function pairingOf(row: CaveDbRow): PairingView | null {
+  return row.pairingStatus
+    ? { status: row.pairingStatus, dishes: row.pairingDishes ?? [], errorMessage: row.pairingError ?? null, generatedAt: row.pairingGeneratedAt ?? null }
+    : null;
+}
+
 function toItem(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number): CaveItem {
   const {
     /* eslint-disable @typescript-eslint/no-unused-vars -- champs internes retirés de la réponse */
@@ -106,7 +114,7 @@ export class CaveService {
       take: 10,
       select: { id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true },
     });
-    return { wine: toItem(row, rules, new Date().getFullYear()), movements };
+    return { wine: { ...toItem(row, rules, new Date().getFullYear()), pairing: pairingOf(row) }, movements };
   }
 
   async exitCandidates(photoId: string): Promise<ExitCandidatesResponse> {

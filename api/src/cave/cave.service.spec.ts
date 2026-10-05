@@ -108,6 +108,14 @@ describe('CaveService — apogée', () => {
     expect((await service(null, [nv]).detail('w16')).wine.apogee).toMatchObject({ min: 2027, max: 2029, confidence: 'SAISIE' });
   });
 
+  it('rend les accords du vin sur la fiche, et null sans accords', async () => {
+    const withPairing = { ...cdp, pairingStatus: 'DONE', pairingDishes: ['Agneau'], pairingError: null, pairingGeneratedAt: new Date('2026-10-05T10:00:00Z') };
+    expect((await service(null, [withPairing]).detail('w16')).wine.pairing).toEqual({
+      status: 'DONE', dishes: ['Agneau'], errorMessage: null, generatedAt: new Date('2026-10-05T10:00:00Z'),
+    });
+    expect((await service(null, [cdp]).detail('w16')).wine.pairing).toBeNull();
+  });
+
   describe('filtres d’apogée', () => {
     // Châteauneuf 2016 garde 8-20 → fin 2036 ; 2006 → fin 2026 ; 2007 → 2027 ; 2008 → 2028.
     const at = (id: string, vintage: number | null, producer = 'P') => ({ ...cdp, id, vintage, producer });

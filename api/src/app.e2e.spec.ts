@@ -224,6 +224,22 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
+  it('queues a pairing regeneration for a known wine, 404 otherwise', async () => {
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-pairing-${Date.now()}`, producer: 'Domaine e2e accords', appellationRaw: 'Bandol', color: 'ROUGE' },
+    });
+    try {
+      const res = await agent.post(`/api/wines/${wine.id}/pairing/regenerate`);
+      expect(res.status).toBe(202);
+      expect((await prisma.pairing.findUniqueOrThrow({ where: { wineId: wine.id } })).status).toBe('PENDING');
+      expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.pairing).toMatchObject({ status: 'PENDING', dishes: [] });
+      expect((await agent.post('/api/wines/00000000-0000-4000-8000-000000000000/pairing/regenerate')).status).toBe(404);
+      expect((await supertest(app.getHttpServer()).post(`/api/wines/${wine.id}/pairing/regenerate`)).status).toBe(401);
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);
