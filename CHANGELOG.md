@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.4.1](https://github.com/djkix/cave-a-vin/compare/v1.4.0...v1.4.1) (2026-10-05)
+
+
+### Corrections
+
+* **stock:** le stock ne perd plus un mouvement quand deux se croisent ([bd7cb9c](https://github.com/djkix/cave-a-vin/commit/bd7cb9cdea6fca218785d6014c54d66462c8e116))
+
 ## [1.4.0](https://github.com/djkix/cave-a-vin/compare/v1.3.0...v1.4.0) (2026-10-05)
 
 ### Résumé
