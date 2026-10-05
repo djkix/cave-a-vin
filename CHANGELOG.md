@@ -9,6 +9,22 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.6.0](https://github.com/djkix/cave-a-vin/compare/v1.5.0...v1.6.0) (2026-10-05)
+
+
+### Fonctionnalités
+
+* **cave:** coche un filtre d'apogée depuis l'URL ([01dfac0](https://github.com/djkix/cave-a-vin/commit/01dfac0d4d15c1bf079957629493a3b55db79e2f))
+* **stats:** calcul des statistiques de la cave ([5dd5a55](https://github.com/djkix/cave-a-vin/commit/5dd5a55185c973dd3cdf474cde2020a61d242d7a))
+* **stats:** page Statistiques et onglet Stats ([63c4686](https://github.com/djkix/cave-a-vin/commit/63c46867c7a4747e44a66dc72639ef554c82bd52))
+* **stats:** route GET /api/stats ([b5c04fa](https://github.com/djkix/cave-a-vin/commit/b5c04fa7a1d22805f8353073f4e524c416fd4c65))
+
+
+### Corrections
+
+* **export:** ignore le prix d'une entrée annulée, comme les statistiques ([a4c7464](https://github.com/djkix/cave-a-vin/commit/a4c7464a79b3194b5a6bb59f68c1c2bbb4fd045d))
+* **stats:** liens des classements stylés, tests resserrés ([2de6c41](https://github.com/djkix/cave-a-vin/commit/2de6c415bb647854b56f0ed6fe1b925c77e6da30))
+
 ## [1.5.0](https://github.com/djkix/cave-a-vin/compare/v1.4.1...v1.5.0) (2026-10-05)
 
 ### Résumé
