@@ -11,6 +11,45 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.7.0](https://github.com/djkix/cave-a-vin/compare/v1.6.0...v1.7.0) (2026-10-05)
 
+### Résumé
+
+Trois évolutions. **L'entrée en rafale** : on photographie les bouteilles à la
+suite sans jamais attendre, les photos partent en arrière-plan et sont lues par
+lots de huit au plus par appel Gemini, puis confirmées dans la liste « À
+confirmer ». **La note de dégustation** sur 20 par vin. **Les accords
+mets-vins** suggérés par Gemini, avec la recherche « Accompagner un plat ».
+Trois migrations, appliquées au démarrage de l'api ; aucune nouvelle variable
+d'environnement.
+
+### Fonctionnalités
+
+- **Rafale** (« Rentrer du vin ») : photo après photo, réduite sur le
+  téléphone (1600 px), rangée dans une file locale de 200 photos et envoyée en
+  arrière-plan ; le mode campagne disparaît (anciennes adresses redirigées).
+- **Analyse par lot** : le worker lit jusqu'à 8 photos par appel Gemini, toutes
+  les 15 s (dès 8 photos ou après 45 s d'attente) ; un lot mélangé est relu
+  photo par photo ; une panne ou une clé Gemini invalide reporte l'analyse avec
+  un message en français, sans jamais perdre de photo (migration
+  `20261009000000_entree_par_lot`).
+- **« À confirmer »** : à valider (fiche pré-remplie, quantité lue sur le
+  carton), en cours d'analyse, lecture impossible ; valider une fiche ou tout
+  valider, mettre de côté, écarter (avec confirmation) ; badge « N vins à
+  confirmer » sur l'accueil. API : `GET /api/photos/entry-inbox`,
+  `POST /api/photos/:id/dismiss`.
+- **Note de dégustation** sur 20 par demi-point, sur la fiche, dans la liste,
+  l'export (*Note /20*) et le classement *Les mieux notés* (migration
+  `20261008000000_note_degustation`).
+- **Accords mets-vins** : jusqu'à 8 plats suggérés par Gemini en tâche de fond
+  pour chaque vin (file `wine-pairing`, rattrapage au démarrage, *Régénérer*),
+  recherche *Accompagner un plat* dans l'onglet Cave, colonne *Accords* de
+  l'export ; les accords ne dépassent jamais 80 % du plafond mensuel, pour
+  laisser la priorité aux photos (migration `20261008000001_accords_mets_vins`).
+
+### Corrections
+
+- Les barres d'apogée cliquables de la page Stats ne soulignent plus le nombre.
+
+### Détail par commit
 
 ### Fonctionnalités
 

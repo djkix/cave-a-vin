@@ -601,6 +601,19 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.7.0 — 6 octobre 2026
+
+Publiée ([v1.7.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.7.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.7.0` et `-web:1.7.0`.
+
+**Entrée en rafale, note de dégustation et accords mets-vins.** On photographie
+les bouteilles à la suite sans attendre : envoi en arrière-plan, lecture par
+lots de huit au plus par appel Gemini, confirmation dans « À confirmer » (badge
+sur l'accueil) ; le mode campagne disparaît. Note sur 20 par vin, et plats
+suggérés par Gemini avec la recherche « Accompagner un plat ». Migrations
+`20261008000000_note_degustation`, `20261008000001_accords_mets_vins` et
+`20261009000000_entree_par_lot`, appliquées au démarrage de l'api.
+
 ### 1.6.0 — 5 octobre 2026
 
 Publiée ([v1.6.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.6.0)),
