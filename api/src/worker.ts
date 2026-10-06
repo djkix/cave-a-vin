@@ -9,6 +9,7 @@ import { processWinePairingJob } from './pairing/wine-pairing-dispatch';
 import { PrismaService } from './prisma/prisma.service';
 import { ProducerProcessor } from './producers/producer.processor';
 import { requeueMissingProducers } from './producers/producer-recovery';
+import { PRODUCER_JOB } from './producers/producer.queue';
 import { ENTRY_BATCH_TICK_MS, createEntryBatchLoop } from './queue/entry-batch';
 import { EntryBatchProcessor } from './queue/entry-batch.processor';
 import { ExtractionProcessor } from './queue/extraction.processor';
@@ -45,7 +46,7 @@ async function main() {
       settings: { backoffStrategy: (attemptsMade: number) => extractionBackoffDelay(attemptsMade) },
     },
   );
-  pairingWorker.on('failed', (job, err) => console.warn(`${job?.name === 'producer' ? 'descriptif' : 'accords'} ${job?.id} : ${err.message}`));
+  pairingWorker.on('failed', (job, err) => console.warn(`${job?.name === PRODUCER_JOB ? 'descriptif' : 'accords'} ${job?.id} : ${err.message}`));
   pairingWorker.on('error', (err) => console.error(`worker accords : ${err.message}`));
   console.log('worker prêt (wine-pairing, concurrence 1)');
 

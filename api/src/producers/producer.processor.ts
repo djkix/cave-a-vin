@@ -6,6 +6,7 @@ import { PAIRING_BUDGET_SHARE, VisionBudgetService } from '../queue/vision-budge
 import { ProducerInvalidOutputError } from '../vision/producer-output';
 import { PRODUCER_PROVIDER, ProducerProvider } from '../vision/producer-provider.interface';
 import { findProducerWines } from './producer-wines';
+import { retryOnceOnUniqueConflict } from './retry-on-conflict';
 
 /** Une réponse mal formée n'est pas une erreur de configuration (clé refusée, droits) : on les distingue. */
 function definitiveReason(e: unknown): string {
@@ -27,11 +28,13 @@ export class ProducerProcessor {
     if (!wines.length) return; // plus aucun vin de ce domaine depuis la mise en file
     const existing = await this.prisma.producerProfile.findUnique({ where: { producerKey } });
     if (existing?.source === 'MANUEL') return; // la version saisie à la main prime toujours
-    await this.prisma.producerProfile.upsert({
-      where: { producerKey },
-      create: { producerKey, displayName: wines[0].producer },
-      update: {},
-    });
+    await retryOnceOnUniqueConflict(() =>
+      this.prisma.producerProfile.upsert({
+        where: { producerKey },
+        create: { producerKey, displayName: wines[0].producer },
+        update: {},
+      }),
+    );
     // Chaque écriture exige source = GEMINI : un texte saisi pendant la génération n'est jamais écrasé.
     const save = (data: Record<string, unknown>) =>
       this.prisma.producerProfile.updateMany({ where: { producerKey, source: 'GEMINI' }, data });

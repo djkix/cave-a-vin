@@ -149,6 +149,15 @@ describe('CaveService — apogée', () => {
     expect((await service(null, [cdp]).detail('w16')).wine.producerProfile).toBeNull();
   });
 
+  it('expose toujours la clé du domaine, même sans descriptif, et null pour un nom sans lettre ni chiffre', async () => {
+    expect((await service(null, [cdp]).detail('w16')).wine.producerKey).toBe('chateau de beaucastel');
+    const s = service(null, [{ ...cdp, producer: ' — ' }]);
+    const { wine } = await s.detail('w16');
+    expect(wine.producerKey).toBeNull();
+    expect(wine.producerProfile).toBeNull();
+    expect(s.mockPrisma.producerProfile.findUnique).not.toHaveBeenCalled();
+  });
+
   describe('filtres d’apogée', () => {
     // Châteauneuf 2016 garde 8-20 → fin 2036 ; 2006 → fin 2026 ; 2007 → 2027 ; 2008 → 2028.
     const at = (id: string, vintage: number | null, producer = 'P') => ({ ...cdp, id, vintage, producer });

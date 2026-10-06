@@ -123,6 +123,7 @@ export class CaveService {
     const [rows, rules] = await Promise.all([this.allWithStock(), this.rules.load()]);
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
+    const producerKey = producerKeyOf(row.producer);
     const [movements, profile] = await Promise.all([
       this.prisma.movement.findMany({
         where: { wineId: id },
@@ -131,10 +132,16 @@ export class CaveService {
         select: { id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true },
       }),
       // Un descriptif par domaine, partagé par tous ses vins : lien par la clé normalisée.
-      this.prisma.producerProfile.findUnique({ where: { producerKey: producerKeyOf(row.producer) }, include: PRODUCER_PROFILE_INCLUDE }),
+      producerKey ? this.prisma.producerProfile.findUnique({ where: { producerKey }, include: PRODUCER_PROFILE_INCLUDE }) : null,
     ]);
     return {
-      wine: { ...toItem(row, rules, new Date().getFullYear()), pairing: pairingOf(row), producerProfile: producerProfileOf(profile) },
+      wine: {
+        ...toItem(row, rules, new Date().getFullYear()),
+        pairing: pairingOf(row),
+        // Toujours présente (sauf nom sans lettre ni chiffre) : la fiche peut écrire ou régénérer avant tout profil.
+        producerKey: producerKey || null,
+        producerProfile: producerProfileOf(profile),
+      },
       movements,
     };
   }

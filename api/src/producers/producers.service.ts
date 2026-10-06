@@ -1,11 +1,12 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { PAIRING_QUEUE_TOKEN, WinePairingJobData } from '../pairing/pairing.queue';
+import { PAIRING_QUEUE_TOKEN, raceScheduleWithTimeout, WinePairingJobData } from '../pairing/pairing.queue';
 import { PrismaService } from '../prisma/prisma.service';
 import { producerKeyOf } from './producer-key';
 import { PRODUCER_PROFILE_INCLUDE, producerProfileOf, ProducerProfileView } from './producer-profile.view';
 import { findProducerWines } from './producer-wines';
 import { scheduleProducer } from './producer.queue';
+import { retryOnceOnUniqueConflict } from './retry-on-conflict';
 
 /** Voir PairingService : au-delà, on répond quand même, la reprise du worker prendra le relais. */
 const SCHEDULE_TIMEOUT_MS = 3000;
@@ -50,34 +51,36 @@ export class ProducersService {
   async setDescription(producerKey: string, description: string, userId: string): Promise<ProducerProfileView | null> {
     const displayName = await this.displayNameOf(producerKey);
     const manual = { status: 'DONE' as const, source: 'MANUEL', description, errorMessage: null, updatedById: userId };
-    const saved = await this.prisma.producerProfile.upsert({
-      where: { producerKey },
-      create: { producerKey, displayName, ...manual },
-      update: manual,
-      include: PRODUCER_PROFILE_INCLUDE,
-    });
+    const saved = await retryOnceOnUniqueConflict(() =>
+      this.prisma.producerProfile.upsert({
+        where: { producerKey },
+        create: { producerKey, displayName, ...manual },
+        update: manual,
+        include: PRODUCER_PROFILE_INCLUDE,
+      }),
+    );
     return producerProfileOf(saved);
   }
 
-  /** Régénérer, ou « Revenir au texte généré » depuis un texte manuel : repasse en attente côté Gemini. */
+  /**
+   * Régénérer, ou « Revenir au texte généré » depuis un texte manuel : repasse en
+   * attente côté Gemini. Un texte Gemini reste affiché pendant la nouvelle
+   * génération (comme les accords) ; un texte manuel et son auteur sont retirés.
+   */
   async regenerate(producerKey: string): Promise<void> {
     const displayName = await this.displayNameOf(producerKey);
-    await this.prisma.producerProfile.upsert({
-      where: { producerKey },
-      create: { producerKey, displayName },
-      update: { status: 'PENDING', source: 'GEMINI', description: null, errorMessage: null, updatedById: null },
-    });
-
-    // Redis indisponible : schedule() peut ne jamais se résoudre. La ligne est déjà
-    // PENDING et la reprise au démarrage du worker la remettra en file.
-    let timeoutId: NodeJS.Timeout;
-    const timeout = new Promise<void>((resolve) => {
-      timeoutId = setTimeout(() => {
-        this.logger.warn(`Planification du descriptif « ${producerKey} » toujours en cours après ${SCHEDULE_TIMEOUT_MS} ms : réponse envoyée sans attendre, la reprise du worker prendra le relais si besoin`);
-        resolve();
-      }, SCHEDULE_TIMEOUT_MS);
-    });
-    await Promise.race([this.scheduler.schedule(producerKey), timeout]);
-    clearTimeout(timeoutId!);
+    const current = await this.prisma.producerProfile.findUnique({ where: { producerKey }, select: { source: true } });
+    const update = {
+      status: 'PENDING' as const,
+      source: 'GEMINI',
+      errorMessage: null,
+      ...(current?.source === 'MANUEL' ? { description: null, updatedById: null } : {}),
+    };
+    await retryOnceOnUniqueConflict(() =>
+      this.prisma.producerProfile.upsert({ where: { producerKey }, create: { producerKey, displayName }, update }),
+    );
+    await raceScheduleWithTimeout(this.scheduler.schedule(producerKey), SCHEDULE_TIMEOUT_MS, () =>
+      this.logger.warn(`Planification du descriptif « ${producerKey} » toujours en cours après ${SCHEDULE_TIMEOUT_MS} ms : réponse envoyée sans attendre, la reprise du worker prendra le relais si besoin`),
+    );
   }
 }

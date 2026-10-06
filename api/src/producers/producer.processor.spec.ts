@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { UnrecoverableError } from 'bullmq';
 import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError } from '../queue/vision-budget.service';
 import { ProducerInvalidOutputError } from '../vision/producer-output';
@@ -11,8 +12,12 @@ const wines = [
   { producer: 'Château Simone', appellationRaw: 'Palette', appellation: null },
 ];
 
-function harness(opts: { wines?: unknown[]; profile?: unknown; describe?: jest.Mock; overCap?: boolean } = {}) {
-  const upsert = jest.fn(async () => ({}));
+function harness(opts: { wines?: unknown[]; profile?: unknown; describe?: jest.Mock; overCap?: boolean; conflictOnce?: boolean } = {}) {
+  let conflicts = opts.conflictOnce ? 1 : 0;
+  const upsert = jest.fn(async () => {
+    if (conflicts-- > 0) throw new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' });
+    return {};
+  });
   const updateMany = jest.fn(async () => ({ count: 1 }));
   const prisma = {
     wine: { findMany: jest.fn(async () => opts.wines ?? wines) },
@@ -38,6 +43,13 @@ describe('ProducerProcessor', () => {
       ...onGemini,
       data: { status: 'DONE', description: DESCRIPTION, model: 'gemini-test', costCents: 1, errorMessage: null, generatedAt: expect.any(Date) },
     });
+  });
+
+  it('réessaie une fois la création du profil quand une saisie concurrente l’a créé (P2002)', async () => {
+    const h = harness({ conflictOnce: true });
+    await h.processor.process(KEY);
+    expect(h.upsert).toHaveBeenCalledTimes(2);
+    expect(h.updateMany).toHaveBeenCalledWith(expect.objectContaining({ ...onGemini, data: expect.objectContaining({ status: 'DONE' }) }));
   });
 
   it('note un domaine peu documenté (UNKNOWN), sans texte', async () => {

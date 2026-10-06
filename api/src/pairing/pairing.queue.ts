@@ -52,6 +52,27 @@ export function schedulePairing(queue: PairingQueueLike, wineId: string): Promis
   return scheduleUnique(queue, 'pairing', { wineId }, pairingJobId(wineId));
 }
 
+/**
+ * Si Redis est indisponible, la planification peut ne jamais se résoudre : on ne
+ * retient pas la réponse HTTP pour autant. La ligne est déjà PENDING et la reprise
+ * au démarrage du worker la remettra en file si la planification n'aboutit pas.
+ * Une planification qui échoue franchement reste une erreur.
+ */
+export async function raceScheduleWithTimeout(scheduling: Promise<void>, ms: number, onTimeout: () => void): Promise<void> {
+  let timeoutId: NodeJS.Timeout | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timeoutId = setTimeout(() => {
+      onTimeout();
+      resolve();
+    }, ms);
+  });
+  try {
+    await Promise.race([scheduling, timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /** Voir `closeQueue` (extraction.queue.ts) : la connexion fournie doit être quittée à la main. */
 export async function closePairingQueue(queue: Queue<WinePairingJobData>): Promise<void> {
   const { connection } = queue.opts;

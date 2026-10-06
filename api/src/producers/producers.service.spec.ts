@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ProducersController } from './producers.controller';
 import { ProducerScheduler, ProducersService } from './producers.service';
 
@@ -6,12 +7,19 @@ const KEY = 'domaine tempier';
 const wines = [{ producer: 'Domaine Tempier', appellationRaw: 'Bandol', appellation: null }];
 const include = { updatedBy: { select: { displayName: true, email: true } } };
 
-function harness(opts: { wines?: unknown[]; schedule?: () => Promise<void>; saved?: unknown } = {}) {
-  const upsert = jest.fn(async () => opts.saved ?? {
-    producerKey: KEY, displayName: 'Domaine Tempier', status: 'DONE', description: 'Texte', source: 'MANUEL',
-    errorMessage: null, generatedAt: null, updatedBy: { displayName: null, email: 'franck@example.com' },
+const conflict = () => new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' });
+
+function harness(opts: { wines?: unknown[]; schedule?: () => Promise<void>; saved?: unknown; existing?: unknown; conflictOnce?: boolean } = {}) {
+  let conflicts = opts.conflictOnce ? 1 : 0;
+  const upsert = jest.fn(async () => {
+    if (conflicts-- > 0) throw conflict();
+    return opts.saved ?? {
+      producerKey: KEY, displayName: 'Domaine Tempier', status: 'DONE', description: 'Texte', source: 'MANUEL',
+      errorMessage: null, generatedAt: null, updatedBy: { displayName: null, email: 'franck@example.com' },
+    };
   });
-  const prisma = { wine: { findMany: jest.fn(async () => opts.wines ?? wines) }, producerProfile: { upsert } };
+  const findUnique = jest.fn(async () => opts.existing ?? null);
+  const prisma = { wine: { findMany: jest.fn(async () => opts.wines ?? wines) }, producerProfile: { upsert, findUnique } };
   const scheduler = { schedule: jest.fn(opts.schedule ?? (async () => {})) };
   return { upsert, scheduler, service: new ProducersService(prisma as any, scheduler as any) };
 }
@@ -34,6 +42,12 @@ describe('ProducersService.setDescription', () => {
     expect(h.scheduler.schedule).not.toHaveBeenCalled();
   });
 
+  it('réessaie une fois quand une création concurrente (worker) gagne la course (P2002)', async () => {
+    const h = harness({ conflictOnce: true });
+    await expect(h.service.setDescription(KEY, 'Texte', 'u1')).resolves.toMatchObject({ source: 'MANUEL' });
+    expect(h.upsert).toHaveBeenCalledTimes(2);
+  });
+
   it('refuse un domaine qu’aucun vin ne porte', async () => {
     const h = harness({ wines: [] });
     await expect(h.service.setDescription(KEY, 'Texte', 'u1')).rejects.toThrow(new NotFoundException('Domaine introuvable'));
@@ -42,14 +56,32 @@ describe('ProducersService.setDescription', () => {
 });
 
 describe('ProducersService.regenerate', () => {
-  it('repasse en attente, côté Gemini (y compris depuis un texte manuel), et planifie la génération', async () => {
-    const h = harness();
+  it('depuis un texte manuel : repasse côté Gemini, en attente, sans le texte ni son auteur', async () => {
+    const h = harness({ existing: { source: 'MANUEL' } });
     await h.service.regenerate(KEY);
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
       create: { producerKey: KEY, displayName: 'Domaine Tempier' },
-      update: { status: 'PENDING', source: 'GEMINI', description: null, errorMessage: null, updatedById: null },
+      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, description: null, updatedById: null },
     });
+    expect(h.scheduler.schedule).toHaveBeenCalledWith(KEY);
+  });
+
+  it('depuis un texte Gemini : garde le texte visible pendant la nouvelle génération (comme les accords)', async () => {
+    const h = harness({ existing: { source: 'GEMINI' } });
+    await h.service.regenerate(KEY);
+    expect(h.upsert).toHaveBeenCalledWith({
+      where: { producerKey: KEY },
+      create: { producerKey: KEY, displayName: 'Domaine Tempier' },
+      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null },
+    });
+    expect(h.scheduler.schedule).toHaveBeenCalledWith(KEY);
+  });
+
+  it('sans profil : le crée en attente, et réessaie une fois sur une création concurrente (P2002)', async () => {
+    const h = harness({ conflictOnce: true });
+    await h.service.regenerate(KEY);
+    expect(h.upsert).toHaveBeenCalledTimes(2);
     expect(h.scheduler.schedule).toHaveBeenCalledWith(KEY);
   });
 

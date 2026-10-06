@@ -309,6 +309,10 @@ describeIfInfra('api HTTP', () => {
       data: { matchKey: `e2e-producer-${Date.now()}`, producer, appellationRaw: 'Bandol', color: 'ROUGE' },
     });
     try {
+      const before = (await agent.get(`/api/wines/${wine.id}`)).body.wine;
+      expect(before.producerKey).toBe(key);
+      expect(before.producerProfile).toBeNull();
+
       const anonymous = supertest(app.getHttpServer());
       expect((await anonymous.put(url('description')).send({ description: 'Texte' })).status).toBe(401);
       expect((await anonymous.post(url('regenerate'))).status).toBe(401);
