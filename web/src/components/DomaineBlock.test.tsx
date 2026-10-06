@@ -123,7 +123,8 @@ it('désactive Enregistrer quand le texte est vide ou trop long', async () => {
   const textarea = screen.getByLabelText('Descriptif du domaine');
   await userEvent.clear(textarea);
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
-  await userEvent.type(textarea, 'x'.repeat(2001));
+  // Valeur posée d'un coup : taper 2001 caractères un à un dépasse le délai du test sur la CI.
+  fireEvent.change(textarea, { target: { value: 'x'.repeat(2001) } });
   expect(screen.getByText('2001 / 2000')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
 });
