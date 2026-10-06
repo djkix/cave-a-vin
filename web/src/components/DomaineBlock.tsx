@@ -58,7 +58,8 @@ export function DomaineBlock({
   const saveDisabled = busy || trimmedLength === 0 || text.length > MAX_LENGTH;
 
   const pending = !producerProfile || producerProfile.status === 'PENDING';
-  const hasOldText = producerProfile?.status === 'PENDING' && producerProfile.description;
+  const hasOldText = Boolean(producerProfile?.status === 'PENDING' && producerProfile.description);
+  const profile = producerProfile!;
 
   return (
     <section className="card">
@@ -68,28 +69,28 @@ export function DomaineBlock({
 
       {hasOldText && (
         <>
-          <p style={{ margin: 'var(--space-xs) 0' }}>{producerProfile!.description}</p>
+          <p style={{ margin: 'var(--space-xs) 0' }}>{profile.description}</p>
           <p className="list__meta" style={{ margin: 0 }}>Nouveau descriptif en préparation…</p>
         </>
       )}
 
-      {!pending && producerProfile!.status === 'DONE' && (
+      {!pending && profile.status === 'DONE' && (
         <>
-          <p style={{ margin: 'var(--space-xs) 0' }}>{producerProfile!.description}</p>
+          <p style={{ margin: 'var(--space-xs) 0' }}>{profile.description}</p>
           <p className="list__meta" style={{ margin: 0 }}>
-            {producerProfile!.source === 'MANUEL' ? `Texte saisi par ${producerProfile!.updatedBy}` : 'Généré par Gemini, peut contenir des erreurs'}
+            {profile.source === 'MANUEL' ? `Texte saisi par ${profile.updatedBy}` : 'Généré par Gemini, peut contenir des erreurs'}
           </p>
         </>
       )}
 
-      {!pending && producerProfile!.status === 'UNKNOWN' && (
+      {!pending && profile.status === 'UNKNOWN' && (
         <p className="list__meta">Domaine peu documenté : Gemini n’a pas d’information fiable.</p>
       )}
 
-      {!pending && producerProfile!.status === 'FAILED' && (
+      {!pending && profile.status === 'FAILED' && (
         <>
           <p style={{ margin: 'var(--space-xs) 0' }}>Descriptif indisponible</p>
-          {producerProfile!.errorMessage && <p className="list__meta" style={{ margin: 0 }}>{producerProfile!.errorMessage}</p>}
+          {profile.errorMessage && <p className="list__meta" style={{ margin: 0 }}>{profile.errorMessage}</p>}
         </>
       )}
 
@@ -108,22 +109,25 @@ export function DomaineBlock({
       ) : (
         !pending && (
           <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)', flexWrap: 'wrap' }}>
-            {producerProfile!.status === 'DONE' && (
+            {profile.status === 'DONE' && (
               <>
                 <Button variant="outline" onClick={open}>Modifier</Button>
                 <Button variant="link" disabled={busy} onClick={() => run(() => regenerateProducer(producerKey))}>
-                  {producerProfile!.source === 'MANUEL' ? 'Revenir au texte généré' : 'Régénérer'}
+                  {profile.source === 'MANUEL' ? 'Revenir au texte généré' : 'Régénérer'}
                 </Button>
               </>
             )}
-            {producerProfile!.status === 'FAILED' && (
+            {profile.status === 'FAILED' && (
               <>
                 <Button variant="link" disabled={busy} onClick={() => run(() => regenerateProducer(producerKey))}>Régénérer</Button>
                 <Button variant="outline" onClick={open}>Écrire le descriptif</Button>
               </>
             )}
-            {producerProfile!.status === 'UNKNOWN' && (
-              <Button variant="outline" onClick={open}>Écrire le descriptif</Button>
+            {profile.status === 'UNKNOWN' && (
+              <>
+                <Button variant="link" disabled={busy} onClick={() => run(() => regenerateProducer(producerKey))}>Régénérer</Button>
+                <Button variant="outline" onClick={open}>Écrire le descriptif</Button>
+              </>
             )}
           </div>
         )

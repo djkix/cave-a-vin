@@ -61,10 +61,13 @@ it('montre le texte saisi à la main avec son auteur, Modifier et « Revenir au 
   await waitFor(() => expect(regen).toHaveBeenCalledWith('domaine tempier'));
 });
 
-it('propose d’écrire le descriptif quand le domaine est peu documenté', () => {
+it('propose d’écrire le descriptif quand le domaine est peu documenté, et de régénérer', async () => {
+  const regen = vi.spyOn(api, 'regenerateProducer').mockResolvedValue(undefined);
   mount('domaine tempier', gemini({ status: 'UNKNOWN', description: null, source: 'GEMINI' }));
   expect(screen.getByText('Domaine peu documenté : Gemini n’a pas d’information fiable.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Écrire le descriptif' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Régénérer' }));
+  await waitFor(() => expect(regen).toHaveBeenCalledWith('domaine tempier'));
 });
 
 it('dit pourquoi le descriptif manque et permet de régénérer ou d’écrire', () => {
