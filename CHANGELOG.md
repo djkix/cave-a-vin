@@ -9,6 +9,40 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.7.0](https://github.com/djkix/cave-a-vin/compare/v1.6.0...v1.7.0) (2026-10-05)
+
+
+### Fonctionnalités
+
+* **accords:** accords mets-vins sur la fiche et recherche « Accompagner un plat » ([f35f99d](https://github.com/djkix/cave-a-vin/commit/f35f99d1f7029aed8528057a13743cb1437246e1))
+* **accords:** chercher dans la cave un vin pour accompagner un plat ([b2ab176](https://github.com/djkix/cave-a-vin/commit/b2ab1767d076ca2f41acd808a2e09032d0548507))
+* **accords:** génération en tâche de fond, rattrapage au démarrage et régénération ([8c360f9](https://github.com/djkix/cave-a-vin/commit/8c360f9c6425348287a551fda262208e07bfcc90))
+* **accords:** suggestions de plats par Gemini, comptées dans le plafond mensuel ([e2d2b00](https://github.com/djkix/cave-a-vin/commit/e2d2b00818ba9897046054d862c773ef75621f31))
+* **cave:** note de dégustation sur 20, posée et retirée par tout compte actif ([b8ca959](https://github.com/djkix/cave-a-vin/commit/b8ca9597f6a7d82289a2864288ec23bc032013ee))
+* **cave:** noter un vin sur 20 depuis sa fiche, note visible dans la cave et les statistiques ([489fa31](https://github.com/djkix/cave-a-vin/commit/489fa3139d93aba227b07d05efd499f131585612))
+* **cave:** schéma de la note de dégustation et des accords mets-vins ([1c75955](https://github.com/djkix/cave-a-vin/commit/1c75955faf9cf86d29a98e031303b17216a20265))
+* **entree:** analyse des photos d'entrée par lots de huit ([9cf48b0](https://github.com/djkix/cave-a-vin/commit/9cf48b0be270467eb350cbdecb59a8ace273e80d))
+* **entree:** envoi des photos en arrière-plan depuis le téléphone ([abeed34](https://github.com/djkix/cave-a-vin/commit/abeed34b4eb56e868c3c670d58614335d27b0d70))
+* **entree:** les photos d'entrée attendent l'analyse par lot ([f10cde2](https://github.com/djkix/cave-a-vin/commit/f10cde2333e56f620cbb7ae4cf5adc9baf6e5916))
+* **entree:** liste des vins à confirmer et photos écartées ([8580178](https://github.com/djkix/cave-a-vin/commit/8580178ec763f889106962b5993ea0826bda29d6))
+* **entree:** rafale de photos et liste des vins à confirmer ([30ce294](https://github.com/djkix/cave-a-vin/commit/30ce29480c87131da430666751198a39a452086d))
+* **stats:** classement des mieux notés, note et accords dans l'export ([199dca3](https://github.com/djkix/cave-a-vin/commit/199dca3175363cdfc39c8d9b475ebb7f47b370db))
+* **vision:** lecture de plusieurs étiquettes en un seul appel ([46c5583](https://github.com/djkix/cave-a-vin/commit/46c5583f4fab8ec8d2dd7f7e7fdd94e61c2e168e))
+
+
+### Corrections
+
+* **accords:** « Régénérer », raison de l'attente et relance possible ([496961c](https://github.com/djkix/cave-a-vin/commit/496961cb04f9ebffac425dc03ec73a23faaf1dcd))
+* **accords:** l'entrée n'attend plus la file d'accords, régénérations simultanées tolérées, erreur de configuration distinguée ([f2a78ca](https://github.com/djkix/cave-a-vin/commit/f2a78ca2c095ae6e832de985474f36feb82a2ae1))
+* **accords:** les accords ne consomment plus le budget des photos ([b2e5159](https://github.com/djkix/cave-a-vin/commit/b2e5159ea5bb9b6c55eac755765e10c14d6d8b88))
+* **entree:** applique l'orientation EXIF avant de réduire la photo ([db586c8](https://github.com/djkix/cave-a-vin/commit/db586c839bd14b5462b50006d9d9ce26a6466c9f))
+* **entree:** consigne de lot cohérente et lot d'une photo en appel simple ([ef75271](https://github.com/djkix/cave-a-vin/commit/ef752719cab8bc8ea92b35b9c1196a99927fec5d))
+* **entree:** écarter demande confirmation, envoi actif partout ([18253fd](https://github.com/djkix/cave-a-vin/commit/18253fda473416b3122dd67a6e27f821d5ae384b))
+* **entree:** messages en français et clé Gemini invalide reportée ([8bba2f6](https://github.com/djkix/cave-a-vin/commit/8bba2f685b23a2821df982c28ea7fb15b90fcfc8))
+* **entree:** pending-review exclut les photos écartées ([002bf7f](https://github.com/djkix/cave-a-vin/commit/002bf7f04a1ed1595fe15f7dc9a34fd710a08f5a))
+* **entree:** reprise des photos bloquées et lot plus robuste ([ac86780](https://github.com/djkix/cave-a-vin/commit/ac867803aca582718193614bcf92772006eae751))
+* **stats:** ne souligne plus le nombre des barres d'apogée cliquables ([c3c6c34](https://github.com/djkix/cave-a-vin/commit/c3c6c348ab81869aa81c457f0f7b15377e78256a))
+
 ## [1.6.0](https://github.com/djkix/cave-a-vin/compare/v1.5.0...v1.6.0) (2026-10-05)
 
 ### Résumé
