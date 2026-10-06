@@ -629,6 +629,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.8.0 — 6 octobre 2026
+
+Publiée ([v1.8.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.8.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.8.0` et `-web:1.8.0`.
+
+**Descriptif du domaine.** Un bloc « Le domaine » sur chaque fiche vin : 3 à
+4 phrases par producteur rédigées par Gemini en tâche de fond (« Domaine peu
+documenté » quand il ne sait pas), modifiables à la main. Migration
+`20261010000000_descriptif_domaine` ; au premier démarrage du worker, tous les
+domaines existants sont mis en file.
+
 ### 1.7.0 — 6 octobre 2026
 
 Publiée ([v1.7.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.7.0)),
