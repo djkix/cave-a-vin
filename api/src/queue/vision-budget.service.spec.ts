@@ -1,9 +1,10 @@
 import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from './vision-budget.service';
 
 describe('VisionBudgetService', () => {
-  const prismaWith = (sum: number | null, pairingSum: number | null = null) => ({
+  const prismaWith = (sum: number | null, pairingSum: number | null = null, producerSum: number | null = null) => ({
     photo: { aggregate: async () => ({ _sum: { costCents: sum } }) },
     pairing: { aggregate: jest.fn(async () => ({ _sum: { costCents: pairingSum } })) },
+    producerProfile: { aggregate: jest.fn(async () => ({ _sum: { costCents: producerSum } })) },
   });
 
   it('passes when under the cap', async () => {
@@ -18,6 +19,12 @@ describe('VisionBudgetService', () => {
     const prisma = prismaWith(30, 12);
     await expect(new VisionBudgetService(prisma as any, 500).spentThisMonthCents()).resolves.toBe(42);
     expect(prisma.pairing.aggregate).toHaveBeenCalledWith({ _sum: { costCents: true }, where: { generatedAt: { gte: expect.any(Date) } } });
+  });
+
+  it('compte aussi les descriptifs de domaine générés dans le mois', async () => {
+    const prisma = prismaWith(30, 12, 5);
+    await expect(new VisionBudgetService(prisma as any, 500).spentThisMonthCents()).resolves.toBe(47);
+    expect(prisma.producerProfile.aggregate).toHaveBeenCalledWith({ _sum: { costCents: true }, where: { generatedAt: { gte: expect.any(Date) } } });
   });
 
   describe('assertUnderShare', () => {

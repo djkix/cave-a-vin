@@ -546,3 +546,33 @@ describe('MovementsService — accords à la création d’un vin', () => {
     expect(schedule).toHaveBeenCalledWith('w1');
   });
 });
+
+describe('MovementsService — descriptif du domaine à la création d’un vin', () => {
+  const created = (h: ReturnType<typeof harness>, wineCreated = true) => ({
+    matchOrCreate: async () => ({ wine: h.wine, created: wineCreated, appellation: { kind: 'none', raw: 'Bandol' } }),
+  });
+
+  it('demande le descriptif du domaine d’un vin créé par l’entrée', async () => {
+    const h = harness();
+    const scheduleIfMissing = jest.fn(async () => undefined);
+    await new MovementsService(h.prisma, created(h) as any, undefined, { scheduleIfMissing } as any).createIn(input);
+    expect(scheduleIfMissing).toHaveBeenCalledWith('Domaine Test');
+  });
+
+  it('ne fait rien pour un vin déjà connu', async () => {
+    const h = harness();
+    const scheduleIfMissing = jest.fn(async () => undefined);
+    await new MovementsService(h.prisma, created(h, false) as any, undefined, { scheduleIfMissing } as any).createIn(input);
+    expect(scheduleIfMissing).not.toHaveBeenCalled();
+  });
+
+  it('n’échoue jamais et n’attend jamais la file des descriptifs', async () => {
+    const h = harness();
+    const failing = jest.fn(async () => { throw new Error('Redis injoignable'); });
+    expect((await new MovementsService(h.prisma, created(h) as any, undefined, { scheduleIfMissing: failing } as any).createIn(input)).created).toBe(true);
+    const h2 = harness();
+    const hanging = jest.fn(() => new Promise<void>(() => undefined));
+    expect((await new MovementsService(h2.prisma, created(h2) as any, undefined, { scheduleIfMissing: hanging } as any).createIn(input)).created).toBe(true);
+    expect(hanging).toHaveBeenCalledWith('Domaine Test');
+  });
+});

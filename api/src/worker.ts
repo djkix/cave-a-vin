@@ -4,8 +4,11 @@ import { Worker } from 'bullmq';
 import { AppModule } from './app.module';
 import { PairingProcessor } from './pairing/pairing.processor';
 import { requeueMissingPairings } from './pairing/pairing-recovery';
-import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, PairingJobData } from './pairing/pairing.queue';
+import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, WinePairingJobData } from './pairing/pairing.queue';
+import { processWinePairingJob } from './pairing/wine-pairing-dispatch';
 import { PrismaService } from './prisma/prisma.service';
+import { ProducerProcessor } from './producers/producer.processor';
+import { requeueMissingProducers } from './producers/producer-recovery';
 import { ENTRY_BATCH_TICK_MS, createEntryBatchLoop } from './queue/entry-batch';
 import { EntryBatchProcessor } from './queue/entry-batch.processor';
 import { ExtractionProcessor } from './queue/extraction.processor';
@@ -31,17 +34,18 @@ async function main() {
   worker.on('error', (err) => console.error(`worker : ${err.message}`));
   console.log('worker prêt (photo-extraction, concurrence 5)');
 
-  const pairingProcessor = app.get(PairingProcessor);
-  const pairingWorker = new Worker<PairingJobData>(
+  // Une seule file pour les accords ('pairing') et les descriptifs de domaine ('producer').
+  const pairingProcessors = { pairing: app.get(PairingProcessor), producer: app.get(ProducerProcessor) };
+  const pairingWorker = new Worker<WinePairingJobData>(
     PAIRING_QUEUE,
-    (job) => pairingProcessor.process(job.data.wineId, job.attemptsMade + 1 >= (job.opts.attempts ?? 1)),
+    (job) => processWinePairingJob(job, pairingProcessors),
     {
       connection: redisConnection(),
       concurrency: 1,
       settings: { backoffStrategy: (attemptsMade: number) => extractionBackoffDelay(attemptsMade) },
     },
   );
-  pairingWorker.on('failed', (job, err) => console.warn(`accords ${job?.id} : ${err.message}`));
+  pairingWorker.on('failed', (job, err) => console.warn(`${job?.name === 'producer' ? 'descriptif' : 'accords'} ${job?.id} : ${err.message}`));
   pairingWorker.on('error', (err) => console.error(`worker accords : ${err.message}`));
   console.log('worker prêt (wine-pairing, concurrence 1)');
 
@@ -57,6 +61,11 @@ async function main() {
     await requeueMissingPairings(app.get(PrismaService), app.get(PAIRING_QUEUE_TOKEN), (m) => console.log(m));
   } catch (e) {
     console.error(`rattrapage des accords impossible : ${(e as Error).message}`);
+  }
+  try {
+    await requeueMissingProducers(app.get(PrismaService), app.get(PAIRING_QUEUE_TOKEN), (m) => console.log(m));
+  } catch (e) {
+    console.error(`rattrapage des descriptifs de domaine impossible : ${(e as Error).message}`);
   }
   // Photos d'entrée : pas de travail BullMQ, la table photo sert de file. Un
   // passage au démarrage reprend aussi les réservations échues d'un arrêt brutal.

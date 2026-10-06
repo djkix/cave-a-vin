@@ -2,6 +2,8 @@ import { GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
 import { EXTRACTION_JSON_SCHEMA_DESCRIPTION, parseExtraction } from './extraction-schema';
 import { parsePairingOutput, PairingInvalidOutputError } from './pairing-output';
 import { PairingProvider, PairingResult, PairingWine } from './pairing-provider.interface';
+import { parseProducerOutput, ProducerInvalidOutputError } from './producer-output';
+import { ProducerProvider, ProducerQuery, ProducerResult } from './producer-provider.interface';
 import { BatchVisionResult, VisionProvider, VisionResult, WineExtraction } from './vision-provider.interface';
 
 export class VisionInvalidOutputError extends Error {}
@@ -79,7 +81,14 @@ Chaque plat : un nom court en français (60 caractères au plus), sans phrase ni
 Vin : producteur « ${w.producer} » ; cuvée « ${w.cuvee ?? 'aucune'} » ; appellation « ${w.appellation} » ; région « ${w.region ?? 'inconnue'} » ; couleur ${COLOR_WORD[w.color] ?? w.color} ; ${w.vintage == null ? 'non millésimé' : `millésime ${w.vintage}`}.`;
 }
 
-export class GeminiVisionProvider implements VisionProvider, PairingProvider {
+function producerPrompt(q: ProducerQuery): string {
+  return `Tu es sommelier. Présente ce domaine viticole en 3 à 4 phrases en français : le lieu (région, village), quelques repères d'histoire, le style de ses vins (cépages).
+Réponds UNIQUEMENT par un objet JSON strict de la forme {"connu": true, "description": string}.
+Si tu ne connais pas ce domaine de façon fiable, n'invente rien et réponds exactement {"connu": false}.
+Domaine : « ${q.producer} » ; appellation(s) de ses vins : ${q.appellations.length ? q.appellations.map((a) => `« ${a} »`).join(', ') : 'inconnue'} ; région « ${q.region ?? 'inconnue'} ».`;
+}
+
+export class GeminiVisionProvider implements VisionProvider, PairingProvider, ProducerProvider {
   constructor(
     private readonly model: Pick<GenerativeModel, 'generateContent'>,
     private readonly modelName: string,
@@ -182,5 +191,25 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider {
       throw new PairingInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
     }
     return { dishes: parsePairingOutput(raw), model: this.modelName, costCents: pairingCostCentsOf(result.response.usageMetadata) };
+  }
+
+  async describeProducer(query: ProducerQuery): Promise<ProducerResult> {
+    const result = await this.model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: producerPrompt(query) }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
+    });
+    let raw: unknown;
+    try {
+      raw = JSON.parse(stripFences(result.response.text()));
+    } catch {
+      throw new ProducerInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
+    }
+    const output = parseProducerOutput(raw);
+    return {
+      known: output.known,
+      description: output.known ? output.description : null,
+      model: this.modelName,
+      costCents: pairingCostCentsOf(result.response.usageMetadata),
+    };
   }
 }

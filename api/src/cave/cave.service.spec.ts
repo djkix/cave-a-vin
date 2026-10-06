@@ -15,14 +15,15 @@ const raw = (vintage: number | null) => ({
   pays_region: { value: null, confidence: 0 }, nb_cols_carton: { value: null, confidence: 0 }, confiance_globale: 0.9,
 });
 
-function service(photo: any, rows: any[] = [tempier19], rules = compileApogeeRules({ guardOverrides: [], vintageQualities: [] })) {
+function service(photo: any, rows: any[] = [tempier19], rules = compileApogeeRules({ guardOverrides: [], vintageQualities: [] }), profile: unknown = null) {
   const prisma = {
+    producerProfile: { findUnique: jest.fn(async () => profile) },
     $queryRaw: jest.fn(async () => rows),
     photo: { findUnique: jest.fn(async () => photo) },
     movement: { findMany: jest.fn(async () => []) },
     wine: { update: jest.fn(async ({ where }: any) => (rows.some((r) => r.id === where.id) ? {} : Promise.reject(new Prisma.PrismaClientKnownRequestError('absent', { code: 'P2025', clientVersion: 'test' })))) },
   };
-  return new CaveService(prisma as any, { load: async () => rules } as any);
+  return Object.assign(new CaveService(prisma as any, { load: async () => rules } as any), { mockPrisma: prisma });
 }
 
 describe('CaveService.exitCandidates', () => {
@@ -97,7 +98,10 @@ describe('CaveService — apogée', () => {
       compileApogeeRules({ guardOverrides: [], vintageQualities: [] }),
       compileApogeeRules({ guardOverrides: [], vintageQualities: [{ region: 'Rhône', year: 2016, quality: 'GRAND' }] }),
     ];
-    const prisma = { $queryRaw: jest.fn(async () => [cdp]), movement: { findMany: jest.fn(async () => []) } };
+    const prisma = {
+      $queryRaw: jest.fn(async () => [cdp]), movement: { findMany: jest.fn(async () => []) },
+      producerProfile: { findUnique: jest.fn(async () => null) },
+    };
     const s = new CaveService(prisma as any, { load: async () => loads.shift()! } as any);
     expect((await s.detail('w16')).wine.apogee).toMatchObject({ min: 2024, max: 2036 });
     expect((await s.detail('w16')).wine.apogee).toMatchObject({ min: 2026, max: 2040, confidence: 'MOYENNE' });
@@ -114,6 +118,35 @@ describe('CaveService — apogée', () => {
       status: 'DONE', dishes: ['Agneau'], errorMessage: null, generatedAt: new Date('2026-10-05T10:00:00Z'),
     });
     expect((await service(null, [cdp]).detail('w16')).wine.pairing).toBeNull();
+  });
+
+  it('rend le descriptif du domaine sur la fiche, retrouvé par la clé normalisée du producteur', async () => {
+    const generatedAt = new Date('2026-10-05T10:00:00Z');
+    const profile = {
+      id: 'p1', producerKey: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte',
+      source: 'MANUEL', model: null, costCents: null, errorMessage: null, generatedAt, updatedById: 'u1',
+      updatedBy: { displayName: 'Franck', email: 'franck@example.com' }, updatedAt: generatedAt,
+    };
+    const s = service(null, [cdp], undefined, profile);
+    expect((await s.detail('w16')).wine.producerProfile).toEqual({
+      key: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte',
+      source: 'MANUEL', errorMessage: null, generatedAt, updatedBy: 'Franck',
+    });
+    expect(s.mockPrisma.producerProfile.findUnique).toHaveBeenCalledWith({
+      where: { producerKey: 'chateau de beaucastel' },
+      include: { updatedBy: { select: { displayName: true, email: true } } },
+    });
+  });
+
+  it('nomme l’auteur par son e-mail à défaut de nom, et rend null sans descriptif', async () => {
+    const profile = {
+      producerKey: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte', source: 'MANUEL',
+      errorMessage: null, generatedAt: null, updatedBy: { displayName: null, email: 'franck@example.com' },
+    };
+    expect((await service(null, [cdp], undefined, profile).detail('w16')).wine.producerProfile).toMatchObject({ updatedBy: 'franck@example.com' });
+    const generated = { ...profile, source: 'GEMINI', updatedBy: null };
+    expect((await service(null, [cdp], undefined, generated).detail('w16')).wine.producerProfile).toMatchObject({ updatedBy: null });
+    expect((await service(null, [cdp]).detail('w16')).wine.producerProfile).toBeNull();
   });
 
   describe('filtres d’apogée', () => {

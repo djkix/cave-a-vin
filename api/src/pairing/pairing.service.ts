@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import { PAIRING_QUEUE_TOKEN, PairingJobData, schedulePairing } from './pairing.queue';
+import { PAIRING_QUEUE_TOKEN, WinePairingJobData, schedulePairing } from './pairing.queue';
 
 /** Au-delà, on répond quand même (202) : la ligne est déjà PENDING et la reprise au
  * démarrage du worker régénérera l'accord si la planification n'a jamais abouti. */
@@ -9,7 +9,7 @@ const SCHEDULE_TIMEOUT_MS = 3000;
 
 @Injectable()
 export class PairingScheduler {
-  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<PairingJobData>) {}
+  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<WinePairingJobData>) {}
 
   schedule(wineId: string): Promise<void> {
     return schedulePairing(this.queue, wineId);

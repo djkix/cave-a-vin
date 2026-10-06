@@ -5,7 +5,7 @@ import { QueueModule } from '../queue/queue.module';
 import { VisionModule } from '../vision/vision.module';
 import { PairingController } from './pairing.controller';
 import { PairingProcessor } from './pairing.processor';
-import { closePairingQueue, createPairingQueue, PAIRING_QUEUE_TOKEN, PairingJobData } from './pairing.queue';
+import { closePairingQueue, createPairingQueue, PAIRING_QUEUE_TOKEN, WinePairingJobData } from './pairing.queue';
 import { PairingScheduler, PairingService } from './pairing.service';
 
 @Module({
@@ -15,7 +15,7 @@ import { PairingScheduler, PairingService } from './pairing.service';
   exports: [PAIRING_QUEUE_TOKEN, PairingScheduler, PairingProcessor],
 })
 export class PairingModule implements OnModuleDestroy {
-  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<PairingJobData>) {}
+  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<WinePairingJobData>) {}
 
   async onModuleDestroy() {
     await closePairingQueue(this.queue);
