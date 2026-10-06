@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import { PAIRING_QUEUE_TOKEN, PairingJobData, schedulePairing } from './pairing.queue';
+import { PAIRING_QUEUE_TOKEN, raceScheduleWithTimeout, WinePairingJobData, schedulePairing } from './pairing.queue';
 
 /** Au-delà, on répond quand même (202) : la ligne est déjà PENDING et la reprise au
  * démarrage du worker régénérera l'accord si la planification n'a jamais abouti. */
@@ -9,7 +9,7 @@ const SCHEDULE_TIMEOUT_MS = 3000;
 
 @Injectable()
 export class PairingScheduler {
-  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<PairingJobData>) {}
+  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<WinePairingJobData>) {}
 
   schedule(wineId: string): Promise<void> {
     return schedulePairing(this.queue, wineId);
@@ -34,17 +34,8 @@ export class PairingService {
       update: { status: 'PENDING', errorMessage: null },
     });
 
-    // Si Redis est indisponible, schedule() peut ne jamais se résoudre : on ne bloque pas la
-    // réponse HTTP pour autant, la ligne est déjà PENDING et la reprise au démarrage du worker
-    // régénérera l'accord si la planification n'a finalement pas abouti.
-    let timeoutId: NodeJS.Timeout;
-    const timeout = new Promise<void>((resolve) => {
-      timeoutId = setTimeout(() => {
-        this.logger.warn(`Planification de l'accord ${wineId} toujours en cours après ${SCHEDULE_TIMEOUT_MS} ms : réponse envoyée sans attendre, la reprise du worker prendra le relais si besoin`);
-        resolve();
-      }, SCHEDULE_TIMEOUT_MS);
-    });
-    await Promise.race([this.scheduler.schedule(wineId), timeout]);
-    clearTimeout(timeoutId!);
+    await raceScheduleWithTimeout(this.scheduler.schedule(wineId), SCHEDULE_TIMEOUT_MS, () =>
+      this.logger.warn(`Planification de l'accord ${wineId} toujours en cours après ${SCHEDULE_TIMEOUT_MS} ms : réponse envoyée sans attendre, la reprise du worker prendra le relais si besoin`),
+    );
   }
 }

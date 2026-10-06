@@ -10,6 +10,7 @@ import { HealthController } from './health/health.controller';
 import { MovementsModule } from './movements/movements.module';
 import { PairingModule } from './pairing/pairing.module';
 import { PhotosModule } from './photos/photos.module';
+import { ProducersModule } from './producers/producers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { ReadingQualityModule } from './reading-quality/reading-quality.module';
@@ -33,6 +34,7 @@ import { WinesModule } from './wines/wines.module';
     QueueModule,
     MovementsModule,
     PairingModule,
+    ProducersModule,
     ExportModule,
     CaveModule,
   ],

@@ -11,6 +11,11 @@ const detail: api.WineDetail = {
   wine: {
     id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: 'p1', quantity: 6,
     pairing: { status: 'DONE', dishes: [], errorMessage: null, generatedAt: null },
+    producerKey: 'domaine tempier',
+    producerProfile: {
+      key: 'domaine tempier', displayName: 'Domaine Tempier', status: 'DONE', description: 'Un domaine du Var…',
+      source: 'GEMINI', errorMessage: null, generatedAt: '2026-10-05T10:00:00Z', updatedBy: null,
+    },
   },
   movements: [{ id: 'm1', delta: 6, type: 'IN', occurredAt: '2026-09-21T10:00:00Z', note: null, reversesId: null }],
 };
@@ -128,6 +133,21 @@ it('ne propose pas de sortie pour un vin déjà épuisé', async () => {
   mount();
   await screen.findByRole('heading', { name: /Domaine Tempier/ });
   expect(screen.queryByRole('button', { name: /Sortir/ })).not.toBeInTheDocument();
+});
+
+it('montre le bloc « Le domaine » au-dessus des accords mets-vins', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+  mount();
+  const domaine = await screen.findByText('Un domaine du Var…');
+  const accords = screen.getByText('Suggestions générées par Gemini');
+  expect(domaine.compareDocumentPosition(accords) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('masque le bloc « Le domaine » quand le vin n’a pas de domaine identifiable', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue({ ...detail, wine: { ...detail.wine, producerKey: null, producerProfile: null } });
+  mount();
+  await screen.findByRole('heading', { name: /Domaine Tempier/ });
+  expect(screen.queryByText('Le domaine')).not.toBeInTheDocument();
 });
 
 it('referme la correction d’apogée en cours quand on change de vin', async () => {

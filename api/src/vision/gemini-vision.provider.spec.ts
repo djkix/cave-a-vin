@@ -1,5 +1,6 @@
 import { GeminiVisionProvider, VisionBatchMismatchError } from './gemini-vision.provider';
 import { PairingInvalidOutputError } from './pairing-output';
+import { ProducerInvalidOutputError } from './producer-output';
 
 const validObj = (overrides: Record<string, unknown> = {}) => ({
   producteur: { value: 'Domaine Tempier', confidence: 0.98 }, cuvee: { value: null, confidence: 0 },
@@ -237,5 +238,57 @@ describe('GeminiVisionProvider.extractWineLabels', () => {
     const provider = new GeminiVisionProvider(model as any, 'gemini-test');
     const res = await provider.extractWineLabels(images);
     expect(res.costCents).toBe(Math.ceil((3000 / 1000) * 0.01 + (600 / 1000) * 0.04));
+  });
+});
+
+describe('GeminiVisionProvider.describeProducer', () => {
+  const query = { producer: 'Domaine Tempier', appellations: ['Bandol'], region: 'Provence' };
+  const description = 'Domaine familial du Castellet, au cœur de l’appellation Bandol, réputé pour ses mourvèdres de garde.';
+  const fake = (body: string, usage = { promptTokenCount: 200, candidatesTokenCount: 120 }) => ({
+    generateContent: jest.fn(async () => ({ response: { text: () => body, usageMetadata: usage } })),
+  });
+  const promptOf = (model: ReturnType<typeof fake>) => (model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text as string;
+
+  it('demande un descriptif en français et rend le texte vérifié avec un coût arrondi', async () => {
+    const model = fake(JSON.stringify({ connu: true, description }));
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').describeProducer(query);
+    expect(r).toEqual({ known: true, description, model: 'gemini-test', costCents: 0 });
+    const prompt = promptOf(model);
+    expect(prompt).toContain('Domaine Tempier');
+    expect(prompt).toContain('Bandol');
+    expect(prompt).toContain('Provence');
+    expect(prompt).toContain('{"connu": false}');
+    expect(prompt).toMatch(/3 à 4 phrases/);
+    expect((model.generateContent.mock.calls[0] as any)[0].generationConfig.responseMimeType).toBe('application/json');
+  });
+
+  it('rend « inconnu » sans texte pour un domaine peu documenté', async () => {
+    const r = await new GeminiVisionProvider(fake('{"connu": false}') as any, 'gemini-test').describeProducer(query);
+    expect(r).toEqual({ known: false, description: null, model: 'gemini-test', costCents: 0 });
+  });
+
+  it('arrondit (ne majore jamais) le coût, comme pour les accords', async () => {
+    const model = fake(JSON.stringify({ connu: true, description }), { promptTokenCount: 200000, candidatesTokenCount: 50000 });
+    expect((await new GeminiVisionProvider(model as any, 'm').describeProducer(query)).costCents).toBe(4);
+  });
+
+  it('accepte un JSON entouré d’une clôture ```json', async () => {
+    const model = fake('```json\n' + JSON.stringify({ connu: true, description }) + '\n```');
+    await expect(new GeminiVisionProvider(model as any, 'm').describeProducer(query)).resolves.toMatchObject({ known: true });
+  });
+
+  it('refuse un JSON illisible', async () => {
+    await expect(new GeminiVisionProvider(fake('pas du json') as any, 'm').describeProducer(query)).rejects.toThrow(ProducerInvalidOutputError);
+  });
+
+  it('refuse un descriptif trop court', async () => {
+    await expect(new GeminiVisionProvider(fake('{"connu": true, "description": "Bandol."}') as any, 'm').describeProducer(query))
+      .rejects.toThrow(/Sortie du modèle invalide/);
+  });
+
+  it('nomme une région et des appellations inconnues comme telles', async () => {
+    const model = fake('{"connu": false}');
+    await new GeminiVisionProvider(model as any, 'm').describeProducer({ producer: 'Clos X', appellations: [], region: null });
+    expect(promptOf(model)).toContain('inconnue');
   });
 });

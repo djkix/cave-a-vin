@@ -300,6 +300,51 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
+  it('saves a hand-written producer description, shows it on the wine, and regenerates it', async () => {
+    const { producerKeyOf } = await import('./producers/producer-key');
+    const producer = `Domaine e2e Descriptif ${Date.now()}`;
+    const key = producerKeyOf(producer);
+    const url = (suffix: string) => `/api/producers/${encodeURIComponent(key)}/${suffix}`;
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-producer-${Date.now()}`, producer, appellationRaw: 'Bandol', color: 'ROUGE' },
+    });
+    try {
+      const before = (await agent.get(`/api/wines/${wine.id}`)).body.wine;
+      expect(before.producerKey).toBe(key);
+      expect(before.producerProfile).toBeNull();
+
+      const anonymous = supertest(app.getHttpServer());
+      expect((await anonymous.put(url('description')).send({ description: 'Texte' })).status).toBe(401);
+      expect((await anonymous.post(url('regenerate'))).status).toBe(401);
+
+      const tooLong = await agent.put(url('description')).send({ description: 'x'.repeat(2001) });
+      expect(tooLong.status).toBe(400);
+      expect(tooLong.body.message).toBe('Le descriptif doit faire entre 1 et 2000 caractères');
+
+      const saved = await agent.put(url('description')).send({ description: '  Un domaine de Bandol, écrit à la main.  ' });
+      expect(saved.status).toBe(200);
+      const detail = await agent.get(`/api/wines/${wine.id}`);
+      expect(detail.body.wine.producerProfile).toMatchObject({
+        key, displayName: producer, status: 'DONE', description: 'Un domaine de Bandol, écrit à la main.', source: 'MANUEL',
+        errorMessage: null, updatedBy: expect.any(String),
+      });
+
+      const regen = await agent.post(url('regenerate'));
+      expect(regen.status).toBe(202);
+      expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.producerProfile).toMatchObject({
+        status: 'PENDING', source: 'GEMINI', description: null, updatedBy: null,
+      });
+
+      const missing = await agent.post(`/api/producers/${encodeURIComponent('domaine inexistant e2e')}/regenerate`);
+      expect(missing.status).toBe(404);
+      expect(missing.body.message).toBe('Domaine introuvable');
+      expect((await agent.put(`/api/producers/${encodeURIComponent('domaine inexistant e2e')}/description`).send({ description: 'Texte' })).status).toBe(404);
+    } finally {
+      await prisma.producerProfile.deleteMany({ where: { producerKey: key } });
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);

@@ -13,7 +13,8 @@ utilisée depuis un téléphone (PWA installable).
   confirmer », file hors ligne, journal et export Excel, onglet Cave, fiche vin
   et sortie de stock (par la liste ou par photo), estimation de l'apogée par
   règles avec correction manuelle par vin, filtre « à boire en priorité »,
-  statistiques de la cave, note de dégustation et accords mets-vins.
+  statistiques de la cave, note de dégustation, accords mets-vins et descriptif
+  du domaine.
 - **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
   (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
   liste « à boire en priorité » se consulte dans l'application. Voir
@@ -233,6 +234,27 @@ inexploitable ». Dans l'onglet Cave, le champ
 tapés (sans accents ni majuscules), les bouteilles à boire en priorité en
 premier, avec la mention « avec : … » (`GET /api/cave?dish=`). L'export ajoute
 une colonne *Accords*.
+
+**Descriptif du domaine.** Chaque domaine (producteur) reçoit un seul texte,
+partagé par tous ses vins et millésimes, généré en arrière-plan par Gemini (3
+à 4 phrases : lieu, histoire, style) — même file `wine-pairing` et même part de
+80 % du plafond mensuel que les accords mets-vins, déclenché à la création
+d'un vin dont le domaine n'a pas encore de descriptif et, pour les domaines
+déjà existants, au démarrage du worker. Quand Gemini n'a pas d'information
+fiable sur un petit domaine, la fiche affiche « Domaine peu documenté » plutôt
+qu'un texte inventé. Un descriptif généré par Gemini porte toujours la mention
+« Généré par Gemini, peut contenir des erreurs » ; un texte saisi à la main
+(2 000 caractères maximum) prend le pas sur celui de Gemini et le remplace
+tant qu'on ne choisit pas *Revenir au texte généré*, qui relance une
+génération ; *Régénérer* relance aussi une génération à tout moment. Le bloc
+*Le domaine* s'affiche sur la fiche du vin, au-dessus des accords mets-vins.
+API : `PUT /api/producers/:key/description`, `POST
+/api/producers/:key/regenerate`, et `producerKey` / `producerProfile` ajoutés
+à `GET /api/wines/:id`. Au tout premier démarrage du worker après cette mise à
+jour, tous les domaines déjà existants sont mis en file un par un (la même
+file que les accords) : les textes et les accords des vins déjà saisis
+peuvent donc mettre quelques dizaines de minutes à apparaître cette première
+fois-là.
 
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
@@ -547,6 +569,12 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   accord peut épuiser ses tentatives avant le changement de mois et rester
   « indisponible » — utiliser alors *Régénérer* le mois suivant.
 - **Une seule note par vin**, sans commentaire ni historique.
+- **Descriptif du domaine limité par ce que Gemini sait** : pour un petit
+  domaine, la connaissance de Gemini est parfois incomplète ou erronée — d'où
+  le disclaimer et la possibilité de saisir un texte manuel. Un seul texte par
+  domaine, partagé par clé d'orthographe (accents et casse ignorés) : deux
+  producteurs réellement distincts mais portant le même nom partagent le même
+  descriptif.
 - **Référentiel des appellations** : 145 AOC sont chargées au démarrage (sur
   environ 360 reconnues par l'INAO). Une appellation absente du référentiel est
   conservée telle qu'elle a été lue ou saisie ; seule une correspondance quasi

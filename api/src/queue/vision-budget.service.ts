@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export const VISION_MONTHLY_CAP_CENTS = 'VISION_MONTHLY_CAP_CENTS';
 
-/** Les accords ne tournent que sous 80 % du plafond : les photos gardent toujours de la marge. */
+/** Les accords et les descriptifs de domaine ne tournent que sous 80 % du plafond : les photos gardent toujours de la marge. */
 export const PAIRING_BUDGET_SHARE = 0.8;
 
 export class VisionBudgetExceededError extends Error {
@@ -19,16 +19,17 @@ export class VisionBudgetService {
     @Inject(VISION_MONTHLY_CAP_CENTS) private readonly capCents: number,
   ) {}
 
-  /** Photos et accords du mois : un seul plafond pour toute la dépense Gemini. */
+  /** Photos, accords et descriptifs de domaine du mois : un seul plafond pour toute la dépense Gemini. */
   async spentThisMonthCents(): Promise<number> {
     const start = new Date();
     start.setUTCDate(1);
     start.setUTCHours(0, 0, 0, 0);
-    const [photos, pairings] = await Promise.all([
+    const [photos, pairings, producers] = await Promise.all([
       this.prisma.photo.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start } } }),
       this.prisma.pairing.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start } } }),
+      this.prisma.producerProfile.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start } } }),
     ]);
-    return (photos._sum.costCents ?? 0) + (pairings._sum.costCents ?? 0);
+    return (photos._sum.costCents ?? 0) + (pairings._sum.costCents ?? 0) + (producers._sum.costCents ?? 0);
   }
 
   async assertUnderCap(): Promise<void> {

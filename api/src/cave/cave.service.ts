@@ -4,6 +4,8 @@ import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee, isDrinkSo
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { ManualApogeeInput } from '../apogee/dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { producerKeyOf } from '../producers/producer-key';
+import { PRODUCER_PROFILE_INCLUDE, producerProfileOf } from '../producers/producer-profile.view';
 import { parseExtraction } from '../vision/extraction-schema';
 import { ExitCandidate, ExitOutcome, ExitRead, rankExitCandidates } from '../wines/exit-ranking';
 import { CaveFilter, CaveRow, filterCave } from './cave-filter';
@@ -121,13 +123,27 @@ export class CaveService {
     const [rows, rules] = await Promise.all([this.allWithStock(), this.rules.load()]);
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
-    const movements = await this.prisma.movement.findMany({
-      where: { wineId: id },
-      orderBy: { occurredAt: 'desc' },
-      take: 10,
-      select: { id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true },
-    });
-    return { wine: { ...toItem(row, rules, new Date().getFullYear()), pairing: pairingOf(row) }, movements };
+    const producerKey = producerKeyOf(row.producer);
+    const [movements, profile] = await Promise.all([
+      this.prisma.movement.findMany({
+        where: { wineId: id },
+        orderBy: { occurredAt: 'desc' },
+        take: 10,
+        select: { id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true },
+      }),
+      // Un descriptif par domaine, partagé par tous ses vins : lien par la clé normalisée.
+      producerKey ? this.prisma.producerProfile.findUnique({ where: { producerKey }, include: PRODUCER_PROFILE_INCLUDE }) : null,
+    ]);
+    return {
+      wine: {
+        ...toItem(row, rules, new Date().getFullYear()),
+        pairing: pairingOf(row),
+        // Toujours présente (sauf nom sans lettre ni chiffre) : la fiche peut écrire ou régénérer avant tout profil.
+        producerKey: producerKey || null,
+        producerProfile: producerProfileOf(profile),
+      },
+      movements,
+    };
   }
 
   async exitCandidates(photoId: string): Promise<ExitCandidatesResponse> {

@@ -9,40 +9,72 @@ export interface PairingJobData {
   wineId: string;
 }
 
+/** La même file porte les descriptifs de domaine (travail nommé 'producer'), voir producers/producer.queue.ts. */
+export interface ProducerJobData {
+  producerKey: string;
+}
+
+export type WinePairingJobData = PairingJobData | ProducerJobData;
+
 /** Un identifiant par vin : jamais deux générations du même vin dans la file. */
 export const pairingJobId = (wineId: string) => `pairing-${wineId}`;
 
 /** Même patience que les photos : une panne de Gemini ne perd jamais un vin. */
-export function createPairingQueue(): Queue<PairingJobData> {
-  return new Queue<PairingJobData>(PAIRING_QUEUE, {
+export function createPairingQueue(): Queue<WinePairingJobData> {
+  return new Queue<WinePairingJobData>(PAIRING_QUEUE, {
     connection: redisConnection(),
     defaultJobOptions: { attempts: EXTRACTION_ATTEMPTS, backoff: { type: EXTRACTION_BACKOFF }, removeOnComplete: 1000, removeOnFail: 1000 },
   });
 }
 
-export type PairingQueueLike = Pick<Queue<PairingJobData>, 'add' | 'getJob'>;
+export type PairingQueueLike = Pick<Queue<WinePairingJobData>, 'add' | 'getJob'>;
 
 /**
  * BullMQ ignore un `add` dont l'identifiant existe encore, y compris parmi les
  * travaux terminés gardés en mémoire : pour régénérer, on retire d'abord un
  * travail terminé ou échoué ; un travail encore vivant est laissé tel quel.
+ * Partagé par les accords et les descriptifs de domaine.
  */
-export async function schedulePairing(queue: PairingQueueLike, wineId: string): Promise<void> {
-  const id = pairingJobId(wineId);
-  const job = await queue.getJob(id);
+export async function scheduleUnique(queue: PairingQueueLike, name: string, data: WinePairingJobData, jobId: string): Promise<void> {
+  const job = await queue.getJob(jobId);
   if (job) {
     const state = await job.getState();
     if (state !== 'completed' && state !== 'failed') return;
     // Deux régénérations quasi simultanées voient toutes deux le travail terminé :
-    // le second retrait échoue (déjà retiré). On poursuit : `add` remet le vin en
-    // file, ou ne fait rien si l'autre demande l'a déjà fait.
+    // le second retrait échoue (déjà retiré). On poursuit : `add` remet le travail
+    // en file, ou ne fait rien si l'autre demande l'a déjà fait.
     await job.remove().catch(() => undefined);
   }
-  await queue.add('pairing', { wineId }, { jobId: id });
+  await queue.add(name, data, { jobId });
+}
+
+export function schedulePairing(queue: PairingQueueLike, wineId: string): Promise<void> {
+  return scheduleUnique(queue, 'pairing', { wineId }, pairingJobId(wineId));
+}
+
+/**
+ * Si Redis est indisponible, la planification peut ne jamais se résoudre : on ne
+ * retient pas la réponse HTTP pour autant. La ligne est déjà PENDING et la reprise
+ * au démarrage du worker la remettra en file si la planification n'aboutit pas.
+ * Une planification qui échoue franchement reste une erreur.
+ */
+export async function raceScheduleWithTimeout(scheduling: Promise<void>, ms: number, onTimeout: () => void): Promise<void> {
+  let timeoutId: NodeJS.Timeout | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timeoutId = setTimeout(() => {
+      onTimeout();
+      resolve();
+    }, ms);
+  });
+  try {
+    await Promise.race([scheduling, timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /** Voir `closeQueue` (extraction.queue.ts) : la connexion fournie doit être quittée à la main. */
-export async function closePairingQueue(queue: Queue<PairingJobData>): Promise<void> {
+export async function closePairingQueue(queue: Queue<WinePairingJobData>): Promise<void> {
   const { connection } = queue.opts;
   await queue.close();
   if (connection instanceof Redis) await connection.quit();

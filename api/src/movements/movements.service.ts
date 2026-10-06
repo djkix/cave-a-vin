@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { Movement, Prisma, Wine } from '@prisma/client';
 import { PairingScheduler } from '../pairing/pairing.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProducerScheduler } from '../producers/producers.service';
 import { WineMatchingService } from '../wines/wine-matching.service';
 import { CreateMovementInput, CreateOutInput, InventoryInput } from './dto';
 
@@ -34,6 +35,7 @@ export class MovementsService {
     private readonly prisma: PrismaService,
     private readonly matching: WineMatchingService,
     @Optional() private readonly pairings?: PairingScheduler,
+    @Optional() private readonly producers?: ProducerScheduler,
   ) {}
 
   async stockOf(wineId: string): Promise<number> {
@@ -91,6 +93,12 @@ export class MovementsService {
       if (wineCreated && this.pairings) {
         void this.pairings.schedule(wine.id).catch((e: unknown) =>
           this.logger.warn(`Accords de ${wine.id} non mis en file : ${e instanceof Error ? e.message : String(e)}`),
+        );
+      }
+      // Même règle pour le descriptif de son domaine, demandé seulement s'il n'existe pas encore.
+      if (wineCreated && this.producers) {
+        void this.producers.scheduleIfMissing(wine.producer).catch((e: unknown) =>
+          this.logger.warn(`Descriptif du domaine « ${wine.producer} » non mis en file : ${e instanceof Error ? e.message : String(e)}`),
         );
       }
 
