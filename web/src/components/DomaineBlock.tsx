@@ -55,7 +55,7 @@ export function DomaineBlock({
   }
 
   const trimmedLength = text.trim().length;
-  const saveDisabled = busy || trimmedLength === 0 || text.length > MAX_LENGTH;
+  const saveDisabled = busy || trimmedLength === 0 || trimmedLength > MAX_LENGTH;
 
   const pending = !producerProfile || producerProfile.status === 'PENDING';
   const hasOldText = Boolean(producerProfile?.status === 'PENDING' && producerProfile.description);
@@ -78,7 +78,11 @@ export function DomaineBlock({
         <>
           <p style={{ margin: 'var(--space-xs) 0' }}>{profile.description}</p>
           <p className="list__meta" style={{ margin: 0 }}>
-            {profile.source === 'MANUEL' ? `Texte saisi par ${profile.updatedBy}` : 'Généré par Gemini, peut contenir des erreurs'}
+            {profile.source === 'MANUEL'
+              ? profile.updatedBy
+                ? `Texte saisi par ${profile.updatedBy}`
+                : 'Texte saisi à la main'
+              : 'Généré par Gemini, peut contenir des erreurs'}
           </p>
         </>
       )}
@@ -89,6 +93,7 @@ export function DomaineBlock({
 
       {!pending && profile.status === 'FAILED' && (
         <>
+          {profile.description && <p style={{ margin: 'var(--space-xs) 0' }}>{profile.description}</p>}
           <p style={{ margin: 'var(--space-xs) 0' }}>Descriptif indisponible</p>
           {profile.errorMessage && <p className="list__meta" style={{ margin: 0 }}>{profile.errorMessage}</p>}
         </>
@@ -100,7 +105,7 @@ export function DomaineBlock({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
           <label className="field__label" htmlFor="domaine-description">Descriptif du domaine</label>
           <textarea id="domaine-description" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
-          <p className="list__meta" style={{ margin: 0 }}>{text.length} / {MAX_LENGTH}</p>
+          <p className="list__meta" style={{ margin: 0 }}>{trimmedLength} / {MAX_LENGTH}</p>
           <Button variant="dark" disabled={saveDisabled} onClick={() => run(() => setProducerDescription(producerKey, text.trim()))}>
             Enregistrer
           </Button>

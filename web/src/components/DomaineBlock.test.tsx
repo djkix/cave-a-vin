@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as api from '../lib/api-client';
 import { DomaineBlock, producerPollInterval } from './DomaineBlock';
@@ -76,6 +76,32 @@ it('dit pourquoi le descriptif manque et permet de régénérer ou d’écrire',
   expect(screen.getByText('Réponse de Gemini inexploitable')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Régénérer' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Écrire le descriptif' })).toBeInTheDocument();
+});
+
+it('montre le texte saisi à la main sans auteur quand le compte a été supprimé', () => {
+  mount('domaine tempier', gemini({ source: 'MANUEL', updatedBy: null }));
+  expect(screen.getByText('Texte saisi à la main')).toBeInTheDocument();
+  expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+});
+
+it('garde l’ancien texte visible quand une régénération a échoué', () => {
+  mount('domaine tempier', gemini({ status: 'FAILED', description: 'Un domaine du Var…', errorMessage: 'Réponse de Gemini inexploitable' }));
+  expect(screen.getByText('Un domaine du Var…')).toBeInTheDocument();
+  expect(screen.getByText('Descriptif indisponible')).toBeInTheDocument();
+  expect(screen.getByText('Réponse de Gemini inexploitable')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Régénérer' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Écrire le descriptif' })).toBeInTheDocument();
+});
+
+it('autorise 2000 caractères utiles même entourés d’espaces, et compte la longueur sans espaces', async () => {
+  mount('domaine tempier', gemini());
+  await userEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+  const textarea = screen.getByLabelText('Descriptif du domaine');
+  await userEvent.clear(textarea);
+  const padded = `  ${'x'.repeat(2000)}  `;
+  fireEvent.change(textarea, { target: { value: padded } });
+  expect(screen.getByText('2000 / 2000')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled();
 });
 
 it('édite et enregistre un descriptif, avec le compteur de caractères', async () => {

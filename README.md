@@ -250,7 +250,11 @@ génération ; *Régénérer* relance aussi une génération à tout moment. Le 
 *Le domaine* s'affiche sur la fiche du vin, au-dessus des accords mets-vins.
 API : `PUT /api/producers/:key/description`, `POST
 /api/producers/:key/regenerate`, et `producerKey` / `producerProfile` ajoutés
-à `GET /api/wines/:id`.
+à `GET /api/wines/:id`. Au tout premier démarrage du worker après cette mise à
+jour, tous les domaines déjà existants sont mis en file un par un (la même
+file que les accords) : les textes et les accords des vins déjà saisis
+peuvent donc mettre quelques dizaines de minutes à apparaître cette première
+fois-là.
 
 **Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
