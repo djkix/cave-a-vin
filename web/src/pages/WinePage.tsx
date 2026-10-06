@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ApogeeBlock } from '../components/ApogeeBlock';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
+import { DomaineBlock, producerPollInterval } from '../components/DomaineBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
 import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
@@ -26,7 +27,12 @@ export function WinePage() {
   const detail = useQuery({
     queryKey: ['wine', wineId],
     queryFn: () => getWine(wineId),
-    refetchInterval: (q) => pairingPollInterval(q.state.data?.wine.pairing),
+    refetchInterval: (q) => {
+      const wine = q.state.data?.wine;
+      const pairing = pairingPollInterval(wine?.pairing);
+      const producer = producerPollInterval(wine?.producerKey ?? null, wine?.producerProfile);
+      return pairing || producer;
+    },
   });
   const [counting, setCounting] = useState(false);
   const [counted, setCounted] = useState('');
@@ -92,6 +98,7 @@ export function WinePage() {
             (avertissement « two children with the same key », rendu dupliqué). */}
         <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} />
         <RatingBlock key={`rating-${wine.id}`} wine={wine} />
+        <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} />
         <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} />
 
         <SortieConfirmation key={wine.id} wine={wine} />

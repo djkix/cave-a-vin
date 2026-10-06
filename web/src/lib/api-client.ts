@@ -119,6 +119,13 @@ export interface Apogee {
 export interface Rating { value: number; ratedAt: string; ratedBy: string | null }
 export interface Pairing { status: 'PENDING' | 'DONE' | 'FAILED'; dishes: string[]; errorMessage: string | null; generatedAt: string | null }
 
+export type ProducerProfileStatus = 'PENDING' | 'DONE' | 'UNKNOWN' | 'FAILED';
+export type ProducerProfileSource = 'GEMINI' | 'MANUEL';
+export interface ProducerProfile {
+  key: string; displayName: string; status: ProducerProfileStatus; description: string | null;
+  source: ProducerProfileSource; errorMessage: string | null; generatedAt: string | null; updatedBy: string | null;
+}
+
 export interface CaveRow {
   id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null;
   color: WineColor; formatCl: number; referencePhotoId: string | null; quantity: number;
@@ -142,7 +149,7 @@ export function getCave(filter: CaveFilter) {
 }
 
 export interface WineDetail {
-  wine: CaveRow & { pairing?: Pairing | null };
+  wine: CaveRow & { pairing?: Pairing | null; producerKey: string | null; producerProfile?: ProducerProfile | null };
   movements: Array<{ id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null }>;
 }
 export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
@@ -151,6 +158,11 @@ export const setRating = (wineId: string, rating: number) =>
   apiFetch<Rating>(`/wines/${wineId}/rating`, { method: 'PUT', body: JSON.stringify({ rating }) });
 export const clearRating = (wineId: string) => apiFetch<null>(`/wines/${wineId}/rating`, { method: 'DELETE' });
 export const regeneratePairing = (wineId: string) => apiFetch<void>(`/wines/${wineId}/pairing/regenerate`, { method: 'POST' });
+
+export const setProducerDescription = (producerKey: string, description: string) =>
+  apiFetch<ProducerProfile>(`/producers/${encodeURIComponent(producerKey)}/description`, { method: 'PUT', body: JSON.stringify({ description }) });
+export const regenerateProducer = (producerKey: string) =>
+  apiFetch<void>(`/producers/${encodeURIComponent(producerKey)}/regenerate`, { method: 'POST' });
 
 export const createOut = (input: { idempotencyKey: string; wineId: string; quantity: number; photoId?: string | null }) =>
   apiFetch<MovementResult>('/movements/out', { method: 'POST', body: JSON.stringify(input) });
