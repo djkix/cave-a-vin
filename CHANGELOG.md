@@ -9,6 +9,22 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.8.0](https://github.com/djkix/cave-a-vin/compare/v1.7.0...v1.8.0) (2026-10-06)
+
+
+### Fonctionnalités
+
+* **domaine:** descriptif du domaine généré par Gemini, côté api ([8319383](https://github.com/djkix/cave-a-vin/commit/83193833c9fa0b77fb736786ebc572466c833558))
+* **domaine:** descriptif du domaine sur la fiche vin, côté web ([9454162](https://github.com/djkix/cave-a-vin/commit/94541625b667d4913afd93f0b9bd1a3b22e8c388))
+
+
+### Corrections
+
+* **domaine:** auteur supprimé, texte conservé après échec, compteur sans espaces ([09f600c](https://github.com/djkix/cave-a-vin/commit/09f600c8d8ea5fce45b24ba4be35eeff8dd048ec))
+* **domaine:** clé du domaine sur la fiche, régénération et courses ([3ebbd40](https://github.com/djkix/cave-a-vin/commit/3ebbd40cc64127837c469fdc560f97836e490bbb))
+* **domaine:** régénération possible sur un domaine peu documenté, et nettoyage du bloc ([580dc9f](https://github.com/djkix/cave-a-vin/commit/580dc9fe27986e6039b3cd5bf46c534bbca89603))
+* **domaine:** test de longueur maximale sans frappe caractère par caractère ([f552e3c](https://github.com/djkix/cave-a-vin/commit/f552e3ccc25d0d1ebfd60a7f1ac230652f0e8c4a))
+
 ## [1.7.0](https://github.com/djkix/cave-a-vin/compare/v1.6.0...v1.7.0) (2026-10-05)
 
 ### Résumé
