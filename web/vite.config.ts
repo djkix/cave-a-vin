@@ -16,8 +16,11 @@ export default defineConfig({
         background_color: '#FCF9F3',
         theme_color: '#8B612C',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Variante « maskable » : fond plein et verre dans la zone sûre, que
+          // Android découpe en cercle ou en carré arrondi sans rogner le dessin.
+          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

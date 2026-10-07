@@ -1,3 +1,5 @@
+<p align="center"><img src="web/public/icons/icon.svg" width="96" alt="Icône de Cave & Terroir : un verre de vin sur fond bordeaux" /></p>
+
 # Cave & Terroir
 
 Gestion de cave à vin sans saisie clavier : une photo à l'achat crédite le stock,
@@ -476,11 +478,15 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
 
 1. Ouvrir <https://cave.djkix.ovh/> : l'écran de connexion s'affiche.
 2. « Se connecter avec Google » puis rentrer une bouteille avec une vraie photo
-   d'étiquette : la fiche doit se pré-remplir en moins de dix secondes.
+   d'étiquette : la fiche doit arriver dans « À confirmer » en moins d'une
+   minute.
 3. **Journal → Exporter le classeur** : la bouteille figure dans la feuille
    `Stock`.
 4. Sur iPhone : *Partager → Sur l'écran d'accueil*. Sur Android : bannière
-   d'installation.
+   d'installation. L'icône est un verre de vin sur fond bordeaux
+   (`web/public/icons/icon.svg`, déclinée en PNG 192, 512, « maskable » pour
+   Android et 180 pour iOS). Un raccourci installé avant la 1.9.0 garde l'ancien
+   carré brun : le supprimer de l'écran d'accueil puis le réinstaller.
 
 ## Mise à jour
 
