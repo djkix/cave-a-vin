@@ -847,6 +847,16 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.1.0 — 7 octobre 2026
+
+Publiée ([v2.1.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.1.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.1.0` et `-web:2.1.0`.
+
+**Compte de secours et budget des caves invitées.** Le compte de secours a les
+droits du propriétaire sur la cave principale, pour tenir la cave pendant une
+panne de Google ; les caves invitées ne dépensent ensemble que 60 % du plafond
+Gemini (réglable), le reste étant garanti à la cave principale.
+
 ### 2.0.1 — 7 octobre 2026
 
 Publiée ([v2.0.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.0.1)),

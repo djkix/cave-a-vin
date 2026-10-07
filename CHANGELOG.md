@@ -11,6 +11,21 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.1.0](https://github.com/djkix/cave-a-vin/compare/v2.0.1...v2.1.0) (2026-10-07)
 
+### Résumé
+
+Deux ajustements de la 2.0.0. Le **compte de secours** a de nouveau les droits
+du propriétaire sur la cave de l'administrateur principal (entrées, sorties,
+journal, prix), quelle que soit sa ligne de membre : pendant une panne de
+Google, on peut continuer à tenir la cave. Il n'a aucun droit de plus sur les
+autres caves. Les **caves invitées**, ensemble, ne dépensent au plus que 60 %
+du plafond Gemini mensuel (réglable dans Administration › Budget, en plus de
+la part de 20 % par cave) : quel que soit leur nombre, elles laissent au moins
+le reste à la cave principale. Une analyse reportée pour ce motif n'est jamais
+perdue. Aucune migration, aucune nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
