@@ -157,7 +157,7 @@ export function EntreeConfirmationPage() {
     <>
       <TopBar title="Nouvelle entrée" back="/entree" />
       <main className="page" style={{ paddingBottom: 'calc(var(--size-bottomnav-height) + var(--size-action-height) + var(--space-lg))' }}>
-        <img className="preview" src={`/api/photos/${photoId}/image`} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        <img className="preview" src={`/api/photos/${photoId}/image?variant=display`} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         {waiting && (
           <section className="card">
             <p>Analyse de l’étiquette en cours…</p>

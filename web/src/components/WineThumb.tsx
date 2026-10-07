@@ -20,7 +20,7 @@ export function WineThumb({ photoId, size = 56 }: { photoId: string | null; size
   return (
     <img
       className="thumb"
-      src={`/api/photos/${photoId}/image`}
+      src={`/api/photos/${photoId}/image?variant=display`}
       alt=""
       width={size}
       height={size * 1.25}

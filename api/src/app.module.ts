@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { CaveModule } from './cave/cave.module';
 import { ExportModule } from './export/export.module';
 import { HealthController } from './health/health.controller';
+import { ImageSearchModule } from './image-search/image-search.module';
 import { MovementsModule } from './movements/movements.module';
 import { PairingModule } from './pairing/pairing.module';
 import { PhotosModule } from './photos/photos.module';
@@ -37,6 +38,7 @@ import { WinesModule } from './wines/wines.module';
     ProducersModule,
     ExportModule,
     CaveModule,
+    ImageSearchModule,
   ],
   controllers: [HealthController],
 })

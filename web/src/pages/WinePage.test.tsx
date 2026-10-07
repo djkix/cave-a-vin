@@ -10,6 +10,7 @@ afterEach(() => vi.restoreAllMocks());
 const detail: api.WineDetail = {
   wine: {
     id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: 'p1', quantity: 6,
+    referencePhotoSource: null, referencePhotoSourceUrl: null,
     pairing: { status: 'DONE', dishes: [], errorMessage: null, generatedAt: null },
     producerKey: 'domaine tempier',
     producerProfile: {
@@ -177,4 +178,161 @@ it('referme la correction d’apogée en cours quand on change de vin', async ()
   await userEvent.click(screen.getByRole('link', { name: 'suivant' }));
   await screen.findByRole('heading', { name: /Domaine Tempier 2/ });
   expect(screen.queryByLabelText('Année de début')).not.toBeInTheDocument();
+});
+
+describe('recherche d’image depuis la fiche', () => {
+  const candidates: api.ImageCandidate[] = [
+    { id: 'c1', source: 'Open Food Facts (CC BY-SA)', sourceUrl: 'https://world.openfoodfacts.org/product/1', imageUrl: '/api/image-candidates/c1' },
+    { id: 'c2', source: 'domainetempier.com', sourceUrl: 'https://domainetempier.com/vin', imageUrl: '/api/image-candidates/c2' },
+  ];
+
+  it('affiche le chargement puis les images trouvées avec leur source', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    let resolveSearch!: (v: { candidates: api.ImageCandidate[] }) => void;
+    vi.spyOn(api, 'searchWineImages').mockReturnValue(new Promise((r) => { resolveSearch = r; }));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    expect(screen.getByText('Recherche en cours…')).toBeInTheDocument();
+    resolveSearch({ candidates });
+    await screen.findAllByRole('button', { name: 'Choisir cette image' });
+    expect(screen.getByRole('link', { name: 'Open Food Facts (CC BY-SA)' })).toHaveAttribute('href', candidates[0].sourceUrl);
+    expect(screen.getByRole('link', { name: 'Open Food Facts (CC BY-SA)' })).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('link', { name: 'Open Food Facts (CC BY-SA)' })).toHaveAttribute('target', '_blank');
+    expect(screen.getByRole('link', { name: 'domainetempier.com' })).toBeInTheDocument();
+    const images = screen.getAllByRole('img').filter((img) => (img as HTMLImageElement).src.includes('/api/image-candidates/'));
+    expect(images[0]).toHaveAttribute('src', candidates[0].imageUrl);
+  });
+
+  it('dit qu’aucune image n’a été trouvée', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates: [] });
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    expect(await screen.findByText('Aucune image trouvée pour ce vin')).toBeInTheDocument();
+  });
+
+  it('affiche l’indisponibilité (503) en clair', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(503, 'Service indisponible'));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    expect(await screen.findByText('Recherche d’image indisponible pour le moment')).toBeInTheDocument();
+  });
+
+  it('signale la limite de recherches (429)', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(429, 'ThrottlerException: Too Many Requests'));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    expect(await screen.findByText('Trop de recherches, réessayez dans une minute')).toBeInTheDocument();
+  });
+
+  it('ferme la fenêtre de choix', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates: [] });
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    await screen.findByText('Aucune image trouvée pour ce vin');
+    await userEvent.click(screen.getByRole('button', { name: 'Fermer' }));
+    expect(screen.queryByText('Aucune image trouvée pour ce vin')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chercher une image' })).toBeInTheDocument();
+  });
+
+  it('choisit une image puis rafraîchit la fiche', async () => {
+    const withSource = { ...detail, wine: { ...detail.wine, referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1' } };
+    const getWine = vi.spyOn(api, 'getWine').mockResolvedValueOnce(detail).mockResolvedValue(withSource);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates });
+    const choose = vi.spyOn(api, 'chooseReferenceImage').mockResolvedValue({
+      referencePhotoId: 'c1', referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1',
+    });
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    const chooseButtons = await screen.findAllByRole('button', { name: 'Choisir cette image' });
+    await userEvent.click(chooseButtons[0]);
+    await waitFor(() => expect(choose).toHaveBeenCalledWith('w1', 'c1'));
+    await waitFor(() => expect(getWine).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Image :')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Food Facts (CC BY-SA)' })).toHaveAttribute('href', 'https://world.openfoodfacts.org/product/1');
+    expect(screen.queryByRole('button', { name: 'Choisir cette image' })).not.toBeInTheDocument();
+  });
+
+  it('refuse une proposition expirée (410) en clair', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates });
+    vi.spyOn(api, 'chooseReferenceImage').mockRejectedValue(new api.ApiError(410, 'Proposition expirée, relancez la recherche'));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    const chooseButtons = await screen.findAllByRole('button', { name: 'Choisir cette image' });
+    await userEvent.click(chooseButtons[0]);
+    expect(await screen.findByText('Proposition expirée, relancez la recherche')).toBeInTheDocument();
+  });
+
+  it('502 et 504 (passerelle, délai) valent aussi « indisponible pour le moment »', async () => {
+    for (const status of [502, 504]) {
+      vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+      vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(status, 'Bad Gateway'));
+      const { unmount } = mount();
+      await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+      expect(await screen.findByText('Recherche d’image indisponible pour le moment')).toBeInTheDocument();
+      unmount();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('garde les images proposées quand le choix échoue pour une autre raison que l’expiration', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates });
+    vi.spyOn(api, 'chooseReferenceImage').mockRejectedValue(new api.ApiError(500, 'Enregistrement impossible'));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    const chooseButtons = await screen.findAllByRole('button', { name: 'Choisir cette image' });
+    await userEvent.click(chooseButtons[1]);
+    expect(await screen.findByText('Enregistrement impossible')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Choisir cette image' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Choisir cette image' })[0]).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'domainetempier.com' })).toBeInTheDocument();
+  });
+
+  it('ouvre la fenêtre de choix sous l’en-tête de la fiche, sur toute sa largeur, pas dans la colonne de la vignette', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates });
+    const { container } = mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    const window = await screen.findByRole('region', { name: 'Images proposées' });
+    const header = container.querySelector('.wine-head__row')!;
+    expect(header).not.toBeNull();
+    // L'en-tête (vignette + titre) ne contient ni la fenêtre ni ses images.
+    expect(header).toContainElement(screen.getByRole('heading', { name: /Domaine Tempier/ }));
+    expect(header).not.toContainElement(window);
+    // La fenêtre est dans la même carte que l'en-tête, après lui.
+    expect(header.parentElement).toContainElement(window);
+    expect(header.compareDocumentPosition(window) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Grille d'images ; chaque proposition : image, lien vers la source, bouton.
+    expect(window.querySelector('ul')).toHaveClass('image-search__grid');
+    for (const link of [screen.getByRole('link', { name: 'Open Food Facts (CC BY-SA)' }), screen.getByRole('link', { name: 'domainetempier.com' })]) {
+      expect(link).toHaveClass('link');
+    }
+  });
+
+  it('la ligne « Image : … / Revenir à ma photo » est sous l’en-tête, et son lien a le style de l’application', async () => {
+    const withSource = { ...detail, wine: { ...detail.wine, referencePhotoSource: 'domainetempier.com', referencePhotoSourceUrl: 'https://domainetempier.com/vin' } };
+    vi.spyOn(api, 'getWine').mockResolvedValue(withSource);
+    const { container } = mount();
+    const link = await screen.findByRole('link', { name: 'domainetempier.com' });
+    const header = container.querySelector('.wine-head__row')!;
+    expect(link).toHaveClass('link');
+    expect(header).not.toContainElement(link);
+    expect(header).not.toContainElement(screen.getByRole('button', { name: 'Revenir à ma photo' }));
+  });
+
+  it('revient à la photo d’origine', async () => {
+    const withSource = { ...detail, wine: { ...detail.wine, referencePhotoSource: 'domainetempier.com', referencePhotoSourceUrl: 'https://domainetempier.com/vin' } };
+    const getWine = vi.spyOn(api, 'getWine').mockResolvedValueOnce(withSource).mockResolvedValue(detail);
+    const revert = vi.spyOn(api, 'revertReferenceImage').mockResolvedValue({ referencePhotoId: 'p1', referencePhotoSource: null, referencePhotoSourceUrl: null });
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Revenir à ma photo' }));
+    await waitFor(() => expect(revert).toHaveBeenCalledWith('w1'));
+    await waitFor(() => expect(getWine).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('button', { name: 'Revenir à ma photo' })).not.toBeInTheDocument();
+  });
 });

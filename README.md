@@ -1,3 +1,5 @@
+<p align="center"><img src="web/public/icons/icon.svg" width="96" alt="Icône de Cave & Terroir : un verre de vin sur fond bordeaux" /></p>
+
 # Cave & Terroir
 
 Gestion de cave à vin sans saisie clavier : une photo à l'achat crédite le stock,
@@ -14,7 +16,7 @@ utilisée depuis un téléphone (PWA installable).
   et sortie de stock (par la liste ou par photo), estimation de l'apogée par
   règles avec correction manuelle par vin, filtre « à boire en priorité »,
   statistiques de la cave, note de dégustation, accords mets-vins et descriptif
-  du domaine.
+  du domaine, photos retouchées, image d'étiquette trouvée sur le web, icône.
 - **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
   (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
   liste « à boire en priorité » se consulte dans l'application. Voir
@@ -124,6 +126,35 @@ file, si bien qu'un redémarrage du worker ou de Redis ne leur fait perdre ni
 leur place ni leur analyse — une réservation interrompue est reprise au bout de
 cinq minutes. Une photo reçue n'est jamais perdue, même après un redémarrage
 de la pile.
+
+**Photos plus nettes.** Une version d'affichage est fabriquée par le serveur,
+sans aucun coût supplémentaire : la lecture Gemini d'une photo renvoie déjà le
+cadre de l'étiquette, réutilisé pour recadrer l'image avec une marge quand ce
+cadre est plausible, puis corriger balance des blancs, contraste et netteté,
+et la réduire à 1200 px de côté au plus. Elle est fabriquée une seule fois, à
+la première consultation d'une photo lue (ou en échec), puis gardée sur le
+disque ; c'est elle qui s'affiche désormais dans les vignettes (cave, fiche,
+sortie) et les écrans de confirmation. L'original n'est jamais modifié, et
+c'est toujours lui que Gemini relit. API : `GET /api/photos/:id/image?variant=display`
+(sans paramètre, l'original, inchangé).
+
+**Chercher une image.** Sur la fiche vin, un bouton sous l'en-tête (vignette et
+titre) ouvre, sur toute la largeur de la fiche, une recherche d'image d'étiquette sur le web, pour remplacer sa propre photo par
+une image plus nette ou plus officielle. La recherche interroge d'abord **Open
+Food Facts** (gratuit, sans clé, licence CC BY-SA, source toujours citée avec
+un lien) ; si rien n'y figure, **le site officiel du domaine**, retrouvé par
+Gemini grâce à la recherche Google intégrée (5 000 recherches gratuites par
+mois pour les modèles Gemini 3 ; chaque recherche compte au moins 1 centime,
+et davantage si Gemini lance plusieurs requêtes de recherche, dans le plafond mensuel et dans la part de 80 % déjà réservée aux accords et
+descriptifs). Le serveur télécharge lui-même jusqu'à 5 propositions et les
+garde 1 heure le temps de choisir ; chaque téléchargement est protégé (adresses
+http(s) publiques seulement, taille et délai limités, 4 secondes par image).
+La recherche entière tient en 30 secondes : passé ce délai, les propositions
+déjà prêtes s'affichent, et s'il n'y en a aucune, « Recherche d'image
+indisponible pour le moment ». Une fois l'image choisie, la fiche affiche « Image : {source} » (lien vers la page d'origine) et
+« Revenir à ma photo » pour annuler à tout moment. Limité à 10 recherches par
+minute. API : `POST /api/wines/:id/image-search`, `GET
+/api/image-candidates/:id`, `POST`/`DELETE /api/wines/:id/reference-image`.
 
 **Version affichée en permanence.** Le numéro de version est visible en haut à
 droite de chaque écran, et sur l'écran de connexion avant même de s'identifier —
@@ -275,7 +306,11 @@ mouvement, un seul mouvement d'entrée par photo **et une seule sortie par
 photo**, une clé d'idempotence déjà utilisée par un autre mouvement est
 refusée plutôt que rejouée comme une sortie), inventaire physique sous verrou
 de ligne (deux inventaires simultanés n'écrivent l'écart qu'une fois), et
-plafond mensuel de dépense pour l'API de vision.
+plafond mensuel de dépense pour l'API de vision. Le serveur télécharge
+désormais aussi des images tierces pour « Chercher une image » : adresses
+http(s) publiques seulement (résolution DNS vérifiée, adresses privées,
+de bouclage et locales refusées), redirections limitées et revérifiées, taille
+et délai bornés.
 
 **Comptes et administration.** L'inscription est libre : n'importe quel compte
 Google se connecte et a immédiatement accès complet à l'application. Le
@@ -476,11 +511,15 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
 
 1. Ouvrir <https://cave.djkix.ovh/> : l'écran de connexion s'affiche.
 2. « Se connecter avec Google » puis rentrer une bouteille avec une vraie photo
-   d'étiquette : la fiche doit se pré-remplir en moins de dix secondes.
+   d'étiquette : la fiche doit arriver dans « À confirmer » en moins d'une
+   minute.
 3. **Journal → Exporter le classeur** : la bouteille figure dans la feuille
    `Stock`.
 4. Sur iPhone : *Partager → Sur l'écran d'accueil*. Sur Android : bannière
-   d'installation.
+   d'installation. L'icône est un verre de vin sur fond bordeaux
+   (`web/public/icons/icon.svg`, déclinée en PNG 192, 512, « maskable » pour
+   Android et 180 pour iOS). Un raccourci installé avant la 1.9.0 garde l'ancien
+   carré brun : le supprimer de l'écran d'accueil puis le réinstaller.
 
 ## Mise à jour
 
@@ -623,6 +662,18 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Pas de notification temps réel pour les entrées** : contrairement à la
   sortie par photo, la liste « À confirmer » ne suit pas l'avancement de
   l'analyse par flux SSE, elle se rafraîchit toutes les 10 s.
+- **Open Food Facts connaît rarement les petits domaines** : la recherche
+  d'image n'y trouve souvent rien pour une cave de particuliers, et passe au
+  site officiel.
+- **Le site officiel montre souvent la gamme ou le domaine plutôt que
+  l'étiquette exacte du millésime** : l'image trouvée ressemble à la bouteille
+  sans forcément être le même millésime.
+- **Les images trouvées sur le web appartiennent à leurs auteurs** : usage
+  raisonnable pour une cave privée, la source reste toujours affichée et
+  citée.
+- **La version d'affichage d'une photo n'est pas refabriquée** si la photo est
+  analysée de nouveau plus tard : elle garde le cadrage de la première
+  lecture.
 
 ## Journal des modifications
 

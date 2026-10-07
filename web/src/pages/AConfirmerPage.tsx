@@ -48,7 +48,7 @@ function dismissLabel(draft?: WineDraft): string {
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 function Thumb({ photoId }: { photoId: string }) {
-  return <img src={`/api/photos/${photoId}/image`} alt="" width={64} height={80} loading="lazy" decoding="async" style={{ objectFit: 'cover', borderRadius: 'var(--radius-md)', flexShrink: 0 }} />;
+  return <img src={`/api/photos/${photoId}/image?variant=display`} alt="" width={64} height={80} loading="lazy" decoding="async" style={{ objectFit: 'cover', borderRadius: 'var(--radius-md)', flexShrink: 0 }} />;
 }
 
 /**

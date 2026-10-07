@@ -3,6 +3,7 @@ import { EXTRACTION_JSON_SCHEMA_DESCRIPTION, parseExtraction } from './extractio
 import { parsePairingOutput, PairingInvalidOutputError } from './pairing-output';
 import { PairingProvider, PairingResult, PairingWine } from './pairing-provider.interface';
 import { parseProducerOutput, ProducerInvalidOutputError } from './producer-output';
+import { OfficialSiteProvider, OfficialSiteQuery, OfficialSiteResult } from './official-site-provider.interface';
 import { ProducerProvider, ProducerQuery, ProducerResult } from './producer-provider.interface';
 import { BatchVisionResult, VisionProvider, VisionResult, WineExtraction } from './vision-provider.interface';
 
@@ -24,7 +25,8 @@ const READING_RULES = `Règles :
 - Distingue le nom du producteur (domaine, château, maison) du nom de la cuvée.
 - Sur un carton, lis le nombre de bouteilles s'il est imprimé (« 6 bouteilles », « caisse de 12 »), sinon null.
 - "couleur" ∈ rouge | blanc | rosé | pétillant.
-- "format_cl" en centilitres (75 par défaut uniquement si l'image le confirme, sinon null).`;
+- "format_cl" en centilitres (75 par défaut uniquement si l'image le confirme, sinon null).
+- "etiquette" : le cadre de l'étiquette principale sur la photo, [ymin, xmin, ymax, xmax] en coordonnées normalisées de 0 à 1000 (0,0 = coin haut gauche), ou null si l'étiquette n'est pas repérable.`;
 
 const PROMPT = `Tu lis une étiquette de vin (ou un carton de vin) photographiée. Réponds UNIQUEMENT par un objet JSON strict de cette forme :
 ${EXTRACTION_JSON_SCHEMA_DESCRIPTION}
@@ -59,6 +61,33 @@ function pairingCostCentsOf(usage: { promptTokenCount?: number; candidatesTokenC
   return Math.round(rawCostCentsOf(usage));
 }
 
+/** Ordre de grandeur du prix d'une requête de recherche ancrée (~35 $ les 1000 requêtes). */
+const PRICE_PER_GROUNDED_QUERY_CENTS = 1.4;
+
+/**
+ * Un appel ancré sur la recherche Google est facturé à part, par requête de
+ * recherche lancée (`groundingMetadata.webSearchQueries`), et les jetons des
+ * résultats (`toolUsePromptTokenCount`) s'ajoutent à l'entrée : compter au moins
+ * 1 ct par appel, et le plus élevé des deux coûts (jetons, requêtes), majoré, pour
+ * que le plafond mensuel voie réellement cette dépense.
+ */
+function groundedCostCentsOf(
+  usage: { promptTokenCount?: number; candidatesTokenCount?: number; toolUsePromptTokenCount?: number } | undefined,
+  searchQueries: number,
+): number {
+  const tokens = rawCostCentsOf({
+    promptTokenCount: (usage?.promptTokenCount ?? 0) + (usage?.toolUsePromptTokenCount ?? 0),
+    candidatesTokenCount: usage?.candidatesTokenCount,
+  });
+  return Math.max(1, Math.ceil(tokens), Math.ceil(searchQueries * PRICE_PER_GROUNDED_QUERY_CENTS));
+}
+
+/** Nombre de requêtes de recherche lancées par Gemini pour un appel ancré (0 si la réponse ne le dit pas). */
+function searchQueriesOf(response: { candidates?: Array<{ groundingMetadata?: { webSearchQueries?: unknown } }> }): number {
+  const queries = response.candidates?.[0]?.groundingMetadata?.webSearchQueries;
+  return Array.isArray(queries) ? queries.length : 0;
+}
+
 const stripFences = (text: string) => text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
 /**
@@ -88,7 +117,41 @@ Si tu ne connais pas ce domaine de façon fiable, n'invente rien et réponds exa
 Domaine : « ${q.producer} » ; appellation(s) de ses vins : ${q.appellations.length ? q.appellations.map((a) => `« ${a} »`).join(', ') : 'inconnue'} ; région « ${q.region ?? 'inconnue'} ».`;
 }
 
-export class GeminiVisionProvider implements VisionProvider, PairingProvider, ProducerProvider {
+function officialSitePrompt(q: OfficialSiteQuery): string {
+  return `Trouve, avec la recherche Google, l'adresse du site officiel du domaine viticole qui produit ce vin (le site du domaine lui-même, pas un caviste, un guide ni un réseau social).
+Réponds UNIQUEMENT par un objet JSON strict de la forme {"site": "https://…"}.
+Si tu ne trouves pas de site officiel de façon fiable, réponds exactement {"site": null}.
+Vin : producteur « ${q.producer} » ; cuvée « ${q.cuvee ?? 'aucune'} » ; appellation « ${q.appellation} » ; ${q.vintage == null ? 'non millésimé' : `millésime ${q.vintage}`}.`;
+}
+
+/** Une réponse ancrée sur la recherche Google n'est pas garantie en JSON pur : on prend le premier objet du texte. */
+function siteOf(text: string): string | null {
+  const match = stripFences(text).match(/\{[\s\S]*?\}/);
+  if (!match) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+  const site = (raw as { site?: unknown } | null)?.site;
+  if (typeof site !== 'string') return null;
+  try {
+    const url = new URL(site.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * L'outil de recherche Google de Gemini 3 n'est pas encore typé par
+ * `@google/generative-ai` (qui ne connaît que `googleSearchRetrieval`) : la
+ * requête passe par ce type élargi, le reste de l'appel est inchangé.
+ */
+type GroundedRequest = Parameters<GenerativeModel['generateContent']>[0] & { tools: Array<{ googleSearch: Record<string, never> }> };
+
+export class GeminiVisionProvider implements VisionProvider, PairingProvider, ProducerProvider, OfficialSiteProvider {
   constructor(
     private readonly model: Pick<GenerativeModel, 'generateContent'>,
     private readonly modelName: string,
@@ -211,5 +274,29 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
       model: this.modelName,
       costCents: pairingCostCentsOf(result.response.usageMetadata),
     };
+  }
+
+  /**
+   * Site officiel du domaine, trouvé par Gemini avec la recherche Google. Pas de
+   * `responseMimeType` JSON : il n'est pas garanti avec un outil de recherche, la
+   * consigne suffit et la réponse est lue avec tolérance. Coût : au moins 1 ct,
+   * et par requête de recherche (voir `groundedCostCentsOf`). Une réponse
+   * inexploitable vaut « pas de site » (l'appel reste facturé). `signal` : délai
+   * global de la recherche d'image, l'appel est abandonné quand il est levé.
+   */
+  async findOfficialSite(query: OfficialSiteQuery, signal?: AbortSignal): Promise<OfficialSiteResult> {
+    const request: GroundedRequest = {
+      contents: [{ role: 'user', parts: [{ text: officialSitePrompt(query) }] }],
+      tools: [{ googleSearch: {} }],
+      generationConfig: { temperature: 0 },
+    };
+    const result = await this.model.generateContent(request as Parameters<GenerativeModel['generateContent']>[0], { signal });
+    let text = '';
+    try {
+      text = result.response.text();
+    } catch {
+      // Réponse bloquée ou vide : pas de site.
+    }
+    return { site: siteOf(text), model: this.modelName, costCents: groundedCostCentsOf(result.response.usageMetadata, searchQueriesOf(result.response)) };
   }
 }

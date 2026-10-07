@@ -214,6 +214,27 @@ describe('GeminiVisionProvider.extractWineLabels', () => {
     }
   });
 
+  it('les consignes simple et de lot demandent le cadre de l’étiquette, et le lot le rend', async () => {
+    const single = fakeModel(JSON.stringify(validObj({ etiquette: [50, 100, 950, 900] })));
+    const res = await new GeminiVisionProvider(single as any, 'g').extractWineLabel(Buffer.from('x'), 'image/jpeg');
+    expect(res.extraction.labelBox).toEqual([50, 100, 950, 900]);
+    const singlePrompt = single.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    const arr = [
+      { image: 1, ...validObj({ etiquette: [10, 20, 900, 800] }) },
+      { image: 2, ...validObj({ etiquette: null }) },
+      { image: 3, ...validObj() },
+    ];
+    const batch = fakeModel(JSON.stringify(arr));
+    const out = await new GeminiVisionProvider(batch as any, 'g').extractWineLabels(images);
+    const batchPrompt = batch.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    for (const prompt of [singlePrompt, batchPrompt]) {
+      expect(prompt).toContain('"etiquette"');
+      expect(prompt).toMatch(/\[ymin, xmin, ymax, xmax\]/);
+      expect(prompt).toMatch(/0 à 1000/);
+    }
+    expect(out.items.map((i) => ('extraction' in i ? i.extraction.labelBox : 'erreur'))).toEqual([[10, 20, 900, 800], null, null]);
+  });
+
   it('accepte un tableau enveloppé dans un objet à une seule propriété tableau', async () => {
     const arr = [{ image: 2, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
     for (const key of ['items', 'resultats']) {
@@ -290,5 +311,86 @@ describe('GeminiVisionProvider.describeProducer', () => {
     const model = fake('{"connu": false}');
     await new GeminiVisionProvider(model as any, 'm').describeProducer({ producer: 'Clos X', appellations: [], region: null });
     expect(promptOf(model)).toContain('inconnue');
+  });
+});
+
+describe('GeminiVisionProvider.findOfficialSite', () => {
+  const query = { producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol', vintage: 2019 };
+  const fake = (body: string, usage = { promptTokenCount: 300, candidatesTokenCount: 40 }) => ({
+    generateContent: jest.fn(async () => ({ response: { text: () => body, usageMetadata: usage } })),
+  });
+  const requestOf = (model: ReturnType<typeof fake>) => (model.generateContent.mock.calls[0] as any)[0];
+
+  it('demande le site officiel avec la recherche Google et rend l’adresse', async () => {
+    const model = fake('{"site": "https://www.domainetempier.com/"}');
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').findOfficialSite(query);
+    expect(r).toEqual({ site: 'https://www.domainetempier.com/', model: 'gemini-test', costCents: 1 });
+    const req = requestOf(model);
+    expect(req.tools).toEqual([{ googleSearch: {} }]);
+    const prompt = req.contents[0].parts[0].text as string;
+    expect(prompt).toContain('Domaine Tempier');
+    expect(prompt).toContain('La Migoua');
+    expect(prompt).toContain('Bandol');
+    expect(prompt).toContain('{"site": null}');
+  });
+
+  it('rend null quand le domaine n’a pas de site connu', async () => {
+    expect((await new GeminiVisionProvider(fake('{"site": null}') as any, 'm').findOfficialSite(query)).site).toBeNull();
+  });
+
+  it('retrouve le JSON au milieu d’un texte ou d’une clôture (la recherche ancrée ne garantit pas un JSON pur)', async () => {
+    const fenced = fake('```json\n{"site": "https://tempier.fr"}\n```');
+    expect((await new GeminiVisionProvider(fenced as any, 'm').findOfficialSite(query)).site).toBe('https://tempier.fr/');
+    const prose = fake('Voici le résultat : {"site": "https://tempier.fr/vins"} — bonne dégustation.');
+    expect((await new GeminiVisionProvider(prose as any, 'm').findOfficialSite(query)).site).toBe('https://tempier.fr/vins');
+  });
+
+  it('rend null (avec le coût, déjà payé) pour une réponse inexploitable ou une adresse non http(s)', async () => {
+    for (const body of ['pas du json', '{"site": "javascript:alert(1)"}', '{"site": 42}', '{"autre": 1}']) {
+      const r = await new GeminiVisionProvider(fake(body, { promptTokenCount: 200000, candidatesTokenCount: 50000 }) as any, 'm').findOfficialSite(query);
+      expect(r).toEqual({ site: null, model: 'm', costCents: 4 });
+    }
+  });
+
+  it('compte au moins 1 ct par appel ancré, même pour un usage courant', async () => {
+    const model = fake('{"site": null}', { promptTokenCount: 300, candidatesTokenCount: 40, toolUsePromptTokenCount: 1500 } as any);
+    expect((await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).costCents).toBe(1);
+    const noUsage = { generateContent: jest.fn(async () => ({ response: { text: () => '{"site": null}', usageMetadata: undefined } })) };
+    expect((await new GeminiVisionProvider(noUsage as any, 'm').findOfficialSite(query)).costCents).toBe(1);
+  });
+
+  it('majore un gros usage, jetons de la recherche (toolUsePromptTokenCount) compris', async () => {
+    // (200 000 + 100 000) / 1000 × 0,01 + 50 000 / 1000 × 0,04 = 3 + 2 = 5 ; un jeton de sortie de plus → 5,00004, majoré à 6
+    const exact = fake('{"site": null}', { promptTokenCount: 200000, candidatesTokenCount: 50000, toolUsePromptTokenCount: 100000 } as any);
+    expect((await new GeminiVisionProvider(exact as any, 'm').findOfficialSite(query)).costCents).toBe(5);
+    const above = fake('{"site": null}', { promptTokenCount: 200000, candidatesTokenCount: 50001, toolUsePromptTokenCount: 100000 } as any);
+    expect((await new GeminiVisionProvider(above as any, 'm').findOfficialSite(query)).costCents).toBe(6);
+  });
+
+  it('compte aussi les requêtes de recherche ancrées (webSearchQueries) : 1,4 ct chacune, majoré', async () => {
+    const withQueries = (queries: string[] | undefined, usage = { promptTokenCount: 300, candidatesTokenCount: 40 }) => ({
+      generateContent: jest.fn(async () => ({
+        response: { text: () => '{"site": null}', usageMetadata: usage, candidates: [{ groundingMetadata: queries ? { webSearchQueries: queries } : {} }] },
+      })),
+    });
+    const cost = async (model: ReturnType<typeof withQueries>) => (await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).costCents;
+    expect(await cost(withQueries(['tempier']))).toBe(2); // 1,4 → 2
+    expect(await cost(withQueries(['a', 'b', 'c']))).toBe(5); // 4,2 → 5
+    expect(await cost(withQueries([]))).toBe(1);
+    expect(await cost(withQueries(undefined))).toBe(1);
+    // Les jetons l'emportent s'ils coûtent davantage : 300 000 / 1000 × 0,01 = 3 ct > 1,4 ct.
+    expect(await cost(withQueries(['tempier'], { promptTokenCount: 300000, candidatesTokenCount: 0 }))).toBe(3);
+  });
+
+  it('transmet le signal d’abandon de la recherche à Gemini', async () => {
+    const model = fake('{"site": null}');
+    const signal = new AbortController().signal;
+    await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query, signal);
+    expect((model.generateContent.mock.calls[0] as any)[1]).toEqual({ signal });
+  });
+
+  it('laisse remonter une panne de Gemini', async () => {
+    const model = { generateContent: jest.fn(async () => { throw new Error('503 Service Unavailable'); }) };
+    await expect(new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).rejects.toThrow('503');
   });
 });

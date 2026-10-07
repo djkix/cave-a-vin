@@ -5,6 +5,7 @@ import { ApogeeBlock } from '../components/ApogeeBlock';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { DomaineBlock, producerPollInterval } from '../components/DomaineBlock';
+import { ImageSearchBlock } from '../components/ImageSearchBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
 import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
@@ -82,15 +83,21 @@ export function WinePage() {
     <>
       <TopBar title="Fiche vin" back="/cave" />
       <main className="page">
-        <section className="card" style={{ display: 'flex', gap: 'var(--space-md)' }}>
-          <WineThumb photoId={wine.referencePhotoId} size={96} />
-          <div>
-            <h2 className="list__title" style={{ fontSize: 20, margin: 0 }}>
-              {wine.producer}{wine.cuvee ? ` — ${wine.cuvee}` : ''}
-            </h2>
-            <p className="list__meta">{wine.appellationRaw} · {wine.vintage ?? 'NV'} · {wine.formatCl} cl</p>
-            <p className="num" style={{ fontSize: 22, margin: 0 }}>{wine.quantity} en stock</p>
+        {/* En-tête (vignette + titre) sur une ligne ; la recherche d'image et sa
+            fenêtre de choix dessous, sur toute la largeur de la carte : dans la
+            colonne de la vignette, à 375 px, tout y serait écrasé. */}
+        <section className="card wine-head">
+          <div className="wine-head__row">
+            <WineThumb photoId={wine.referencePhotoId} size={96} />
+            <div>
+              <h2 className="list__title" style={{ fontSize: 20, margin: 0 }}>
+                {wine.producer}{wine.cuvee ? ` — ${wine.cuvee}` : ''}
+              </h2>
+              <p className="list__meta">{wine.appellationRaw} · {wine.vintage ?? 'NV'} · {wine.formatCl} cl</p>
+              <p className="num" style={{ fontSize: 22, margin: 0 }}>{wine.quantity} en stock</p>
+            </div>
           </div>
+          <ImageSearchBlock wine={wine} />
         </section>
 
         {/* Clé distincte de celle de SortieConfirmation : deux enfants du même

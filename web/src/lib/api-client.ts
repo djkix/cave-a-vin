@@ -149,10 +149,27 @@ export function getCave(filter: CaveFilter) {
 }
 
 export interface WineDetail {
-  wine: CaveRow & { pairing?: Pairing | null; producerKey: string | null; producerProfile?: ProducerProfile | null };
+  wine: CaveRow & {
+    pairing?: Pairing | null; producerKey: string | null; producerProfile?: ProducerProfile | null;
+    /** Non nuls ⇔ la vignette vient d'une recherche web (afficher la source et « Revenir à ma photo »). */
+    referencePhotoSource: string | null; referencePhotoSourceUrl: string | null;
+  };
   movements: Array<{ id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null }>;
 }
 export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
+
+/** Candidate trouvée par la recherche d'image : `imageUrl` sert toujours la miniature via l'api (jamais une adresse tierce directement). */
+export interface ImageCandidate { id: string; source: string; sourceUrl: string; imageUrl: string }
+export const searchWineImages = (wineId: string) =>
+  apiFetch<{ candidates: ImageCandidate[] }>(`/wines/${wineId}/image-search`, { method: 'POST' });
+
+export interface ReferenceImageResult { referencePhotoId: string; referencePhotoSource: string; referencePhotoSourceUrl: string }
+export const chooseReferenceImage = (wineId: string, candidateId: string) =>
+  apiFetch<ReferenceImageResult>(`/wines/${wineId}/reference-image`, { method: 'POST', body: JSON.stringify({ candidateId }) });
+
+export interface RevertReferenceImageResult { referencePhotoId: string | null; referencePhotoSource: null; referencePhotoSourceUrl: null }
+export const revertReferenceImage = (wineId: string) =>
+  apiFetch<RevertReferenceImageResult>(`/wines/${wineId}/reference-image`, { method: 'DELETE' });
 
 export const setRating = (wineId: string, rating: number) =>
   apiFetch<Rating>(`/wines/${wineId}/rating`, { method: 'PUT', body: JSON.stringify({ rating }) });

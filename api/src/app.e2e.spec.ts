@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { AddressInfo, createServer } from 'node:net';
 import supertest from 'supertest';
 
 // Ce test parle HTTP au vrai AppModule : il ne tourne que là où Postgres et Redis
@@ -34,7 +35,11 @@ describeIfInfra('api HTTP', () => {
     app.setGlobalPrefix('api');
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
     sessionRedis = setupSession(app);
-    await app.init();
+    // Écoute une fois pour toutes sur 127.0.0.1, l'adresse que supertest appelle.
+    // Avec un simple `init()`, supertest ouvrait un port `::` à chaque requête ;
+    // macOS peut donner un port déjà pris sur 127.0.0.1 par un autre programme,
+    // qui recevait alors la requête (« socket hang up », 403…).
+    await app.listen(0, '127.0.0.1');
     agent = supertest.agent(app.getHttpServer());
     prisma = app.get(PrismaService);
   }, 120_000);
@@ -53,6 +58,32 @@ describeIfInfra('api HTTP', () => {
   it('refuses a protected route without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/movements/recent');
     expect(res.status).toBe(401);
+  });
+
+  it('reaches the api, never another program listening on 127.0.0.1', async () => {
+    // macOS attribue les ports éphémères à la suite : un port d'écoute qu'on vient
+    // de libérer annonce le suivant. Un intrus s'installe sur 127.0.0.1 à ce port
+    // et raccroche sans répondre, comme un tunnel ssh ou un autre service local.
+    // Si l'api écoutait `::` à chaque requête (supertest sur un serveur arrêté),
+    // macOS lui donnerait ce port quand même et la requête, envoyée à
+    // 127.0.0.1, tomberait sur l'intrus : « socket hang up ».
+    const intruder = createServer((socket) => socket.once('data', () => socket.end()));
+    for (let attempt = 0; attempt < 5 && !intruder.listening; attempt++) {
+      const probe = createServer();
+      await new Promise<void>((r) => probe.listen(0, r));
+      const next = (probe.address() as AddressInfo).port + 1;
+      await new Promise<void>((r) => probe.close(() => r()));
+      await new Promise<void>((r) => {
+        intruder.once('error', () => r());
+        intruder.listen(next, '127.0.0.1', () => r());
+      });
+    }
+    try {
+      expect(intruder.listening).toBe(true);
+      expect((await supertest(app.getHttpServer()).get('/api/movements/recent')).status).toBe(401);
+    } finally {
+      await new Promise<void>((r) => intruder.close(() => r()));
+    }
   });
 
   it('opens a session with the break-glass account', async () => {
@@ -341,6 +372,62 @@ describeIfInfra('api HTTP', () => {
       expect((await agent.put(`/api/producers/${encodeURIComponent('domaine inexistant e2e')}/description`).send({ description: 'Texte' })).status).toBe(404);
     } finally {
       await prisma.producerProfile.deleteMany({ where: { producerKey: key } });
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
+  it('refuses the image search routes without a session', async () => {
+    const server = supertest(app.getHttpServer());
+    const id = '00000000-0000-4000-8000-000000000000';
+    expect((await server.post(`/api/wines/${id}/image-search`)).status).toBe(401);
+    expect((await server.get(`/api/image-candidates/${id}`)).status).toBe(401);
+    expect((await server.post(`/api/wines/${id}/reference-image`).send({ candidateId: id })).status).toBe(401);
+    expect((await server.delete(`/api/wines/${id}/reference-image`)).status).toBe(401);
+  });
+
+  it('answers 404 « Vin introuvable », 410 for an unknown candidate and 400 for a malformed choice', async () => {
+    const unknown = '00000000-0000-4000-8000-000000000000';
+    for (const res of [
+      await agent.post(`/api/wines/${unknown}/image-search`),
+      await agent.post(`/api/wines/${unknown}/reference-image`).send({ candidateId: unknown }),
+      await agent.delete(`/api/wines/${unknown}/reference-image`),
+    ]) {
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Vin introuvable');
+    }
+    const gone = await agent.get(`/api/image-candidates/${unknown}`);
+    expect(gone.status).toBe(410);
+    expect(gone.body.message).toBe('Proposition expirée, relancez la recherche');
+
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-reference-${Date.now()}`, producer: 'Domaine e2e image', appellationRaw: 'Inconnue', color: 'ROUGE' },
+    });
+    try {
+      const bad = await agent.post(`/api/wines/${wine.id}/reference-image`).send({ candidateId: 'pas-un-uuid' });
+      expect(bad.status).toBe(400);
+      const expired = await agent.post(`/api/wines/${wine.id}/reference-image`).send({ candidateId: unknown });
+      expect(expired.status).toBe(410);
+      const revert = await agent.delete(`/api/wines/${wine.id}/reference-image`);
+      expect(revert.status).toBe(200);
+      expect(revert.body).toEqual({ referencePhotoId: null, referencePhotoSource: null, referencePhotoSourceUrl: null });
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
+  it('exposes the source of a web image on the wine detail', async () => {
+    const wine = await prisma.wine.create({
+      data: {
+        matchKey: `e2e-reference-source-${Date.now()}`, producer: 'Domaine e2e source', appellationRaw: 'Inconnue', color: 'ROUGE',
+        referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1',
+      },
+    });
+    try {
+      const res = await agent.get(`/api/wines/${wine.id}`);
+      expect(res.status).toBe(200);
+      expect(res.body.wine.referencePhotoSource).toBe('Open Food Facts (CC BY-SA)');
+      expect(res.body.wine.referencePhotoSourceUrl).toBe('https://world.openfoodfacts.org/product/1');
+    } finally {
       await prisma.wine.delete({ where: { id: wine.id } });
     }
   });

@@ -22,6 +22,10 @@ export const rawExtractionSchema = z.object({
   pays_region: field(z.string().min(1)),
   nb_cols_carton: field(z.number().int().positive()),
   confiance_globale: conf,
+  // Facultatif : les lectures enregistrées avant ce champ restent valides. Un
+  // cadre mal formé vaut null plutôt que de rendre toute la lecture illisible —
+  // il ne sert qu'à recadrer la vignette, jamais à la fiche du vin.
+  etiquette: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable().optional().catch(null),
 });
 
 export const EXTRACTION_JSON_SCHEMA_DESCRIPTION = `{
@@ -34,7 +38,8 @@ export const EXTRACTION_JSON_SCHEMA_DESCRIPTION = `{
   "degre":          {"value": number|null, "confidence": 0..1},
   "pays_region":    {"value": string|null, "confidence": 0..1},
   "nb_cols_carton": {"value": integer|null, "confidence": 0..1},
-  "confiance_globale": 0..1
+  "confiance_globale": 0..1,
+  "etiquette":      [ymin, xmin, ymax, xmax] (entiers 0..1000) | null
 }`;
 
 export function parseExtraction(raw: unknown): WineExtraction {
@@ -50,6 +55,7 @@ export function parseExtraction(raw: unknown): WineExtraction {
     countryRegion: r.pays_region,
     bottlesPerCase: r.nb_cols_carton,
     globalConfidence: r.confiance_globale,
+    labelBox: r.etiquette ?? null,
   };
 }
 
