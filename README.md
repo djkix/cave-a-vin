@@ -840,6 +840,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.0.0 — 7 octobre 2026
+
+Publiée ([v2.0.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.0.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.0.0` et `-web:2.0.0`.
+
+**Une cave par compte.** Inscriptions Google validées par l'administrateur,
+membres invités en lecture seule (sans prix, journal ni export), sélecteur de
+cave, part du budget Gemini par cave. **Sauvegarder la base avant la mise à
+jour** et suivre « Passage à la 2.0.0 » : la migration
+`20261012000000_multi_caves` est sans retour.
+
 ### 1.9.0 — 7 octobre 2026
 
 Publiée ([v1.9.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.9.0)),

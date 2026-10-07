@@ -11,6 +11,32 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.0.0](https://github.com/djkix/cave-a-vin/compare/v1.9.0...v2.0.0) (2026-10-07)
 
+### Résumé
+
+**Une cave par compte.** Chaque compte a désormais sa propre cave. Une adresse
+Google inconnue qui se connecte reste **en attente** jusqu'à ce qu'un
+administrateur valide son inscription (Administration › Inscriptions), ce qui
+lui crée sa cave. Le propriétaire d'une cave peut **inviter des membres en
+lecture seule** (page Membres) : ils voient la cave, les fiches et les
+statistiques, mais jamais les prix d'achat, ni le journal, ni l'export, et ne
+peuvent rien modifier. Un **sélecteur de cave** apparaît dans l'en-tête quand
+on en a plusieurs. Les descriptifs de domaine, les règles d'apogée et le
+référentiel restent communs et ne sont modifiables que par un administrateur.
+Chaque cave est limitée à une **part du budget Gemini mensuel** (20 % par
+défaut, réglable dans Administration › Budget), sauf celle de l'administrateur
+principal ; une photo mise en attente faute de budget n'est jamais abandonnée.
+
+**Mise à jour majeure, à préparer** (voir « Passage à la 2.0.0 » dans le
+README) : vérifier que votre compte Google est administrateur actif en base,
+puis **sauvegarder la base avant la mise à jour** — la migration
+(`20261012000000_multi_caves`) rattache toutes les données existantes à
+« Cave de {nom} », propriété du premier administrateur, et fait des autres
+comptes actifs, compte de secours compris, des membres en lecture seule. Aucune
+nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### ⚠ BREAKING CHANGES
 
