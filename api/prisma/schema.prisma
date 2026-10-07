@@ -341,7 +341,7 @@ model ImageSearchCost {
 }
 
 /// Emplacement dans une cave (zone / casier / position, au moins un des trois).
-/// labelKey = les trois champs nettoyés, en minuscules, joints par « | ».
+/// labelKey = les trois champs nettoyés, en minuscules, en tableau JSON (`["cave 2","b",null]`).
 /// Aucune quantité stockée : le stock d'un emplacement est la somme des delta
 /// des mouvements qui le désignent. Au moins un champ renseigné : CHECK
 /// location_not_empty_check en migration.

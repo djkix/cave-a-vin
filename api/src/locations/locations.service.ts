@@ -93,13 +93,6 @@ export class LocationsService {
     return rawStockAt(await this.groups(caveId, wineId, db), place);
   }
 
-  /** Emplacement de la dernière entrée (non annulée) de la cave qui en a un ; pré-remplit l'entrée suivante. */
-  async lastInLocation(caveId: string): Promise<LocationParts | null> {
-    const last = await this.lastIn(caveId);
-    return last ? { zone: last.zone, casier: last.casier, position: last.position } : null;
-  }
-
-
   /** Dernière entrée rangée et non annulée de la cave : son emplacement, id compris. */
   private async lastIn(caveId: string): Promise<(LocationParts & { id: string }) | null> {
     const rows = await this.prisma.$queryRaw<Array<LocationParts & { id: string }>>`

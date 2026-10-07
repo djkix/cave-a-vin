@@ -32,11 +32,13 @@ export const LOCATION_TOO_LONG = '40 caractères au plus par champ d\'emplacemen
 export const LOCATION_NOT_FOUND = 'Emplacement introuvable';
 export const NOT_ENOUGH_AT_LOCATION = 'Pas assez de bouteilles à cet emplacement';
 export const SAME_LOCATION = 'Emplacement d\'origine et de destination identiques';
+export const CANCEL_MOVED = 'Impossible d\'annuler : ces bouteilles ont été déplacées depuis — annulez d\'abord le déplacement';
 
 /**
  * Champs nettoyés (espaces retirés, vide = absent) et clé d'unicité : les trois
- * champs en minuscules joints par `|`. « Cave 2 / B » et « cave 2 / b »
- * désignent donc le même emplacement.
+ * champs en minuscules, en tableau JSON (`["cave 2","b",null]`). « Cave 2 / B »
+ * et « cave 2 / b » désignent donc le même emplacement ; un `|` saisi dans un
+ * champ ne peut pas en confondre deux.
  */
 export function normalizeLocation(input: LocationInput): NormalizedLocation {
   const clean = (v: string | null | undefined) => {
@@ -48,7 +50,7 @@ export function normalizeLocation(input: LocationInput): NormalizedLocation {
   const casier = clean(input.casier);
   const position = clean(input.position);
   if (zone == null && casier == null && position == null) throw new BadRequestException(EMPTY_LOCATION);
-  const labelKey = [zone, casier, position].map((p) => (p ?? '').toLowerCase()).join('|');
+  const labelKey = JSON.stringify([zone, casier, position].map((p) => p?.toLowerCase() ?? null));
   return { zone, casier, position, labelKey };
 }
 

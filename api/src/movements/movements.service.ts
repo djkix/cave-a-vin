@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Movement, Prisma, Wine } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { labelOf, normalizeLocation, Place, SAME_LOCATION } from '../locations/location';
+import { CANCEL_MOVED, labelOf, normalizeLocation, NOT_ENOUGH_AT_LOCATION, Place, SAME_LOCATION } from '../locations/location';
 import { Db, LocationsService } from '../locations/locations.service';
 import { PairingScheduler } from '../pairing/pairing.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -124,25 +124,29 @@ export class MovementsService {
     await this.assertKeyNotUsedByMove(input.idempotencyKey);
 
     const { wine, created: wineCreated } = await this.matching.matchOrCreate(caveId, input.wine);
-    const locationId = input.location ? (await this.locations.resolve(caveId, input.location)).id : null;
     // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
     // la mesure « zéro saisie » la comparera à un formulaire vide.
     const readingShown = photo?.status === 'DONE';
     try {
-      const movement = await this.prisma.movement.create({
-        data: {
-          wineId: wine.id,
-          delta: input.quantity,
-          type: 'IN',
-          photoId: input.photoId ?? null,
-          priceUnitCents: input.priceUnitCents ?? null,
-          note: input.note ?? null,
-          idempotencyKey: input.idempotencyKey,
-          locationId,
-          // La fiche telle que confirmée, comparée plus tard à la lecture de la
-          // photo pour mesurer la part de saisie manuelle (mesure « zéro saisie »).
-          ...(input.photoId ? { confirmedWine: { ...input.wine, readingShown } } : {}),
-        },
+      // Emplacement et mouvement dans une même transaction : une insertion qui
+      // échoue ne laisse pas derrière elle un emplacement créé pour rien.
+      const movement = await this.prisma.$transaction(async (tx) => {
+        const location = input.location ? await this.locations.resolve(caveId, input.location, tx) : null;
+        return tx.movement.create({
+          data: {
+            wineId: wine.id,
+            delta: input.quantity,
+            type: 'IN',
+            photoId: input.photoId ?? null,
+            priceUnitCents: input.priceUnitCents ?? null,
+            note: input.note ?? null,
+            idempotencyKey: input.idempotencyKey,
+            locationId: location?.id ?? null,
+            // La fiche telle que confirmée, comparée plus tard à la lecture de la
+            // photo pour mesurer la part de saisie manuelle (mesure « zéro saisie »).
+            ...(input.photoId ? { confirmedWine: { ...input.wine, readingShown } } : {}),
+          },
+        });
       });
       // La première photo d'entrée devient la vignette du vin : c'est elle qui
       // permet de départager deux millésimes à la sortie.
@@ -249,6 +253,10 @@ export class MovementsService {
     } catch (e) {
       if (e instanceof Error && /aucune bouteille/.test(e.message)) {
         throw new ConflictException('Impossible d’annuler : il ne reste aucune bouteille de ce vin');
+      }
+      // L'emplacement d'origine n'a plus ces bouteilles : elles en sont reparties depuis.
+      if (e instanceof ConflictException && e.message === NOT_ENOUGH_AT_LOCATION) {
+        throw new ConflictException(CANCEL_MOVED);
       }
       if (isUniqueViolation(e, 'reverses')) {
         throw new ConflictException('Ce mouvement a déjà été annulé');

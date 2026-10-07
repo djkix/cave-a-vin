@@ -152,7 +152,7 @@ export class CaveService {
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
     const locations = await this.locations.stockByLocation(caveId, id);
-    const [movements, profile, exitDefault, lastLocation, quotes] = await Promise.all([
+    const [movements, profile, exitDefault, quotes] = await Promise.all([
       this.prisma.movement.findMany({
         where: { wineId: id },
         orderBy: { occurredAt: 'desc' },
@@ -166,7 +166,6 @@ export class CaveService {
       producerKey ? this.prisma.producerProfile.findUnique({ where: { producerKey }, include: PRODUCER_PROFILE_INCLUDE }) : null,
       // Emplacements : visibles du membre comme du propriétaire (ce ne sont pas des prix).
       this.locations.exitDefault(caveId, id, undefined, locations),
-      this.locations.lastInLocation(caveId),
       // Cote : un prix, jamais lue pour un membre.
       role === 'OWNER' && withQuote ? this.prisma.priceQuote.findMany({ where: { wineId: id }, select: QUOTE_SELECT }) : null,
     ]);
@@ -192,8 +191,6 @@ export class CaveService {
       locations,
       /** Endroit pré-sélectionné à la sortie : id, null = « Sans emplacement », absent = plus de stock. */
       exitDefault,
-      /** Dernier emplacement utilisé à l'entrée dans la cave, pour pré-remplir l'entrée ; null si aucun. */
-      lastLocation,
       /**
        * Propriétaire seulement : cote iDealwine courante (null sans cote) et lien
        * « Voir sur iDealwine » (page enregistrée de la cote courante, sinon de la

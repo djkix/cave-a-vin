@@ -305,7 +305,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     ids.wineB = wineB;
     // Cote de A : la fiche du propriétaire en porte une, celle du membre aucune clé.
     await prisma.priceQuote.create({ data: { wineId: ids.wineA, coteCents: 5000, quotedOn: new Date('2026-02-01'), sourceUrl: 'https://www.idealwine.com/fr/iso.jsp' } });
-    ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zone: 'Cave A', casier: 'Iso', labelKey: 'cave a|iso|' } })).id;
+    ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zone: 'Cave A', casier: 'Iso', labelKey: '["cave a","iso",null]' } })).id;
 
     // Photo d'entrée lue, sans mouvement : « À confirmer » de A, avec son image sur disque.
     const photo = (name: string) =>
@@ -531,7 +531,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
         const res = await agent.get(`/api/wines/${ids.wineA}`);
         expect(res.status).toBe(200);
         expect(res.body.locations).toEqual(expect.any(Array));
-        expect(res.body).toHaveProperty('lastLocation');
+        expect(res.body).not.toHaveProperty('lastLocation');
       }
     });
   });

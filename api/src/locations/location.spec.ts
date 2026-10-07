@@ -2,10 +2,15 @@ import { BadRequestException } from '@nestjs/common';
 import { formatPlaces, labelOf, normalizeLocation, placesOf } from './location';
 
 describe('normalizeLocation', () => {
-  it('nettoie les champs, vide = absent, clé en minuscules jointe par |', () => {
-    expect(normalizeLocation({ zone: '  Cave 2 ', casier: 'B', position: '' })).toEqual({ zone: 'Cave 2', casier: 'B', position: null, labelKey: 'cave 2|b|' });
-    expect(normalizeLocation({ casier: ' b ' })).toEqual({ zone: null, casier: 'b', position: null, labelKey: '|b|' });
-    expect(normalizeLocation({ zone: null, casier: undefined, position: '3' }).labelKey).toBe('||3');
+  it('nettoie les champs, vide = absent, clé = les trois champs en minuscules, en tableau JSON', () => {
+    expect(normalizeLocation({ zone: '  Cave 2 ', casier: 'B', position: '' })).toEqual({ zone: 'Cave 2', casier: 'B', position: null, labelKey: '["cave 2","b",null]' });
+    expect(normalizeLocation({ casier: ' b ' })).toEqual({ zone: null, casier: 'b', position: null, labelKey: '[null,"b",null]' });
+    expect(normalizeLocation({ zone: null, casier: undefined, position: '3' }).labelKey).toBe('[null,null,"3"]');
+  });
+
+  it('un | dans un champ ne fait pas collisionner deux emplacements', () => {
+    expect(normalizeLocation({ zone: 'a|b' }).labelKey).not.toBe(normalizeLocation({ zone: 'a', casier: 'b' }).labelKey);
+    expect(normalizeLocation({ zone: 'a', casier: 'b|' }).labelKey).not.toBe(normalizeLocation({ zone: 'a|b' }).labelKey);
   });
 
   it('même emplacement quelle que soit la casse ou les espaces', () => {
