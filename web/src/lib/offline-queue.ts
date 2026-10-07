@@ -7,6 +7,21 @@ export interface QueuedPhoto {
   bytes: number;
   createdAt: number;
   mode: 'entry' | 'single' | 'campaign';
+  /**
+   * Compte qui a pris la photo : seule sa session l'envoie. Absent pour une
+   * photo rangée avant les caves multiples (voir `belongsTo`).
+   */
+  userId?: string;
+}
+
+/**
+ * Une photo part avec le compte qui l'a prise. Une photo sans estampille date
+ * d'avant cette version (téléphone de Franck, seul compte jusque-là) : elle est
+ * envoyée par le premier compte propriétaire qui vide la file — compatibilité
+ * ascendante voulue.
+ */
+export function belongsTo(item: QueuedPhoto, userId: string): boolean {
+  return item.userId === undefined || item.userId === userId;
 }
 
 interface CaveDB extends DBSchema {
@@ -61,15 +76,21 @@ export async function listQueue(): Promise<QueuedPhoto[]> {
   return (await db()).getAllFromIndex('photos', 'byCreated');
 }
 
-export async function queueStats(): Promise<{ count: number; bytes: number }> {
+/**
+ * Sans compte : toute la file. Avec un compte : ses photos (et les anciennes sans
+ * estampille) dans `count`/`bytes`, celles des autres comptes dans `others`.
+ */
+export async function queueStats(userId?: string | null): Promise<{ count: number; bytes: number; others: number }> {
   const all = await listQueue();
-  return { count: all.length, bytes: all.reduce((s, p) => s + p.bytes, 0) };
+  const mine = userId ? all.filter((p) => belongsTo(p, userId)) : all;
+  return { count: mine.length, bytes: mine.reduce((s, p) => s + p.bytes, 0), others: all.length - mine.length };
 }
 
-export async function enqueuePhoto(blob: Blob, mode: QueuedPhoto['mode']): Promise<QueuedPhoto> {
+export async function enqueuePhoto(blob: Blob, mode: QueuedPhoto['mode'], userId?: string): Promise<QueuedPhoto> {
+  // Les limites protègent le téléphone : elles portent sur toute la file, tous comptes confondus.
   const { count, bytes } = await queueStats();
   if (count >= QUEUE_LIMITS.maxItems || bytes + blob.size > QUEUE_LIMITS.maxBytes) throw new QueueFullError();
-  const item: QueuedPhoto = { id: crypto.randomUUID(), blob, bytes: blob.size, createdAt: Date.now(), mode };
+  const item: QueuedPhoto = { id: crypto.randomUUID(), blob, bytes: blob.size, createdAt: Date.now(), mode, ...(userId ? { userId } : {}) };
   await (await db()).put('photos', item);
   return item;
 }
@@ -78,10 +99,15 @@ export async function removeFromQueue(id: string): Promise<void> {
   await (await db()).delete('photos', id);
 }
 
-export async function flushQueue(upload: (blob: Blob) => Promise<unknown>): Promise<{ sent: number; failed: number }> {
+/**
+ * Envoie les photos du compte `userId` (et les anciennes sans estampille). Celles
+ * d'un autre compte restent dans la file, intactes : jamais envoyées dans la cave
+ * d'un autre, jamais effacées.
+ */
+export async function flushQueue(upload: (blob: Blob) => Promise<unknown>, userId: string): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
-  for (const item of await listQueue()) {
+  for (const item of (await listQueue()).filter((p) => belongsTo(p, userId))) {
     try {
       await upload(item.blob);
       await removeFromQueue(item.id);

@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
-import { viewerMe } from '../test-fixtures';
+import { meFixture, viewerMe } from '../test-fixtures';
 import { BottomNav } from './BottomNav';
 
 afterEach(() => vi.restoreAllMocks());
@@ -33,4 +33,12 @@ it('ne garde que Cave et Stats pour un membre en lecture seule', async () => {
   expect(screen.queryByRole('link', { name: /Entrée/ })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Sortie/ })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Journal/ })).not.toBeInTheDocument();
+});
+
+it('disparaît pour un compte sans cave (administrateur sans cave dans l’administration)', async () => {
+  const me = vi.spyOn(api, 'getMe').mockResolvedValue(meFixture({ isAdmin: true, caves: [], currentCaveId: null }));
+  mount();
+  await waitFor(() => expect(me).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  expect(screen.queryByLabelText('Navigation principale')).not.toBeInTheDocument();
 });

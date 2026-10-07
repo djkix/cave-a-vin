@@ -12,7 +12,10 @@ const tabs = [
 
 export function BottomNav() {
   // Un membre en lecture seule n'a ni entrée, ni sortie, ni journal.
-  const { isOwner } = useCurrentCave();
+  const { me, isOwner, caves } = useCurrentCave();
+  // Sans cave (administrateur sur l'administration), Cave et Stats ne mèneraient
+  // qu'à l'écran « pas encore de cave » : pas d'onglets du tout.
+  if (me && caves.length === 0) return null;
   return (
     <nav className="bottomnav" aria-label="Navigation principale">
       {tabs.filter((t) => isOwner || !t.ownerOnly).map((t) =>

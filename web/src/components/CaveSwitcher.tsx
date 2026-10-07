@@ -30,12 +30,22 @@ export function CaveSwitcher() {
   const change = useMutation({
     mutationFn: (id: string) => setCurrentCave(id),
     onSuccess: async (me: Me) => {
-      qc.setQueryData(['me'], me);
+      // Tout ce qui est en cache appartient à l'ancienne cave. Ni « relire »
+      // (l'ancien contenu resterait affiché pendant le chargement), ni relancer
+      // sous la nouvelle session une requête que le nouveau rôle n'autorise
+      // plus : on arrête et on retire tout sauf la session, sans aucune
+      // relance. Les observateurs encore montés ne sont pas prévenus d'un
+      // retrait : rien ne repart avant le nouveau rendu.
+      const stale = { predicate: (q: { queryKey: readonly unknown[] }) => q.queryKey[0] !== 'me' };
+      await qc.cancelQueries(stale);
+      qc.removeQueries(stale);
       const next = me.caves.find((c) => c.id === me.currentCaveId);
       const target = pathAfterCaveSwitch(pathname, next?.role === 'OWNER');
       if (target !== pathname) navigate(target, { replace: true });
-      // Tout ce qui est en cache appartient à l'ancienne cave : on relit tout.
-      await qc.invalidateQueries();
+      // La nouvelle session déclenche ce rendu : RequireAuth remonte les pages
+      // (clé = cave courante), dont les requêtes repartent de zéro avec le
+      // nouveau rôle — seules celles qu'il autorise sont lancées.
+      qc.setQueryData(['me'], me);
     },
   });
 

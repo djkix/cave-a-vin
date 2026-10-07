@@ -34,8 +34,15 @@ function RenameCard() {
   return (
     <form className="card" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
       <label className="field__label" htmlFor="cave-name">Nom de la cave</label>
-      <input id="cave-name" value={value} maxLength={200} onChange={(e) => { setDraft(e.target.value); rename.reset(); }} />
-      {cave && invalid && <p className="text-error" style={{ margin: 0 }}>{NAME_ERROR}</p>}
+      <input
+        id="cave-name"
+        value={value}
+        maxLength={200}
+        aria-invalid={Boolean(cave) && invalid}
+        aria-describedby={cave && invalid ? 'cave-name-error' : undefined}
+        onChange={(e) => { setDraft(e.target.value); rename.reset(); }}
+      />
+      {cave && invalid && <p id="cave-name-error" className="text-error" style={{ margin: 0 }}>{NAME_ERROR}</p>}
       {rename.isError && <p role="alert" className="text-error" style={{ margin: 0 }}>{(rename.error as Error).message}</p>}
       {rename.isSuccess && <p role="status" className="list__meta" style={{ margin: 0 }}>Nom enregistré</p>}
       <button type="submit" className="btn btn--dark" disabled={!cave || invalid || rename.isPending}>Enregistrer</button>

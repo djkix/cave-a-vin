@@ -1,4 +1,5 @@
 import { ChangeEvent, useRef, useState } from 'react';
+import { useCurrentCave } from '../lib/use-current-cave';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
@@ -18,6 +19,9 @@ export function EntreeCapturePage() {
   const input = useRef<HTMLInputElement>(null);
   const [taken, setTaken] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Lu au moment de ranger la photo (après la réduction), pas à celui du rendu.
+  const userId = useRef<string | undefined>(undefined);
+  userId.current = useCurrentCave().me?.id;
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -28,7 +32,7 @@ export function EntreeCapturePage() {
     setError(null);
     try {
       const blob = await shrinkPhoto(file);
-      await enqueuePhoto(blob, 'entry');
+      await enqueuePhoto(blob, 'entry', userId.current);
     } catch (err) {
       setError(err instanceof QueueFullError ? err.message : 'Photo non enregistrée sur le téléphone — reprenez-la');
       return;

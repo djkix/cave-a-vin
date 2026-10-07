@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as api from '../lib/api-client';
+import { _resetForTests, enqueuePhoto, listQueue } from '../lib/offline-queue';
 import * as sender from '../lib/photo-sender';
 import { APP_VERSION } from '../lib/version';
 import { meFixture, viewerMe } from '../test-fixtures';
@@ -89,4 +90,24 @@ it('n’envoie pas la file de photos pour un membre en lecture seule', async () 
   mount();
   expect(await screen.findByText('Protégé')).toBeInTheDocument();
   expect(send).not.toHaveBeenCalled();
+});
+
+it('garde la file de photos du téléphone à la déconnexion', async () => {
+  await _resetForTests();
+  await enqueuePhoto(new Blob([new Uint8Array(3)]), 'entry', 'u9');
+  vi.spyOn(api, 'getMe').mockResolvedValue(meFixture({ status: 'PENDING', caves: [], currentCaveId: null }));
+  vi.spyOn(api, 'logout').mockResolvedValue({ ok: true });
+  mount();
+  await userEvent.click(await screen.findByRole('button', { name: 'Se déconnecter' }));
+  expect(await screen.findByText('Connexion')).toBeInTheDocument();
+  expect(await listQueue()).toHaveLength(1);
+  await _resetForTests();
+});
+
+it('désigne le propriétaire connecté comme compte d’envoi de la file', async () => {
+  const account = vi.spyOn(sender, 'setSenderAccount');
+  vi.spyOn(sender, 'sendQueuedPhotos').mockResolvedValue(undefined);
+  mount();
+  expect(await screen.findByText('Protégé')).toBeInTheDocument();
+  expect(account).toHaveBeenLastCalledWith('u1');
 });

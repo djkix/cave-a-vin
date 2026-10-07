@@ -5,12 +5,14 @@ import * as api from '../lib/api-client';
 import * as queue from '../lib/offline-queue';
 import { _resetForTests, QueueFullError, queueStats } from '../lib/offline-queue';
 import * as sender from '../lib/photo-sender';
-import { _resetSenderForTests } from '../lib/photo-sender';
+import { _resetSenderForTests, setSenderAccount } from '../lib/photo-sender';
 import { EntreeCapturePage } from './EntreeCapturePage';
 
 beforeEach(async () => {
   await _resetForTests();
   _resetSenderForTests();
+  // Posé par RequireAuth dans l'application : le propriétaire connecté.
+  setSenderAccount('u1');
 });
 
 afterEach(() => {
@@ -36,6 +38,9 @@ it('range trois photos dans la file sans attendre aucun envoi, et compte 3', asy
   const enqueue = vi.spyOn(queue, 'enqueuePhoto');
   const kick = vi.spyOn(sender, 'kickSender');
   mount();
+  // La session (/auth/me) est chargée avant toute photo, comme derrière RequireAuth.
+  await waitFor(() => expect(api.getMe).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 0));
 
   const input = screen.getByLabelText('Prendre une photo');
   expect(input).toHaveAttribute('accept', 'image/*');
@@ -51,6 +56,8 @@ it('range trois photos dans la file sans attendre aucun envoi, et compte 3', asy
   expect(await screen.findByText('3 photos en cours d’envoi')).toBeInTheDocument();
   expect(enqueue).toHaveBeenCalledTimes(3);
   enqueue.mock.calls.forEach((call) => expect(call[1]).toBe('entry'));
+  // Chaque photo porte le compte qui l'a prise.
+  enqueue.mock.calls.forEach((call) => expect(call[2]).toBe('u1'));
   expect(kick).toHaveBeenCalledTimes(3);
   expect((await queueStats()).count).toBe(3);
   // L'envoyeur a bien été relancé, mais l'écran n'a pas attendu sa réponse.
@@ -70,6 +77,9 @@ it('affiche l’erreur de file pleine et ne compte pas la photo', async () => {
   vi.spyOn(queue, 'enqueuePhoto').mockRejectedValue(new QueueFullError());
   const kick = vi.spyOn(sender, 'kickSender');
   mount();
+  // La session (/auth/me) est chargée avant toute photo, comme derrière RequireAuth.
+  await waitFor(() => expect(api.getMe).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 0));
   fireEvent.change(screen.getByLabelText('Prendre une photo'), { target: { files: [photo(1)] } });
   expect(await screen.findByRole('alert')).toHaveTextContent('File d’envoi pleine (200 photos) — attendez que les envois partent');
   expect(screen.getByText('0 photo prise')).toBeInTheDocument();

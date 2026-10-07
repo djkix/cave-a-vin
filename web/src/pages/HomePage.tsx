@@ -21,9 +21,10 @@ export function HomePage() {
     <>
       <TopBar />
       <main className="page">
+        {/* Photos d'un autre compte sur ce téléphone : signalées à tous, envoyées par leur seul auteur. */}
+        <OfflineQueueBanner readOnly={!isOwner} />
         {isOwner && (
           <>
-            <OfflineQueueBanner />
             <AnalysisQueueBanner />
             <section className="actions">
               <Link to="/entree" className="action action--in">

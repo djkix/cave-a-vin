@@ -27,6 +27,7 @@ export function BudgetSection() {
   const current = budget.data ? String(Math.round(budget.data.caveShare * 100)) : '';
   const value = draft ?? current;
   const pct = parsePercent(value);
+  const invalid = budget.data !== undefined && pct === null;
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -53,10 +54,13 @@ export function BudgetSection() {
           step={1}
           value={value}
           onChange={(e) => { setDraft(e.target.value); save.reset(); }}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? 'budget-share-error' : undefined}
           style={{ width: 96 }}
         />
         <button type="submit" className="btn btn--outline" disabled={!budget.data || pct === null || save.isPending}>Enregistrer</button>
       </form>
+      {invalid && <p id="budget-share-error" className="text-error">Entrez un pourcentage entier entre 0 et 100</p>}
       {save.isError && <p role="alert" className="text-error">{(save.error as Error).message}</p>}
       {save.isSuccess && <p role="status" className="list__meta">Part enregistrée</p>}
       <p className="list__meta">La cave de l’administrateur principal n’est pas limitée.</p>

@@ -72,7 +72,7 @@ it('propose les caves avec « (lecture) » pour un membre, la courante choisie',
   expect(screen.queryByText('Lecture seule')).not.toBeInTheDocument();
 });
 
-it('change de cave, relit toutes les requêtes et quitte une page réservée devenue interdite', async () => {
+it('change de cave, retire tout le cache de l’ancienne sauf la session et quitte une page réservée devenue interdite', async () => {
   const getMe = vi.spyOn(api, 'getMe').mockResolvedValue(twoCaves);
   const viewerSession = { ...twoCaves, currentCaveId: VIEWER_CAVE.id };
   // Comme l'api : après le changement, /auth/me répond la nouvelle cave courante.
@@ -81,10 +81,15 @@ it('change de cave, relit toutes les requêtes et quitte une page réservée dev
     return viewerSession;
   });
   const qc = mount({ title: 'Journal' }, '/journal');
+  qc.setQueryData(['cave', {}], [{ id: 'w-ancienne' }]);
+  qc.setQueryData(['admin', 'users'], []);
   const invalidate = vi.spyOn(qc, 'invalidateQueries');
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Cave' }), 'c2');
   await waitFor(() => expect(set).toHaveBeenCalledWith('c2'));
-  await waitFor(() => expect(invalidate).toHaveBeenCalledWith());
+  await waitFor(() => expect(qc.getQueryData(['cave', {}])).toBeUndefined());
+  expect(qc.getQueryData(['admin', 'users'])).toBeUndefined();
+  // Aucune relecture : elle afficherait l'ancien contenu le temps du chargement.
+  expect(invalidate).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/));
   expect(qc.getQueryData(['me'])).toEqual(viewerSession);
   expect(await screen.findByText('Lecture seule')).toBeInTheDocument();

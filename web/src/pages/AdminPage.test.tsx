@@ -215,11 +215,14 @@ describe('Budget', () => {
       await userEvent.clear(input);
       await userEvent.type(input, bad);
       expect(save).toBeDisabled();
+      expect(screen.getByText('Entrez un pourcentage entier entre 0 et 100')).toBeInTheDocument();
+      expect(input).toHaveAttribute('aria-invalid', 'true');
     }
     await userEvent.clear(input);
     expect(save).toBeDisabled();
     await userEvent.type(input, '0');
     expect(save).toBeEnabled();
+    expect(screen.queryByText('Entrez un pourcentage entier entre 0 et 100')).not.toBeInTheDocument();
     expect(put).not.toHaveBeenCalled();
   });
 

@@ -114,6 +114,8 @@ it('refuse un nom vide ou de plus de 80 caractères, sans appel', async () => {
   await userEvent.clear(input);
   await userEvent.type(input, '   ');
   expect(screen.getByText('Le nom de la cave doit faire de 1 à 80 caractères')).toBeInTheDocument();
+  expect(input).toHaveAttribute('aria-invalid', 'true');
+  expect(input).toHaveAccessibleDescription('Le nom de la cave doit faire de 1 à 80 caractères');
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
   await userEvent.clear(input);
   await userEvent.type(input, 'x'.repeat(81));
@@ -122,6 +124,7 @@ it('refuse un nom vide ou de plus de 80 caractères, sans appel', async () => {
   await userEvent.type(input, 'x'.repeat(80));
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled();
   expect(screen.queryByText('Le nom de la cave doit faire de 1 à 80 caractères')).not.toBeInTheDocument();
+  expect(input).toHaveAttribute('aria-invalid', 'false');
   expect(rename).not.toHaveBeenCalled();
 });
 
