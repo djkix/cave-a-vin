@@ -1,13 +1,18 @@
 import { BadRequestException, Body, Controller, HttpCode, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { AppUser } from '@prisma/client';
+import { AdminGuard } from '../auth/admin.guard';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { producerDescriptionSchema } from './producer-description.dto';
 import { ProducersService } from './producers.service';
 
-/** `:key` = clé normalisée du domaine (normalizeLabel), encodée dans l'URL. */
+/**
+ * `:key` = clé normalisée du domaine (normalizeLabel), encodée dans l'URL.
+ * Descriptifs communs à toutes les caves : écrire et régénérer sont réservés à
+ * l'administrateur (403 sinon) ; la lecture passe par la fiche vin.
+ */
 @Controller('producers')
-@UseGuards(AuthenticatedGuard)
+@UseGuards(AuthenticatedGuard, AdminGuard)
 export class ProducersController {
   constructor(private readonly producers: ProducersService) {}
 

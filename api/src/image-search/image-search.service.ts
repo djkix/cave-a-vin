@@ -100,14 +100,15 @@ export class ImageSearchService {
     @Inject(IMAGE_SEARCH_FETCHER) private readonly fetcher: Fetcher,
   ) {}
 
-  private async findWine(id: string) {
-    const wine = await this.prisma.wine.findUnique({ where: { id }, select: WINE_SELECT });
+  /** Vin de la cave courante ; celui d'une autre cave est inexistant (404). */
+  private async findWine(caveId: string, id: string) {
+    const wine = await this.prisma.wine.findFirst({ where: { id, caveId }, select: WINE_SELECT });
     if (!wine) throw new NotFoundException('Vin introuvable');
     return wine;
   }
 
-  async search(wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
-    const wine = await this.findWine(wineId);
+  async search(caveId: string, wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
+    const wine = await this.findWine(caveId, wineId);
     await this.store.cleanup();
     const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage };
 
@@ -196,8 +197,16 @@ export class ImageSearchService {
     }
   }
 
-  async candidateImage(candidateId: string): Promise<Buffer> {
+  /**
+   * Image d'une candidate cherchée pour un vin de la cave courante. Une
+   * candidate d'un vin d'une autre cave est traitée comme inconnue (410, comme
+   * une candidate expirée) : elle n'est jamais servie hors de sa cave.
+   */
+  async candidateImage(caveId: string, candidateId: string): Promise<Buffer> {
     try {
+      const meta = await this.store.get(candidateId);
+      const wine = await this.prisma.wine.findFirst({ where: { id: meta.wineId, caveId }, select: { id: true } });
+      if (!wine) throw new CandidateExpiredError();
       return await this.store.read(candidateId);
     } catch (e) {
       if (e instanceof CandidateExpiredError) throw new GoneException(e.message);
@@ -210,8 +219,9 @@ export class ImageSearchService {
    * la vignette du vin. La vignette d'avant est mémorisée une seule fois : choisir
    * une autre image du web ne fait pas oublier la photo de l'utilisateur.
    */
-  async chooseReference(wineId: string, candidateId: string): Promise<ReferenceImageView> {
-    await this.findWine(wineId);
+  async chooseReference(caveId: string, wineId: string, candidateId: string): Promise<ReferenceImageView> {
+    // Vin de la cave courante, et candidate cherchée pour ce vin : donc de cette cave.
+    await this.findWine(caveId, wineId);
     let meta: CandidateMeta;
     try {
       meta = await this.store.get(candidateId, wineId);
@@ -273,8 +283,8 @@ export class ImageSearchService {
    * Sans vignette d'avant, reprend la photo d'entrée la plus récente qui a servi à
    * une entrée de ce vin (s'il y en a une). Sans image du web, ne change rien.
    */
-  async revertReference(wineId: string): Promise<ReferenceImageView> {
-    await this.findWine(wineId);
+  async revertReference(caveId: string, wineId: string): Promise<ReferenceImageView> {
+    await this.findWine(caveId, wineId);
     let removed: string | null = null;
     const view = await this.prisma.$transaction(async (tx) => {
       const wine = await this.lockWine(tx, wineId);

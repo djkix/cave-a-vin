@@ -48,8 +48,7 @@ describeIfInfra('api HTTP', () => {
   }, 120_000);
 
   afterAll(async () => {
-    // La cave de test garde ses vins (supprimés test par test quand c'est utile) :
-    // on ne la supprime que si elle est vide.
+    // La cave de test et tout ce que les essais y ont écrit.
     if (prisma && caveId) await deleteTestCaves(prisma, [caveId]);
     if (app) await app.close();
     if (sessionRedis) await sessionRedis.quit();

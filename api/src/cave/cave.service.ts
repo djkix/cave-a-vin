@@ -154,7 +154,7 @@ export class CaveService {
         referencePhotoSourceUrl: row.referencePhotoSourceUrl ?? null,
         // Toujours présente (sauf nom sans lettre ni chiffre) : la fiche peut écrire ou régénérer avant tout profil.
         producerKey: producerKey || null,
-        producerProfile: producerProfileOf(profile),
+        producerProfile: producerProfileOf(profile, role),
       },
       movements,
     };

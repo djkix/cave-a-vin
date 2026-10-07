@@ -1,4 +1,4 @@
-import { Cave, Prisma, PrismaClient } from '@prisma/client';
+import { Cave, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -17,17 +17,22 @@ export async function createTestCave(prisma: PrismaClient, opts: { owner?: { id:
 }
 
 /**
- * Supprime les caves de test restées vides (leurs membres suivent). Une cave qui
- * contient encore des lignes est gardée sans erreur : les suites tournent en
- * parallèle sur la même base, et pendant la transition une route peut écrire
- * dans la plus ancienne cave, qui peut être une cave de test sur une base neuve.
+ * Supprime les caves de test et tout ce qu'elles contiennent (mouvements,
+ * accords, vins, photos, exports, coûts de recherche d'image ; les membres
+ * suivent par cascade). Chaque route écrit dans la cave courante de son compte :
+ * une cave créée par une suite ne reçoit que les lignes de cette suite, qu'on
+ * peut donc effacer sans toucher aux suites qui tournent en parallèle.
  */
 export async function deleteTestCaves(prisma: PrismaClient, ids: string[]): Promise<void> {
-  try {
-    await prisma.cave.deleteMany({
-      where: { id: { in: ids }, wines: { none: {} }, photos: { none: {} }, exportLogs: { none: {} }, imageSearchCosts: { none: {} } },
-    });
-  } catch (e) {
-    if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003')) throw e;
-  }
+  if (ids.length === 0) return;
+  const inCaves = { caveId: { in: ids } };
+  await prisma.$transaction([
+    prisma.movement.deleteMany({ where: { OR: [{ wine: inCaves }, { photo: inCaves }] } }),
+    prisma.pairing.deleteMany({ where: { wine: inCaves } }),
+    prisma.wine.deleteMany({ where: inCaves }),
+    prisma.photo.deleteMany({ where: inCaves }),
+    prisma.exportLog.deleteMany({ where: inCaves }),
+    prisma.imageSearchCost.deleteMany({ where: inCaves }),
+    prisma.cave.deleteMany({ where: { id: { in: ids } } }),
+  ]);
 }

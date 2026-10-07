@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { CavesModule } from '../caves/caves.module';
 import { loadEnv } from '../config/env';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { QueueModule } from '../queue/queue.module';
@@ -10,7 +11,7 @@ import { IMAGE_CANDIDATE_STORE, IMAGE_SEARCH_FETCHER, ImageSearchService } from 
 import { safeFetch } from './safe-fetch';
 
 @Module({
-  imports: [AuthModule, QueueModule, VisionModule],
+  imports: [AuthModule, CavesModule, QueueModule, VisionModule],
   controllers: [ImageSearchController],
   providers: [
     ImageSearchService,

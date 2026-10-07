@@ -6,7 +6,6 @@ import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { resolveLegacyCaveId } from '../caves/legacy-cave';
 import { PrismaService } from '../prisma/prisma.service';
 import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
 import { parseExtraction, safeParseExtraction } from '../vision/extraction-schema';
@@ -37,11 +36,14 @@ export class PhotosService {
     @Inject(EXTRACTION_QUEUE_TOKEN) private readonly queue: Pick<Queue<ExtractionJobData>, 'add'>,
   ) {}
 
-  async ingest(input: Buffer, mimeType: string, purpose: PhotoPurpose = 'ENTRY'): Promise<{ photo: Photo; duplicate: boolean }> {
+  /**
+   * Photo envoyée dans la cave `caveId` (cave courante du propriétaire). Doublon
+   * cherché dans la cave : deux caves peuvent envoyer la même image et ont
+   * chacune leur photo (fichiers nommés par identifiant de photo, jamais
+   * partagés sur le disque).
+   */
+  async ingest(caveId: string, input: Buffer, mimeType: string, purpose: PhotoPurpose = 'ENTRY'): Promise<{ photo: Photo; duplicate: boolean }> {
     const contentHash = createHash('sha256').update(input).digest('hex');
-    // TODO(multi-caves): remplacer par la cave courante (tâche 3/4)
-    const caveId = await resolveLegacyCaveId(this.prisma);
-    // Doublon cherché dans la cave : deux caves peuvent envoyer la même image.
     const existing = await this.prisma.photo.findUnique({ where: { caveId_contentHash: { caveId, contentHash } } });
     if (existing) return { photo: await this.reclaimForEntry(existing, purpose), duplicate: true };
 
@@ -138,6 +140,13 @@ export class PhotosService {
     return photo;
   }
 
+  /** Photo de la cave `caveId` ; celle d'une autre cave est traitée comme inexistante (404). */
+  async findInCave(caveId: string, id: string): Promise<Photo> {
+    const photo = await this.prisma.photo.findFirst({ where: { id, caveId } });
+    if (!photo) throw new NotFoundException('Photo introuvable');
+    return photo;
+  }
+
   async readNormalized(id: string): Promise<Buffer> {
     return readFile(join(this.dir, 'normalized', `${id}.jpg`));
   }
@@ -188,9 +197,9 @@ export class PhotosService {
    * invisible : elle n'apparaît ni dans la revue groupée (qui ne liste que les
    * analyses terminées) ni dans le journal, et elle passe pour perdue.
    */
-  async queueStatus(): Promise<{ waiting: number; oldestWaitingAt: Date | null; lastReason: string | null }> {
+  async queueStatus(caveId: string): Promise<{ waiting: number; oldestWaitingAt: Date | null; lastReason: string | null }> {
     // Une photo écartée n'est plus analysée : elle ne compte pas dans l'attente.
-    const where: Prisma.PhotoWhereInput = { status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY', dismissedAt: null };
+    const where: Prisma.PhotoWhereInput = { caveId, status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY', dismissedAt: null };
     const [waiting, oldest, lastDeferred] = await Promise.all([
       this.prisma.photo.count({ where }),
       this.prisma.photo.findFirst({ where, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
@@ -203,11 +212,11 @@ export class PhotosService {
     return { waiting, oldestWaitingAt: oldest?.createdAt ?? null, lastReason: lastDeferred?.errorMessage ?? null };
   }
 
-  listPendingReview(): Promise<Photo[]> {
+  listPendingReview(caveId: string): Promise<Photo[]> {
     return this.prisma.photo.findMany({
       // Une photo de sortie analysée n'est pas un vin à rentrer, une photo
       // écartée ne doit pas réapparaître dans la revue groupée.
-      where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null },
+      where: { caveId, status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null },
       orderBy: { createdAt: 'asc' },
       // La revue groupée est un écran de téléphone : au-delà de 200 fiches la
       // réponse (extractions JSON incluses) devient inutilisable.
@@ -221,12 +230,12 @@ export class PhotosService {
    * analysée (même logique que `listPendingReview` : `null` si illisible),
    * pour que l'écran de confirmation n'ait pas de second aller-retour à faire.
    */
-  async entryInbox(): Promise<{
+  async entryInbox(caveId: string): Promise<{
     toConfirm: (Photo & { extraction: ReturnType<typeof parseExtraction> | null })[];
     inProgress: Photo[];
     failed: Photo[];
   }> {
-    const base: Prisma.PhotoWhereInput = { purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null };
+    const base: Prisma.PhotoWhereInput = { caveId, purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null };
     const [toConfirmRows, inProgress, failed] = await Promise.all([
       this.prisma.photo.findMany({ where: { ...base, status: 'DONE' }, orderBy: { createdAt: 'asc' }, take: 200 }),
       this.prisma.photo.findMany({ where: { ...base, status: { in: ['PENDING', 'PROCESSING'] } }, orderBy: { createdAt: 'asc' }, take: 200 }),
@@ -242,8 +251,8 @@ export class PhotosService {
    * référence déjà la photo (409), pour ne jamais décrocher une preuve d'achat
    * d'une entrée déjà faite.
    */
-  async dismiss(id: string): Promise<void> {
-    const photo = (await this.prisma.photo.findUnique({ where: { id }, include: { movements: true } })) as
+  async dismiss(caveId: string, id: string): Promise<void> {
+    const photo = (await this.prisma.photo.findFirst({ where: { id, caveId }, include: { movements: true } })) as
       | (Photo & { movements: unknown[] })
       | null;
     if (!photo) throw new NotFoundException('Photo introuvable');

@@ -11,7 +11,6 @@ function fakePrisma() {
   const photos: any[] = [];
   return {
     photos,
-    cave: { findFirst: async () => ({ id: 'c1' }) },
     photo: {
       findUnique: async ({ where }: any) =>
         photos.find((p) =>
@@ -48,10 +47,10 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#000' } }).jpeg().toBuffer();
-    const { photo, duplicate } = await service.ingest(img, 'image/jpeg');
+    const { photo, duplicate } = await service.ingest('c1', img, 'image/jpeg');
     expect(duplicate).toBe(false);
     expect(photo.status).toBe('PENDING');
-    // TODO(multi-caves) : la cave de l'ancien fonctionnement, en attendant la cave courante.
+    // La photo appartient à la cave courante reçue du contrôleur.
     expect(photo.caveId).toBe('c1');
     expect(existsSync(join(dir, 'original', `${photo.id}.jpg`))).toBe(true);
     expect(existsSync(join(dir, 'normalized', `${photo.id}.jpg`))).toBe(true);
@@ -65,12 +64,27 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 50, height: 50, channels: 3, background: '#111' } }).jpeg().toBuffer();
-    const a = await service.ingest(img, 'image/jpeg');
-    const b = await service.ingest(img, 'image/jpeg');
+    const a = await service.ingest('c1', img, 'image/jpeg');
+    const b = await service.ingest('c1', img, 'image/jpeg');
     expect(b.duplicate).toBe(true);
     expect(b.photo.id).toBe(a.photo.id);
     expect(prisma.photos).toHaveLength(1);
     expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('dédoublonne par cave : les mêmes octets dans deux caves donnent deux photos, chacune avec ses fichiers', async () => {
+    const prisma = fakePrisma();
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, { add: jest.fn() } as any);
+    const img = await sharp({ create: { width: 52, height: 52, channels: 3, background: '#123' } }).jpeg().toBuffer();
+    const a = await service.ingest('cave-a', img, 'image/jpeg');
+    const b = await service.ingest('cave-b', img, 'image/jpeg');
+    const again = await service.ingest('cave-a', img, 'image/jpeg');
+    expect([a.duplicate, b.duplicate, again.duplicate]).toEqual([false, false, true]);
+    expect(b.photo.id).not.toBe(a.photo.id);
+    expect(again.photo.id).toBe(a.photo.id);
+    expect([a.photo.caveId, b.photo.caveId]).toEqual(['cave-a', 'cave-b']);
+    // Fichiers nommés par identifiant de photo : rien n'est partagé entre les deux caves.
+    for (const id of [a.photo.id, b.photo.id]) expect(existsSync(join(dir, 'normalized', `${id}.jpg`))).toBe(true);
   });
 
   it('rend à l’entrée une photo de sortie sans mouvement quand les mêmes octets arrivent en entrée', async () => {
@@ -78,8 +92,8 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#222' } }).jpeg().toBuffer();
-    const exit = await service.ingest(img, 'image/jpeg', 'EXIT');
-    const entry = await service.ingest(img, 'image/jpeg', 'ENTRY');
+    const exit = await service.ingest('c1', img, 'image/jpeg', 'EXIT');
+    const entry = await service.ingest('c1', img, 'image/jpeg', 'ENTRY');
     expect(entry.duplicate).toBe(true);
     expect(entry.photo.id).toBe(exit.photo.id);
     expect(entry.photo.purpose).toBe('ENTRY');
@@ -91,9 +105,9 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#333' } }).jpeg().toBuffer();
-    await service.ingest(img, 'image/jpeg', 'EXIT');
+    await service.ingest('c1', img, 'image/jpeg', 'EXIT');
     prisma.photos[0].hasMovement = true;
-    const entry = await service.ingest(img, 'image/jpeg', 'ENTRY');
+    const entry = await service.ingest('c1', img, 'image/jpeg', 'ENTRY');
     expect(entry.photo.purpose).toBe('EXIT');
   });
 
@@ -110,8 +124,7 @@ describe('PhotosService.ingest', () => {
     let findUniqueCalls = 0;
     let createCalls = 0;
     const prisma = {
-      cave: { findFirst: async () => ({ id: 'c1' }) },
-      photo: {
+        photo: {
         findUnique: async () => {
           findUniqueCalls += 1;
           return findUniqueCalls === 1 ? null : existingRow;
@@ -129,7 +142,7 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), raceDir, queue as any);
     const img = await sharp({ create: { width: 30, height: 30, channels: 3, background: '#222' } }).jpeg().toBuffer();
-    const result = await service.ingest(img, 'image/jpeg');
+    const result = await service.ingest('c1', img, 'image/jpeg');
     expect(result.duplicate).toBe(true);
     expect(result.photo).toBe(existingRow);
     expect(createCalls).toBe(1);
@@ -142,7 +155,7 @@ describe('PhotosService.ingest', () => {
     const prisma = fakePrisma();
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
-    await expect(service.ingest(Buffer.from('not an image'), 'image/jpeg')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.ingest('c1', Buffer.from('not an image'), 'image/jpeg')).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.photos).toHaveLength(0);
     expect(queue.add).not.toHaveBeenCalled();
   });
@@ -152,7 +165,7 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn(async () => { throw new Error('redis down'); }) };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#333' } }).jpeg().toBuffer();
-    await expect(service.ingest(img, 'image/jpeg', 'EXIT')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(service.ingest('c1', img, 'image/jpeg', 'EXIT')).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(prisma.photo.delete).toHaveBeenCalledTimes(1);
     const deletedId = (prisma.photo.delete as jest.Mock).mock.calls[0][0].where.id;
     expect(prisma.photos).toHaveLength(0);
@@ -165,7 +178,7 @@ describe('PhotosService.ingest', () => {
     const queue = { add: jest.fn() };
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, queue as any);
     const img = await sharp({ create: { width: 30, height: 30, channels: 3, background: '#456' } }).jpeg().toBuffer();
-    const { photo } = await service.ingest(img, 'image/jpeg', 'EXIT');
+    const { photo } = await service.ingest('c1', img, 'image/jpeg', 'EXIT');
     expect(photo.purpose).toBe('EXIT');
     expect(queue.add).toHaveBeenCalledWith(
       'extract',
@@ -193,7 +206,7 @@ describe('PhotosService.queueStatus', () => {
   }
 
   it('annonce une file vide quand tout est analysé', async () => {
-    expect(await service([]).queueStatus()).toEqual({ waiting: 0, oldestWaitingAt: null, lastReason: null });
+    expect(await service([]).queueStatus('c1')).toEqual({ waiting: 0, oldestWaitingAt: null, lastReason: null });
   });
 
   it('compte les photos en attente, donne la plus ancienne et le dernier motif de report', async () => {
@@ -202,7 +215,7 @@ describe('PhotosService.queueStatus', () => {
     const status = await service([
       { createdAt: old, errorMessage: null },
       { createdAt: recent, errorMessage: 'Analyse reportée : service Gemini momentanément saturé, reprise automatique' },
-    ]).queueStatus();
+    ]).queueStatus('c1');
     expect(status.waiting).toBe(2);
     expect(status.oldestWaitingAt).toEqual(old);
     expect(status.lastReason).toContain('saturé');
@@ -213,9 +226,9 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
   it('ne liste dans la revue groupée que les photos d’entrée', async () => {
     const findMany = jest.fn(async () => []);
     const service = new PhotosService({ photo: { findMany } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    await service.listPendingReview();
+    await service.listPendingReview('c1');
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null } }),
+      expect.objectContaining({ where: { caveId: 'c1', status: 'DONE', purpose: 'ENTRY', movements: { none: {} }, dismissedAt: null } }),
     );
   });
 
@@ -228,7 +241,7 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
       (p) => p.status === where.status && p.purpose === where.purpose && p.dismissedAt === where.dismissedAt,
     ));
     const service = new PhotosService({ photo: { findMany } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    const result = await service.listPendingReview();
+    const result = await service.listPendingReview('c1');
     expect(result.map((p) => p.id)).toEqual(['kept']);
   });
 
@@ -236,7 +249,7 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
     const count = jest.fn(async () => 0);
     const findFirst = jest.fn(async () => null);
     const service = new PhotosService({ photo: { count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    await service.queueStatus();
+    await service.queueStatus('c1');
     expect(count).toHaveBeenCalledWith({ where: expect.objectContaining({ status: { in: ['PENDING', 'PROCESSING'] }, purpose: 'ENTRY' }) });
   });
 
@@ -256,11 +269,36 @@ describe('PhotosService — photos de sortie tenues à l’écart', () => {
     const count = jest.fn(async ({ where }: any) => keep(where).length);
     const findFirst = jest.fn(async ({ where }: any) => keep(where)[0] ?? null);
     const service = new PhotosService({ photo: { count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    const status = await service.queueStatus();
+    const status = await service.queueStatus('c1');
     expect(status.waiting).toBe(1);
     expect(status.oldestWaitingAt).toEqual(new Date('2026-10-05T10:00:00Z'));
     expect(status.lastReason).toBeNull();
     expect(count).toHaveBeenCalledWith({ where: expect.objectContaining({ dismissedAt: null }) });
+  });
+});
+
+describe('PhotosService — listes limitées à la cave courante', () => {
+  it('entryInbox, listPendingReview et queueStatus filtrent toutes leurs requêtes sur la cave', async () => {
+    const findMany = jest.fn(async () => []);
+    const count = jest.fn(async () => 0);
+    const findFirst = jest.fn(async () => null);
+    const svc = new PhotosService({ photo: { findMany, count, findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await svc.entryInbox('cave-x');
+    await svc.listPendingReview('cave-x');
+    await svc.queueStatus('cave-x');
+    const wheres = [...findMany.mock.calls, ...count.mock.calls, ...findFirst.mock.calls].map((c: any[]) => c[0].where);
+    expect(wheres).toHaveLength(4 + 1 + 2);
+    for (const where of wheres) expect(where.caveId).toBe('cave-x');
+  });
+});
+
+describe('PhotosService.findInCave', () => {
+  it('rend la photo de la cave, 404 « Photo introuvable » sinon', async () => {
+    const row = { id: 'p1', caveId: 'c1' };
+    const findFirst = jest.fn(async ({ where }: any) => (where.caveId === 'c1' && where.id === 'p1' ? row : null));
+    const svc = new PhotosService({ photo: { findFirst } } as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    expect(await svc.findInCave('c1', 'p1')).toBe(row);
+    await expect(svc.findInCave('c2', 'p1')).rejects.toThrow(new NotFoundException('Photo introuvable'));
   });
 });
 
@@ -294,7 +332,7 @@ describe('PhotosService.entryInbox', () => {
       { id: 'failed-1', purpose: 'ENTRY', status: 'FAILED', dismissedAt: null, createdAt: t1, rawExtraction: null },
     ];
     const { svc } = service(photos);
-    const inbox = await svc.entryInbox();
+    const inbox = await svc.entryInbox('c1');
     expect(inbox.toConfirm.map((p) => p.id)).toEqual(['done-1']);
     expect(inbox.inProgress.map((p) => p.id)).toEqual(['processing-1', 'pending-1']);
     expect(inbox.failed.map((p) => p.id)).toEqual(['failed-1']);
@@ -308,7 +346,7 @@ describe('PhotosService.entryInbox', () => {
       { id: 'kept-done', purpose: 'ENTRY', status: 'DONE', dismissedAt: null, createdAt: t0, rawExtraction: null },
     ];
     const { svc } = service(photos);
-    const inbox = await svc.entryInbox();
+    const inbox = await svc.entryInbox('c1');
     expect(inbox.toConfirm.map((p) => p.id)).toEqual(['kept-done']);
   });
 
@@ -318,40 +356,48 @@ describe('PhotosService.entryInbox', () => {
       { id: 'bad-json', purpose: 'ENTRY', status: 'DONE', dismissedAt: null, createdAt: t0, rawExtraction: { not: 'valid' } },
     ];
     const { svc } = service(photos);
-    const inbox = await svc.entryInbox();
+    const inbox = await svc.entryInbox('c1');
     expect(inbox.toConfirm).toHaveLength(1);
     expect(inbox.toConfirm[0].extraction).toBeNull();
   });
 });
 
 describe('PhotosService.dismiss', () => {
-  it('rejette avec 404 quand la photo est introuvable', async () => {
-    const prisma = { photo: { findUnique: jest.fn(async () => null) } };
+  it('cherche la photo dans la cave courante : une photo d’une autre cave est introuvable (404)', async () => {
+    const prisma = { photo: { findFirst: jest.fn(async () => null), update: jest.fn() } };
     const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    await expect(svc.dismiss('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.dismiss('c1', 'p-autre')).rejects.toThrow('Photo introuvable');
+    expect(prisma.photo.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'p-autre', caveId: 'c1' } }));
+    expect(prisma.photo.update).not.toHaveBeenCalled();
+  });
+
+  it('rejette avec 404 quand la photo est introuvable', async () => {
+    const prisma = { photo: { findFirst: jest.fn(async () => null) } };
+    const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
+    await expect(svc.dismiss('c1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('rejette avec 409 quand un mouvement référence déjà la photo', async () => {
     const prisma = {
       photo: {
-        findUnique: jest.fn(async () => ({ id: 'p1', movements: [{ id: 'm1' }] })),
+        findFirst: jest.fn(async () => ({ id: 'p1', movements: [{ id: 'm1' }] })),
         update: jest.fn(),
       },
     };
     const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    await expect(svc.dismiss('p1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(svc.dismiss('c1', 'p1')).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.photo.update).not.toHaveBeenCalled();
   });
 
   it('écarte la photo (dismissedAt renseigné) quand aucun mouvement ne la référence', async () => {
     const prisma = {
       photo: {
-        findUnique: jest.fn(async () => ({ id: 'p1', movements: [] })),
+        findFirst: jest.fn(async () => ({ id: 'p1', movements: [] })),
         update: jest.fn(async ({ data }: any) => ({ id: 'p1', ...data })),
       },
     };
     const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
-    await svc.dismiss('p1');
+    await svc.dismiss('c1', 'p1');
     expect(prisma.photo.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { dismissedAt: expect.any(Date) } });
   });
 });

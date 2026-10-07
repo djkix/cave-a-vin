@@ -1,4 +1,4 @@
-import { GoneException } from '@nestjs/common';
+import { GoneException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,6 +21,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   const movementIds: string[] = [];
   let jpeg: Buffer;
   let caveId: string;
+  let otherCaveId: string;
   const fetcher = jest.fn(async (url: string) => ({ buffer: jpeg, contentType: 'image/jpeg', finalUrl: url }));
   const store = new CandidateStore(dir, fetcher);
   const service = new ImageSearchService(prisma as never, store, {} as never, {} as never, dir, fetcher);
@@ -28,6 +29,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   beforeAll(async () => {
     jpeg = await sharp({ create: { width: 300, height: 450, channels: 3, background: '#5b1a26' } }).jpeg().toBuffer();
     caveId = (await createTestCave(prisma)).id;
+    otherCaveId = (await createTestCave(prisma)).id;
   });
 
   afterAll(async () => {
@@ -35,7 +37,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     await prisma.movement.deleteMany({ where: { id: { in: movementIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
     await prisma.photo.deleteMany({ where: { id: { in: [...photoIds, ...wines.map((w) => w.referencePhotoId!).filter(Boolean)] } } });
-    await deleteTestCaves(prisma, [caveId]);
+    await deleteTestCaves(prisma, [caveId, otherCaveId]);
     await prisma.$disconnect();
   });
 
@@ -61,7 +63,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     const own = await entryPhoto();
     const w = await wine(own.id);
     const c = await candidate(w.id);
-    const view = await service.chooseReference(w.id, c.id);
+    const view = await service.chooseReference(caveId, w.id, c.id);
     expect(view).toEqual({
       referencePhotoId: expect.any(String),
       referencePhotoSource: 'Open Food Facts (CC BY-SA)',
@@ -74,17 +76,17 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
     expect(after.referencePhotoPreviousId).toBe(own.id);
     // Une candidate ne sert qu'une fois.
-    await expect(service.chooseReference(w.id, c.id)).rejects.toBeInstanceOf(GoneException);
+    await expect(service.chooseReference(caveId, w.id, c.id)).rejects.toBeInstanceOf(GoneException);
   });
 
   it('choisir une seconde image du web garde la photo de l’utilisateur comme vignette d’avant, et efface la première image', async () => {
     const own = await entryPhoto();
     const w = await wine(own.id);
-    const first = await service.chooseReference(w.id, (await candidate(w.id)).id);
+    const first = await service.chooseReference(caveId, w.id, (await candidate(w.id)).id);
     // Versions d’affichage gardées : l’actuelle (v2) comme celle de l’ancien traitement.
     writeFileSync(join(dir, 'normalized', `${first.referencePhotoId}.display-v2.jpg`), Buffer.from('v2'));
     writeFileSync(join(dir, 'normalized', `${first.referencePhotoId}.display.jpg`), Buffer.from('v1'));
-    const second = await service.chooseReference(w.id, (await candidate(w.id, 'tempier.fr', 'https://tempier.fr/')).id);
+    const second = await service.chooseReference(caveId, w.id, (await candidate(w.id, 'tempier.fr', 'https://tempier.fr/')).id);
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
     expect(after).toMatchObject({
       referencePhotoId: second.referencePhotoId, referencePhotoPreviousId: own.id,
@@ -99,32 +101,45 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   it('« Revenir à ma photo » rétablit la vignette d’avant, efface la source et l’image du web', async () => {
     const own = await entryPhoto();
     const w = await wine(own.id);
-    const chosen = await service.chooseReference(w.id, (await candidate(w.id)).id);
-    const view = await service.revertReference(w.id);
+    const chosen = await service.chooseReference(caveId, w.id, (await candidate(w.id)).id);
+    const view = await service.revertReference(caveId, w.id);
     expect(view).toEqual({ referencePhotoId: own.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
     expect(after.referencePhotoPreviousId).toBeNull();
     expect(await prisma.photo.findUnique({ where: { id: chosen.referencePhotoId! } })).toBeNull();
     // Sans image du web, revenir ne change rien.
-    await expect(service.revertReference(w.id)).resolves.toEqual({ referencePhotoId: own.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
+    await expect(service.revertReference(caveId, w.id)).resolves.toEqual({ referencePhotoId: own.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
   });
 
   it('un vin sans vignette y revient (vignette vide)', async () => {
     const w = await wine(null);
-    await service.chooseReference(w.id, (await candidate(w.id)).id);
-    await expect(service.revertReference(w.id)).resolves.toEqual({ referencePhotoId: null, referencePhotoSource: null, referencePhotoSourceUrl: null });
+    await service.chooseReference(caveId, w.id, (await candidate(w.id)).id);
+    await expect(service.revertReference(caveId, w.id)).resolves.toEqual({ referencePhotoId: null, referencePhotoSource: null, referencePhotoSourceUrl: null });
   });
 
   it('une candidate cherchée pour un vin ne peut pas devenir la vignette d’un autre (410)', async () => {
     const a = await wine(null);
     const b = await wine(null);
     const c = await candidate(a.id);
-    const e = await service.chooseReference(b.id, c.id).catch((x) => x);
+    const e = await service.chooseReference(caveId, b.id, c.id).catch((x) => x);
     expect(e).toBeInstanceOf(GoneException);
     expect(e.message).toBe('Proposition expirée, relancez la recherche');
     expect((await prisma.wine.findUniqueOrThrow({ where: { id: b.id } })).referencePhotoId).toBeNull();
     // Toujours utilisable pour le vin cherché.
-    await expect(service.chooseReference(a.id, c.id)).resolves.toMatchObject({ referencePhotoSource: 'Open Food Facts (CC BY-SA)' });
+    await expect(service.chooseReference(caveId, a.id, c.id)).resolves.toMatchObject({ referencePhotoSource: 'Open Food Facts (CC BY-SA)' });
+  });
+
+  it('depuis une autre cave : choisir ou revenir rend 404 « Vin introuvable » sans toucher au vin ni à la candidate', async () => {
+    const own = await entryPhoto();
+    const w = await wine(own.id);
+    const c = await candidate(w.id);
+    for (const call of [service.chooseReference(otherCaveId, w.id, c.id), service.revertReference(otherCaveId, w.id)]) {
+      const e = await call.catch((x) => x);
+      expect(e).toBeInstanceOf(NotFoundException);
+      expect(e.message).toBe('Vin introuvable');
+    }
+    expect((await prisma.wine.findUniqueOrThrow({ where: { id: w.id } })).referencePhotoId).toBe(own.id);
+    await expect(service.chooseReference(caveId, w.id, c.id)).resolves.toMatchObject({ referencePhotoSource: 'Open Food Facts (CC BY-SA)' });
   });
 
   it('sans vignette d’avant, « Revenir à ma photo » reprend la photo d’entrée la plus récente de ce vin', async () => {
@@ -138,8 +153,8 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
       const m = await prisma.movement.create({ data: { wineId, delta: 1, type: 'IN', photoId, idempotencyKey: key('ref-in') } });
       movementIds.push(m.id);
     }
-    await service.chooseReference(w.id, (await candidate(w.id)).id);
-    await expect(service.revertReference(w.id)).resolves.toEqual({ referencePhotoId: newer.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
+    await service.chooseReference(caveId, w.id, (await candidate(w.id)).id);
+    await expect(service.revertReference(caveId, w.id)).resolves.toEqual({ referencePhotoId: newer.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
   });
 
   it('une photo REFERENCE n’apparaît jamais dans « À confirmer » ni dans la revue groupée', async () => {
@@ -152,10 +167,10 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
       photoIds.push(p.id);
       created.push(p.id);
     }
-    const inbox = await photos.entryInbox();
+    const inbox = await photos.entryInbox(caveId);
     const listed = [...inbox.toConfirm, ...inbox.inProgress, ...inbox.failed].map((p) => p.id);
     expect(listed.filter((id) => created.includes(id))).toEqual([]);
-    expect((await photos.listPendingReview()).map((p) => p.id).filter((id) => created.includes(id))).toEqual([]);
+    expect((await photos.listPendingReview(caveId)).map((p) => p.id).filter((id) => created.includes(id))).toEqual([]);
 
     // L'attente (`queueStatus`), le lot d'entrée (réservation SQL `purpose = 'ENTRY'`) et la
     // reprise des orphelins (`purpose: 'EXIT'`) filtrent explicitement, vérifié par leurs tests

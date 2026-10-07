@@ -165,12 +165,22 @@ describe('CaveService — apogée', () => {
     });
   });
 
+  it('pour un membre (VIEWER), l’auteur du descriptif est son nom affiché ou null, jamais un e-mail', async () => {
+    const profile = {
+      producerKey: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte', source: 'MANUEL',
+      errorMessage: null, generatedAt: null, updatedBy: { displayName: null, email: 'franck@example.com' },
+    };
+    expect((await service(null, [cdp], undefined, profile).detail('c1', 'w16', 'VIEWER')).wine.producerProfile).toMatchObject({ updatedBy: null });
+    const named = { ...profile, updatedBy: { displayName: 'Franck', email: 'franck@example.com' } };
+    expect((await service(null, [cdp], undefined, named).detail('c1', 'w16', 'VIEWER')).wine.producerProfile).toMatchObject({ updatedBy: 'Franck' });
+  });
+
   it('nomme l’auteur par son e-mail à défaut de nom, et rend null sans descriptif', async () => {
     const profile = {
       producerKey: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte', source: 'MANUEL',
       errorMessage: null, generatedAt: null, updatedBy: { displayName: null, email: 'franck@example.com' },
     };
-    expect((await service(null, [cdp], undefined, profile).detail('c1', 'w16')).wine.producerProfile).toMatchObject({ updatedBy: 'franck@example.com' });
+    expect((await service(null, [cdp], undefined, profile).detail('c1', 'w16', 'OWNER')).wine.producerProfile).toMatchObject({ updatedBy: 'franck@example.com' });
     const generated = { ...profile, source: 'GEMINI', updatedBy: null };
     expect((await service(null, [cdp], undefined, generated).detail('c1', 'w16')).wine.producerProfile).toMatchObject({ updatedBy: null });
     expect((await service(null, [cdp]).detail('c1', 'w16')).wine.producerProfile).toBeNull();
