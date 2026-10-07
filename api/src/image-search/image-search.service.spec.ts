@@ -133,7 +133,7 @@ describe('ImageSearchService.search', () => {
     const { service, provider, budget, prisma } = setup({ caveShareError: new CaveBudgetShareExceededError() });
     const e = await service.search('c1', 'w1').catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
-    expect(e.message).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
+    expect(e.message).toBe('Part mensuelle de cette cave atteinte — recherche possible le mois prochain');
     expect(budget.assertCaveUnderShare).toHaveBeenCalledWith('c1');
     expect(provider.findOfficialSite).not.toHaveBeenCalled();
     expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();

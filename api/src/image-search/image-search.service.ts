@@ -17,6 +17,7 @@ export const IMAGE_CANDIDATE_STORE = 'IMAGE_CANDIDATE_STORE';
 export const IMAGE_SEARCH_FETCHER = 'IMAGE_SEARCH_FETCHER';
 
 const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
+const CAVE_SHARE_REACHED = 'Part mensuelle de cette cave atteinte — recherche possible le mois prochain';
 
 /** Délai global d'une recherche : Open Food Facts, Gemini, page du site et téléchargements compris. */
 export const SEARCH_DEADLINE_MS = 30_000;
@@ -174,8 +175,9 @@ export class ImageSearchService {
       await this.budget.assertUnderShare(PAIRING_BUDGET_SHARE);
       await this.budget.assertCaveUnderShare(wine.caveId);
     } catch (e) {
-      // Part de la cave atteinte : même 503 que le plafond, avec le motif de la cave.
-      if (e instanceof CaveBudgetShareExceededError) throw new ServiceUnavailableException(e.message);
+      // Part de la cave atteinte : même 503 que le plafond, avec le motif de la
+      // cave (le motif des photos parle de reprise, ici rien ne reprend seul).
+      if (e instanceof CaveBudgetShareExceededError) throw new ServiceUnavailableException(CAVE_SHARE_REACHED);
       if (e instanceof VisionBudgetExceededError) throw new ServiceUnavailableException(UNAVAILABLE);
       throw e;
     }
