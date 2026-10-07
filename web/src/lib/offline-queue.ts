@@ -113,15 +113,16 @@ export async function flushQueue(upload: (blob: Blob) => Promise<unknown>, userI
       await removeFromQueue(item.id);
       sent++;
     } catch (e) {
-      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 403 && e.status !== 429) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 403 && e.status !== 404 && e.status !== 429) {
         // Deterministically rejected by the server (bad format, too large…): retrying
         // won't help, and it must not block the rest of the queue. A 429 is the
-        // opposite — the limiter asks us to come back later, so it stays queued.
+        // opposite — the limiter asks us to come back later, so it stays queued. A 404
+        // (« Cave introuvable » : cave courante perdue ou changée) never deletes a photo.
         await removeFromQueue(item.id);
         failed++;
         continue;
       }
-      // Network failure, a session problem (401/403), a 429 or a 5xx: stop here, keep
+      // Network failure, a session problem (401/403), a 404, a 429 or a 5xx: stop here, keep
       // this item and everything after it for the next flush attempt.
       return { sent, failed: failed + 1 };
     }

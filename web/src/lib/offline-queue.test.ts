@@ -85,6 +85,16 @@ it('keeps the item when the server rate-limits the flush', async () => {
   expect((await queueStats()).count).toBe(2);
 });
 
+it('never deletes a queued photo on a 404 (cave introuvable): stops and keeps it', async () => {
+  await enqueuePhoto(blob(1), 'single');
+  await enqueuePhoto(blob(2), 'single');
+  const upload = vi.fn().mockRejectedValueOnce(new ApiError(404, 'Cave introuvable')).mockResolvedValue({});
+  const r = await flushQueue(upload, 'u1');
+  expect(r).toEqual({ sent: 0, failed: 1 });
+  expect(upload).toHaveBeenCalledTimes(1);
+  expect((await queueStats()).count).toBe(2);
+});
+
 it('stops and keeps the item on a session error', async () => {
   await enqueuePhoto(blob(1), 'single');
   await enqueuePhoto(blob(2), 'single');
