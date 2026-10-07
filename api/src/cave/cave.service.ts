@@ -6,7 +6,7 @@ import { ManualApogeeInput } from '../apogee/dto';
 import { labelOf } from '../locations/location';
 import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { currentQuote, idealwineSearchUrl, QUOTE_SELECT, QuoteView, quoteView } from '../quotes/quote';
+import { currentQuote, idealwineSearchUrl, QUOTE_SELECT, QuoteView, quoteView, savedSourceUrl } from '../quotes/quote';
 import { producerKeyOf } from '../producers/producer-key';
 import { PRODUCER_PROFILE_INCLUDE, producerProfileOf } from '../producers/producer-profile.view';
 import { parseExtraction } from '../vision/extraction-schema';
@@ -74,6 +74,12 @@ function toItem(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number)
   return { ...pub, apogee: apogeeOf(row, rules, currentYear), rating: ratingOf(row) };
 }
 
+/**
+ * Écritures qui ne renvoient qu'un champ de `wine` : la cote n'est pas lue. Le
+ * rôle reste OWNER, car l'auteur de la note est alors l'e-mail à défaut de nom.
+ */
+const NO_QUOTE = { withQuote: false } as const;
+
 @Injectable()
 export class CaveService {
   constructor(
@@ -140,7 +146,7 @@ export class CaveService {
   }
 
   /** Fiche d'un vin de la cave ; un vin d'une autre cave est « introuvable », comme un identifiant inconnu. */
-  async detail(caveId: string, id: string, role: CaveRole = 'VIEWER') {
+  async detail(caveId: string, id: string, role: CaveRole = 'VIEWER', { withQuote = true }: { withQuote?: boolean } = {}) {
     const [rows, rules] = await Promise.all([this.allWithStock(caveId, role), this.rules.load()]);
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
@@ -162,12 +168,12 @@ export class CaveService {
       this.locations.exitDefault(caveId, id, undefined, locations),
       this.locations.lastInLocation(caveId),
       // Cote : un prix, jamais lue pour un membre.
-      role === 'OWNER' ? this.prisma.priceQuote.findMany({ where: { wineId: id }, select: QUOTE_SELECT }) : null,
+      role === 'OWNER' && withQuote ? this.prisma.priceQuote.findMany({ where: { wineId: id }, select: QUOTE_SELECT }) : null,
     ]);
     let cote: { quote: QuoteView | null; idealwineUrl: string } | undefined;
     if (quotes) {
       const current = currentQuote(quotes);
-      cote = { quote: current && quoteView(current), idealwineUrl: current?.sourceUrl ?? idealwineSearchUrl(row) };
+      cote = { quote: current && quoteView(current), idealwineUrl: savedSourceUrl(quotes) ?? idealwineSearchUrl(row) };
     }
     return {
       wine: {
@@ -189,8 +195,8 @@ export class CaveService {
       lastLocation,
       /**
        * Propriétaire seulement : cote iDealwine courante (null sans cote) et lien
-       * « Voir sur iDealwine » (page enregistrée de la cote courante, sinon la
-       * recherche). Pour un membre, les deux clés sont absentes, pas nulles.
+       * « Voir sur iDealwine » (page enregistrée de la cote courante, sinon de la
+       * plus récente cote qui en a une, sinon la recherche). Pour un membre, les deux clés sont absentes, pas nulles.
        */
       ...cote,
     };
@@ -223,17 +229,17 @@ export class CaveService {
 
   async setManualApogee(caveId: string, id: string, input: ManualApogeeInput): Promise<Apogee> {
     await this.updateWine(caveId, id, { apogeeMin: input.min, apogeeMax: input.max, apogeeSource: 'MANUEL' });
-    return (await this.detail(caveId, id, 'OWNER')).wine.apogee;
+    return (await this.detail(caveId, id, 'OWNER', NO_QUOTE)).wine.apogee;
   }
 
   async clearManualApogee(caveId: string, id: string): Promise<Apogee> {
     await this.updateWine(caveId, id, { apogeeMin: null, apogeeMax: null, apogeeSource: null });
-    return (await this.detail(caveId, id, 'OWNER')).wine.apogee;
+    return (await this.detail(caveId, id, 'OWNER', NO_QUOTE)).wine.apogee;
   }
 
   async setRating(caveId: string, id: string, value: number, userId: string): Promise<Rating | null> {
     await this.updateWine(caveId, id, { rating: value, ratedAt: new Date(), ratedById: userId });
-    return (await this.detail(caveId, id, 'OWNER')).wine.rating;
+    return (await this.detail(caveId, id, 'OWNER', NO_QUOTE)).wine.rating;
   }
 
   async clearRating(caveId: string, id: string): Promise<null> {

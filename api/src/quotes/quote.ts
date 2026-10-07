@@ -75,6 +75,8 @@ export function idealwineSearchUrl(wine: { producer: string; cuvee: string | nul
   const slug = [wine.producer, wine.cuvee, wine.vintage]
     .filter((p) => p != null && p !== '')
     .join(' ')
+    // NFD ne décompose pas les ligatures : « Œuvre » donnerait « uvre ».
+    .replace(/œ/g, 'oe').replace(/Œ/g, 'OE').replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
@@ -90,6 +92,11 @@ const newestFirst = (a: Dated, b: Dated) => b.quotedOn.getTime() - a.quotedOn.ge
 /** Cote courante : la dernière par date de cote, puis par date de saisie. */
 export function currentQuote<T extends Dated>(quotes: T[]): T | null {
   return [...quotes].sort(newestFirst)[0] ?? null;
+}
+
+/** Lien iDealwine enregistré : celui de la cote courante, sinon de la plus récente cote qui en a un ; null si aucun. */
+export function savedSourceUrl<T extends Dated & { sourceUrl: string | null }>(quotes: T[]): string | null {
+  return [...quotes].sort(newestFirst).find((q) => q.sourceUrl)?.sourceUrl ?? null;
 }
 
 /** Cote courante de chaque vin. */

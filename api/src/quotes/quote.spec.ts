@@ -80,8 +80,12 @@ describe('idealwineSearchUrl', () => {
       .toBe(`${base}chateau-de-beaucastel-hommage-a-jacques-perrin-2016${tail}`);
   });
   it('omet cuvée et millésime absents, écrase la ponctuation', () => {
-    expect(idealwineSearchUrl({ producer: "  Domaine d'Élise — Œuvre ! ", cuvee: null, vintage: null })).toBe(`${base}domaine-d-elise-uvre${tail}`);
+    expect(idealwineSearchUrl({ producer: "  Domaine d'Élise — Œuvre ! ", cuvee: null, vintage: null })).toBe(`${base}domaine-d-elise-oeuvre${tail}`);
     expect(idealwineSearchUrl({ producer: 'Leflaive', cuvee: '', vintage: 2020 })).toBe(`${base}leflaive-2020${tail}`);
+  });
+  it('ligatures œ / æ (minuscules et majuscules) écrites oe / ae', () => {
+    expect(idealwineSearchUrl({ producer: 'Clos du Cœur', cuvee: 'ŒNOTHÈQUE Æther', vintage: 2015 })).toBe(`${base}clos-du-coeur-oenotheque-aether-2015${tail}`);
+    expect(idealwineSearchUrl({ producer: 'Lætitia', cuvee: null, vintage: null })).toBe(`${base}laetitia${tail}`);
   });
 });
 

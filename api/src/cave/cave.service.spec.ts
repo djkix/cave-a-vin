@@ -94,6 +94,20 @@ describe('CaveService.detail', () => {
       expect(noUrl.idealwineUrl).toBe(search);
     });
 
+    it('lien gardé : sans lien sur la cote courante, la plus récente cote qui en a un, sinon la recherche', async () => {
+      const older = 'https://www.idealwine.com/fr/ancienne.jsp';
+      const saved = 'https://www.idealwine.com/fr/acheter-vin/tempier.jsp';
+      const r = await service(null, [tempier19], undefined, null, [
+        quote(7000, '2024-01-01', '2024-01-02T00:00:00Z', older),
+        quote(9000, '2025-01-01', '2026-01-01T00:00:00Z', saved),
+        quote(8500, '2026-03-03', '2026-03-04T00:00:00Z'),
+        // Même date de cote, saisie plus tôt : passe après la courante.
+        quote(8000, '2026-03-03', '2026-03-03T00:00:00Z'),
+      ]).detail('c1', 'w19', 'OWNER');
+      expect(r.quote).toMatchObject({ coteCents: 8500, sourceUrl: null });
+      expect(r.idealwineUrl).toBe(saved);
+    });
+
     it('membre : ni quote ni idealwineUrl (clés absentes), cotes non lues', async () => {
       const s = service(null, [tempier19], undefined, null, [quote(8500, '2026-03-03', '2026-03-04T00:00:00Z')]);
       const r = await s.detail('c1', 'w19', 'VIEWER');
@@ -284,6 +298,25 @@ describe('CaveService — apogée', () => {
     ];
     const items = await service(null, rows).list('c1', { dish: 'agneau' });
     expect(items.map((i) => [i.id, i.matchedDish])).toEqual([['soon', 'Agneau de sept heures'], ['young', 'Gigot d’agneau']]);
+  });
+});
+
+describe('CaveService — écritures de la fiche sans lecture de cote', () => {
+  const rated = { ...cdp, rating: 16.5, ratedAt: new Date('2026-10-05T10:00:00Z'), ratedBy: 'franck@example.com' };
+  const quotes = [{
+    wineId: 'w16', coteCents: 8500, nTransactions: 12, quotedOn: new Date('2026-03-03T00:00:00Z'), sourceUrl: null,
+    createdAt: new Date('2026-03-04T00:00:00Z'), enteredBy: null,
+  }];
+
+  it('apogée et note : mêmes valeurs que la fiche du propriétaire, cotes non lues', async () => {
+    const ref = await service(null, [rated], undefined, null, quotes).detail('c1', 'w16', 'OWNER');
+    const s = service(null, [rated], undefined, null, quotes);
+    expect(await s.setManualApogee('c1', 'w16', { min: 2030, max: 2035 })).toEqual(ref.wine.apogee);
+    expect(await s.clearManualApogee('c1', 'w16')).toEqual(ref.wine.apogee);
+    expect(await s.setRating('c1', 'w16', 16.5, 'u1')).toEqual(ref.wine.rating);
+    expect(s.mockPrisma.priceQuote.findMany).not.toHaveBeenCalled();
+    // L'auteur de la note reste lu comme pour le propriétaire (e-mail à défaut de nom).
+    expect(JSON.stringify(s.mockPrisma.$queryRaw.mock.calls)).toContain('COALESCE(u.display_name, u.email)');
   });
 });
 

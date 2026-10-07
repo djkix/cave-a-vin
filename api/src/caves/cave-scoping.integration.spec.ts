@@ -92,7 +92,8 @@ describeIfDb('services filtrés par cave (base réelle)', () => {
     it('auteur de la note : nom affiché ou null pour un VIEWER, jamais l’e-mail ; e-mail à défaut de nom pour l’OWNER', async () => {
       const rater = await prisma.appUser.create({ data: { email: `scope-rater-${run}@example.test` } });
       try {
-        await cave.setRating(caveA, wineA, 15, rater.id);
+        // La réponse de l'écriture (propriétaire) nomme l'auteur comme la fiche du propriétaire.
+        expect((await cave.setRating(caveA, wineA, 15, rater.id))?.ratedBy).toBe(rater.email);
         const ratedBy = async (role: 'OWNER' | 'VIEWER') => [
           (await cave.list(caveA, { includeEmpty: true }, role)).find((w) => w.id === wineA)!.rating?.ratedBy,
           (await cave.detail(caveA, wineA, role)).wine.rating?.ratedBy,
