@@ -61,6 +61,22 @@ function pairingCostCentsOf(usage: { promptTokenCount?: number; candidatesTokenC
   return Math.round(rawCostCentsOf(usage));
 }
 
+/**
+ * Un appel ancré sur la recherche Google est facturé à part (par requête ancrée),
+ * et les jetons des résultats de recherche (`toolUsePromptTokenCount`) s'ajoutent à
+ * l'entrée : compter au moins 1 ct par appel, majoré, pour que le plafond mensuel
+ * voie réellement cette dépense.
+ */
+function groundedCostCentsOf(
+  usage: { promptTokenCount?: number; candidatesTokenCount?: number; toolUsePromptTokenCount?: number } | undefined,
+): number {
+  const tokens = rawCostCentsOf({
+    promptTokenCount: (usage?.promptTokenCount ?? 0) + (usage?.toolUsePromptTokenCount ?? 0),
+    candidatesTokenCount: usage?.candidatesTokenCount,
+  });
+  return Math.max(1, Math.ceil(tokens));
+}
+
 const stripFences = (text: string) => text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
 /**
@@ -252,7 +268,8 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
   /**
    * Site officiel du domaine, trouvé par Gemini avec la recherche Google. Pas de
    * `responseMimeType` JSON : il n'est pas garanti avec un outil de recherche, la
-   * consigne suffit et la réponse est lue avec tolérance. Une réponse
+   * consigne suffit et la réponse est lue avec tolérance. Coût : au moins 1 ct
+   * (voir `groundedCostCentsOf`). Une réponse
    * inexploitable vaut « pas de site » (l'appel reste facturé).
    */
   async findOfficialSite(query: OfficialSiteQuery): Promise<OfficialSiteResult> {
@@ -268,6 +285,6 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     } catch {
       // Réponse bloquée ou vide : pas de site.
     }
-    return { site: siteOf(text), model: this.modelName, costCents: pairingCostCentsOf(result.response.usageMetadata) };
+    return { site: siteOf(text), model: this.modelName, costCents: groundedCostCentsOf(result.response.usageMetadata) };
   }
 }

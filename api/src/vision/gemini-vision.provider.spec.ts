@@ -324,7 +324,7 @@ describe('GeminiVisionProvider.findOfficialSite', () => {
   it('demande le site officiel avec la recherche Google et rend l’adresse', async () => {
     const model = fake('{"site": "https://www.domainetempier.com/"}');
     const r = await new GeminiVisionProvider(model as any, 'gemini-test').findOfficialSite(query);
-    expect(r).toEqual({ site: 'https://www.domainetempier.com/', model: 'gemini-test', costCents: 0 });
+    expect(r).toEqual({ site: 'https://www.domainetempier.com/', model: 'gemini-test', costCents: 1 });
     const req = requestOf(model);
     expect(req.tools).toEqual([{ googleSearch: {} }]);
     const prompt = req.contents[0].parts[0].text as string;
@@ -352,9 +352,19 @@ describe('GeminiVisionProvider.findOfficialSite', () => {
     }
   });
 
-  it('arrondit le coût comme pour les accords', async () => {
-    const model = fake('{"site": null}', { promptTokenCount: 200000, candidatesTokenCount: 50000 });
-    expect((await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).costCents).toBe(4);
+  it('compte au moins 1 ct par appel ancré, même pour un usage courant', async () => {
+    const model = fake('{"site": null}', { promptTokenCount: 300, candidatesTokenCount: 40, toolUsePromptTokenCount: 1500 } as any);
+    expect((await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).costCents).toBe(1);
+    const noUsage = { generateContent: jest.fn(async () => ({ response: { text: () => '{"site": null}', usageMetadata: undefined } })) };
+    expect((await new GeminiVisionProvider(noUsage as any, 'm').findOfficialSite(query)).costCents).toBe(1);
+  });
+
+  it('majore un gros usage, jetons de la recherche (toolUsePromptTokenCount) compris', async () => {
+    // (200 000 + 100 000) / 1000 × 0,01 + 50 000 / 1000 × 0,04 = 3 + 2 = 5 ; un jeton de sortie de plus → 5,00004, majoré à 6
+    const exact = fake('{"site": null}', { promptTokenCount: 200000, candidatesTokenCount: 50000, toolUsePromptTokenCount: 100000 } as any);
+    expect((await new GeminiVisionProvider(exact as any, 'm').findOfficialSite(query)).costCents).toBe(5);
+    const above = fake('{"site": null}', { promptTokenCount: 200000, candidatesTokenCount: 50001, toolUsePromptTokenCount: 100000 } as any);
+    expect((await new GeminiVisionProvider(above as any, 'm').findOfficialSite(query)).costCents).toBe(6);
   });
 
   it('laisse remonter une panne de Gemini', async () => {
