@@ -27,9 +27,12 @@ export class CavesService {
    * connecte sans avoir de cave reçoit la plus ancienne. Le verrou sur le
    * compte empêche deux connexions simultanées du même administrateur d'en
    * prendre deux ; la mise à jour conditionnelle (`owner_id IS NULL`) empêche
-   * deux administrateurs de prendre la même. Rend l'id de la cave attribuée.
+   * deux administrateurs de prendre la même : une course perdue passe à la
+   * suivante, jusqu'à la dernière. Rend l'id de la cave attribuée.
    */
   async claimOrphanCave(userId: string): Promise<string | null> {
+    // Cas courant : plus aucune cave orpheline, la connexion ne paie qu'un comptage.
+    if ((await this.prisma.cave.count({ where: { ownerId: null } })) === 0) return null;
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM app_user WHERE id = ${userId} FOR UPDATE`;
       if (await tx.cave.findFirst({ where: { ownerId: userId }, select: { id: true } })) return null;
@@ -38,7 +41,6 @@ export class CavesService {
         where: { ownerId: null },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         select: { id: true },
-        take: 5,
       });
       for (const orphan of orphans) {
         const { count } = await tx.cave.updateMany({ where: { id: orphan.id, ownerId: null }, data: { ownerId: userId } });

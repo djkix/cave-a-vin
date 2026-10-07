@@ -13,6 +13,7 @@ function fakePrisma(opts: { owned?: boolean; orphans?: { id: string }[]; claimab
   const tx: any = {
     $queryRaw: jest.fn(async () => [{ id: 'u1' }]),
     cave: {
+      count: jest.fn(async ({ where }: any) => (where.ownerId === null ? (opts.orphans ?? []).length : 0)),
       findFirst: jest.fn(async ({ where }: any) => (where.ownerId === 'u1' ? (opts.owned ? { id: 'own' } : null) : null)),
       findMany: jest.fn(async () => opts.orphans ?? []),
       updateMany: jest.fn(async ({ where }: any) => ({ count: claimable.has(where.id) ? 1 : 0 })),
@@ -59,10 +60,19 @@ describe('CavesService.claimOrphanCave (cave migrée sans propriétaire)', () =>
     expect(tx.cave.updateMany).not.toHaveBeenCalled();
   });
 
-  it('ne fait rien sans cave orpheline', async () => {
+  it('sans cave orpheline, n’ouvre même pas de transaction (connexion admin gratuite)', async () => {
     const { prisma, tx } = fakePrisma({ orphans: [] });
     expect(await new CavesService(prisma).claimOrphanCave('u1')).toBeNull();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(tx.caveMember.create).not.toHaveBeenCalled();
+  });
+
+  it('parcourt toutes les orphelines, sans abandonner après quelques courses perdues', async () => {
+    const orphans = Array.from({ length: 8 }, (_, i) => ({ id: `c${i + 1}` }));
+    const { prisma, tx } = fakePrisma({ orphans, claimable: ['c8'] });
+    expect(await new CavesService(prisma).claimOrphanCave('u1')).toBe('c8');
+    expect(tx.cave.updateMany).toHaveBeenCalledTimes(8);
+    expect(tx.cave.findMany.mock.calls[0][0]).not.toHaveProperty('take');
   });
 });
 
