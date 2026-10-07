@@ -39,13 +39,15 @@ export function CaveSwitcher() {
       const stale = { predicate: (q: { queryKey: readonly unknown[] }) => q.queryKey[0] !== 'me' };
       await qc.cancelQueries(stale);
       qc.removeQueries(stale);
+      // La session est posée avant la navigation : aucune image ne montre la
+      // nouvelle page sous l'ancienne cave ni l'ancienne page sous la nouvelle.
+      // RequireAuth remonte les pages (clé = cave courante), dont les requêtes
+      // repartent de zéro avec le nouveau rôle — seules celles qu'il autorise
+      // sont lancées.
+      qc.setQueryData(['me'], me);
       const next = me.caves.find((c) => c.id === me.currentCaveId);
       const target = pathAfterCaveSwitch(pathname, next?.role === 'OWNER');
       if (target !== pathname) navigate(target, { replace: true });
-      // La nouvelle session déclenche ce rendu : RequireAuth remonte les pages
-      // (clé = cave courante), dont les requêtes repartent de zéro avec le
-      // nouveau rôle — seules celles qu'il autorise sont lancées.
-      qc.setQueryData(['me'], me);
     },
   });
 
