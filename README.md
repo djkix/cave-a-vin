@@ -138,18 +138,20 @@ sortie) et les écrans de confirmation. L'original n'est jamais modifié, et
 c'est toujours lui que Gemini relit. API : `GET /api/photos/:id/image?variant=display`
 (sans paramètre, l'original, inchangé).
 
-**Chercher une image.** Sur la fiche vin, un bouton sous la vignette ouvre une
-recherche d'image d'étiquette sur le web, pour remplacer sa propre photo par
+**Chercher une image.** Sur la fiche vin, un bouton sous l'en-tête (vignette et
+titre) ouvre, sur toute la largeur de la fiche, une recherche d'image d'étiquette sur le web, pour remplacer sa propre photo par
 une image plus nette ou plus officielle. La recherche interroge d'abord **Open
 Food Facts** (gratuit, sans clé, licence CC BY-SA, source toujours citée avec
 un lien) ; si rien n'y figure, **le site officiel du domaine**, retrouvé par
 Gemini grâce à la recherche Google intégrée (5 000 recherches gratuites par
-mois pour les modèles Gemini 3 ; chaque recherche compte au moins 1 centime
-dans le plafond mensuel et dans la part de 80 % déjà réservée aux accords et
+mois pour les modèles Gemini 3 ; chaque recherche compte au moins 1 centime,
+et davantage si Gemini lance plusieurs requêtes de recherche, dans le plafond mensuel et dans la part de 80 % déjà réservée aux accords et
 descriptifs). Le serveur télécharge lui-même jusqu'à 5 propositions et les
 garde 1 heure le temps de choisir ; chaque téléchargement est protégé (adresses
-http(s) publiques seulement, taille et délai limités). Une fois l'image
-choisie, la fiche affiche « Image : {source} » (lien vers la page d'origine) et
+http(s) publiques seulement, taille et délai limités, 4 secondes par image).
+La recherche entière tient en 30 secondes : passé ce délai, les propositions
+déjà prêtes s'affichent, et s'il n'y en a aucune, « Recherche d'image
+indisponible pour le moment ». Une fois l'image choisie, la fiche affiche « Image : {source} » (lien vers la page d'origine) et
 « Revenir à ma photo » pour annuler à tout moment. Limité à 10 recherches par
 minute. API : `POST /api/wines/:id/image-search`, `GET
 /api/image-candidates/:id`, `POST`/`DELETE /api/wines/:id/reference-image`.
