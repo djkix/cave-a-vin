@@ -1,5 +1,5 @@
 import {
-  COTE_INVALID, formatCoteEuros, isSearchUrl, parisToday, parseCoteEuros, parseTransactions, quoteAge, quoteLine, quoteWarnings, TRANSACTIONS_INVALID,
+  COTE_INVALID, formatCoteEuros, parisToday, parseCoteEuros, parseTransactions, quoteAge, quoteLine, quoteWarnings, TRANSACTIONS_INVALID,
 } from './quote';
 
 describe('cote : saisie', () => {
@@ -66,8 +66,4 @@ describe('cote : affichage', () => {
     expect(parisToday(new Date('2026-10-07T21:30:00Z'))).toBe('2026-10-07');
   });
 
-  it('reconnaît le lien de recherche calculé (rien d’enregistré)', () => {
-    expect(isSearchUrl('https://www.idealwine.com/fr/prix-vin/domaine-tempier-2019/le_marche_search/ok_results.jsp')).toBe(true);
-    expect(isSearchUrl('https://www.idealwine.com/fr/acheter-vin/tempier.jsp')).toBe(false);
-  });
 });

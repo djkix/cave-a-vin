@@ -138,7 +138,7 @@ describe('valeur à la cote (propriétaire)', () => {
     vi.spyOn(api, 'getStats').mockResolvedValue({ ...base, quotedValueCents: 1_020_000, cessionValueCents: 856_800, quotedReferences: 2, quotableReferences: 3 });
     mount();
     expect(await screen.findByText(/^Valeur à la cote : 10\s200 € sur 2 références cotées \(sur 3\)$/)).toBeInTheDocument();
-    expect(screen.getByText(/^Valeur de cession estimée : 8\s568 € \(cote moins 16 % de frais acheteur\)$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Valeur de cession estimée : 8\s568 € \(cote hors frais acheteur d'environ 16 %\)$/)).toBeInTheDocument();
   });
 
   it('une seule référence cotée : au singulier', async () => {

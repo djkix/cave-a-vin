@@ -15,12 +15,13 @@ const base: api.WineDetail = {
   },
   movements: [],
 };
-const { quote: _q, idealwineUrl: _u, ...viewerDetail } = { ...base, quote: null, idealwineUrl: SEARCH };
-void _q; void _u;
+const viewerDetail = base;
 
+let client: QueryClient;
 function mount() {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/cave/w1']}>
         <Routes><Route path="/cave/:wineId" element={<WinePage />} /></Routes>
       </MemoryRouter>
@@ -29,18 +30,18 @@ function mount() {
 }
 
 it('propriétaire : bloc « Cote iDealwine » sans cote', async () => {
-  vi.spyOn(api, 'getWine').mockResolvedValue({ ...base, quote: null, idealwineUrl: SEARCH });
+  vi.spyOn(api, 'getWine').mockResolvedValue({ ...base, quote: null, idealwineUrl: SEARCH, savedUrl: null });
   mount();
   expect(await screen.findByRole('heading', { name: 'Cote iDealwine' })).toBeInTheDocument();
   expect(screen.getByText('Pas encore de cote')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Voir la cote sur iDealwine' })).toHaveAttribute('href', SEARCH);
+  expect(screen.getByRole('link', { name: 'Voir la cote sur iDealwine (nouvel onglet)' })).toHaveAttribute('href', SEARCH);
 });
 
 it('propriétaire : bloc avec la cote courante', async () => {
   vi.spyOn(api, 'getWine').mockResolvedValue({
     ...base,
-    quote: { coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: null, enteredBy: 'Franck', cessionCents: 7140 },
-    idealwineUrl: SEARCH,
+    quote: { coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: null, enteredBy: 'Franck', cessionCents: 7328 },
+    idealwineUrl: SEARCH, savedUrl: null,
   });
   mount();
   expect(await screen.findByText(/^85 € — 12 transactions — cote du 3 mars 2026/)).toBeInTheDocument();
@@ -54,18 +55,21 @@ it('membre : aucun bloc de cote, aucune requête de cote', async () => {
   mount();
   expect(await screen.findByRole('heading', { name: /Domaine Tempier/ })).toBeInTheDocument();
   await waitFor(() => expect(me).toHaveBeenCalled());
-  await new Promise((r) => setTimeout(r, 20));
+  // Session chargée et page rendue avec le rôle de membre (avant, rien n'est autorisé : le test serait vide).
+  await waitFor(() => expect(client.getQueryState(['me'])?.status).toBe('success'));
   expect(screen.queryByText('Cote iDealwine')).not.toBeInTheDocument();
   expect(screen.queryByText(/iDealwine|Pas encore de cote|cession/)).not.toBeInTheDocument();
   expect(create).not.toHaveBeenCalled();
 });
 
 it('membre : même si des clés de cote arrivaient, rien n’est affiché', async () => {
-  vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
-  vi.spyOn(api, 'getWine').mockResolvedValue({ ...base, quote: null, idealwineUrl: SEARCH });
+  const me = vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
+  vi.spyOn(api, 'getWine').mockResolvedValue({ ...base, quote: null, idealwineUrl: SEARCH, savedUrl: null });
   mount();
   expect(await screen.findByRole('heading', { name: /Domaine Tempier/ })).toBeInTheDocument();
-  await new Promise((r) => setTimeout(r, 20));
+  await waitFor(() => expect(me).toHaveBeenCalled());
+  // Session chargée et page rendue avec le rôle de membre (avant, rien n'est autorisé : le test serait vide).
+  await waitFor(() => expect(client.getQueryState(['me'])?.status).toBe('success'));
   expect(screen.queryByText('Cote iDealwine')).not.toBeInTheDocument();
 });
 

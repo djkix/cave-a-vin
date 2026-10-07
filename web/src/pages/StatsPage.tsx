@@ -5,7 +5,7 @@ import { TopBar } from '../components/TopBar';
 import { BarList, BarRow } from '../components/stats/BarList';
 import { MonthlyChart } from '../components/stats/MonthlyChart';
 import { getStats, Stats, StatsRankedWine, StatsShare } from '../lib/api-client';
-import { formatEurosRounded } from '../lib/quote';
+import { CESSION_NOTE, formatEurosRounded } from '../lib/quote';
 import { formatRatingShort } from '../lib/rating';
 
 const COLOR_LABEL: Record<string, string> = { ROUGE: 'Rouge', BLANC: 'Blanc', ROSE: 'Rosé', PETILLANT: 'Pétillant' };
@@ -40,7 +40,7 @@ function QuotedValue({ s }: { s: Stats }) {
         <>
           <p style={{ margin: 0 }}>{`Valeur à la cote : ${formatEurosRounded(value)} sur ${quotedText(s.quotedReferences ?? 0)} (sur ${s.quotableReferences ?? 0})`}</p>
           {s.cessionValueCents != null && (
-            <p className="list__meta" style={{ margin: 0 }}>{`Valeur de cession estimée : ${formatEurosRounded(s.cessionValueCents)} (cote moins 16 % de frais acheteur)`}</p>
+            <p className="list__meta" style={{ margin: 0 }}>{`Valeur de cession estimée : ${formatEurosRounded(s.cessionValueCents)} ${CESSION_NOTE}`}</p>
           )}
         </>
       )}

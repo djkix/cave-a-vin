@@ -217,10 +217,12 @@ export interface WineDetail {
   quote?: Quote | null;
   /** Propriétaire seulement : page iDealwine enregistrée, sinon la recherche. Clé absente pour un membre. */
   idealwineUrl?: string;
+  /** Propriétaire seulement : lien iDealwine enregistré sur une cote (null sans lien), pour pré-remplir le formulaire. Clé absente pour un membre. */
+  savedUrl?: string | null;
 }
 export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
 
-/** Cote iDealwine saisie à la main ; `cessionCents` : cote moins 16 % de frais acheteur. */
+/** Cote iDealwine saisie à la main ; `cessionCents` : cote hors frais acheteur d'environ 16 % (cote / 1,16). */
 export interface Quote {
   coteCents: number; nTransactions: number | null; /** « AAAA-MM-JJ » */ quotedOn: string; sourceUrl: string | null;
   enteredBy: string | null; cessionCents: number;

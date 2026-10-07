@@ -1,18 +1,28 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { createQuote, Quote } from '../lib/api-client';
-import { formatEurosRounded, isSearchUrl, parisToday, parseCoteEuros, parseTransactions, quoteLine, quoteWarnings } from '../lib/quote';
+import {
+  CESSION_NOTE, DATE_INVALID, formatEurosRounded, parisToday, parseCoteEuros, parseTransactions, quoteLine, quoteWarnings,
+} from '../lib/quote';
 import { Button } from './Button';
 
 const MIN_QUOTED_ON = '1990-01-01';
+const ERR = { cote: 'quote-cote-error', transactions: 'quote-transactions-error', date: 'quote-date-error' } as const;
+
+/** Message d'erreur d'un champ, relié au champ par `aria-describedby` (l'annonce passe par la région `aria-live` qui l'entoure). */
+function FieldError({ id, message }: { id: string; message: string | null }) {
+  return message ? <p id={id} className="text-error" style={{ margin: 0 }}>{message}</p> : null;
+}
 
 /**
  * Bloc « Cote iDealwine », propriétaire seulement (le parent ne le monte pas
- * pour un membre, qui ne reçoit ni `quote` ni `idealwineUrl`). La cote est
- * saisie à la main : l'application ne lit jamais iDealwine, elle n'offre qu'un
- * lien, ouvert dans un nouvel onglet.
+ * pour un membre, qui ne reçoit ni `quote`, ni `idealwineUrl`, ni `savedUrl`).
+ * La cote est saisie à la main : l'application ne lit jamais iDealwine, elle
+ * n'offre qu'un lien, ouvert dans un nouvel onglet.
  */
-export function QuoteBlock({ wineId, quote, idealwineUrl }: { wineId: string; quote: Quote | null; idealwineUrl: string }) {
+export function QuoteBlock({ wineId, quote, idealwineUrl, savedUrl }: {
+  wineId: string; quote: Quote | null; idealwineUrl: string; /** Lien enregistré sur une cote, fourni par l'api ; null sans lien. */ savedUrl: string | null;
+}) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [cote, setCote] = useState('');
@@ -24,20 +34,23 @@ export function QuoteBlock({ wineId, quote, idealwineUrl }: { wineId: string; qu
   const today = parisToday();
   const coteCents = parseCoteEuros(cote);
   const nTransactions = parseTransactions(transactions);
-  const invalid = typeof coteCents === 'string' || typeof nTransactions === 'string';
+  // Champ vide : le bouton reste désactivé, sans message tant que rien n'est saisi.
+  const coteError = typeof coteCents === 'string' && cote.trim() !== '' ? coteCents : null;
+  const transactionsError = typeof nTransactions === 'string' ? nTransactions : null;
+  const dateError = quotedOn === '' ? DATE_INVALID : null;
+  const invalid = typeof coteCents === 'string' || transactionsError !== null || dateError !== null;
 
   function open() {
     setCote('');
     setTransactions('');
     setQuotedOn(today);
-    // Lien enregistré (de la cote courante ou d'une plus ancienne) ; la recherche calculée n'est pas un lien enregistré.
-    setSourceUrl(quote?.sourceUrl ?? (quote && !isSearchUrl(idealwineUrl) ? idealwineUrl : ''));
+    setSourceUrl(savedUrl ?? '');
     setError(null);
     setEditing(true);
   }
 
   async function save() {
-    if (typeof coteCents === 'string' || typeof nTransactions === 'string') return;
+    if (typeof coteCents === 'string' || typeof nTransactions === 'string' || quotedOn === '') return;
     setBusy(true);
     setError(null);
     try {
@@ -45,15 +58,14 @@ export function QuoteBlock({ wineId, quote, idealwineUrl }: { wineId: string; qu
       setEditing(false);
       void qc.invalidateQueries({ predicate: (q) => ['wine', 'stats'].includes(String(q.queryKey[0])) });
     } catch (e) {
+      // Même règle que les autres blocs de la fiche : le message de l'erreur tel quel.
       setError(e instanceof Error ? e.message : 'Enregistrement impossible');
     } finally {
       setBusy(false);
     }
   }
 
-  const link = (label: string) => (
-    <a className="btn btn--outline" href={idealwineUrl} target="_blank" rel="noopener noreferrer">{label}</a>
-  );
+  const fieldA11y = (message: string | null, id: string) => ({ 'aria-invalid': message !== null, 'aria-describedby': message ? id : undefined });
 
   return (
     <section className="card">
@@ -62,7 +74,7 @@ export function QuoteBlock({ wineId, quote, idealwineUrl }: { wineId: string; qu
         <>
           <p style={{ margin: 'var(--space-xs) 0' }}>{quoteLine(quote, today)}</p>
           <p className="list__meta" style={{ margin: 0 }}>
-            {`Valeur de cession estimée : ${formatEurosRounded(quote.cessionCents)} (cote moins 16 % de frais acheteur)`}
+            {`Valeur de cession estimée : ${formatEurosRounded(quote.cessionCents)} ${CESSION_NOTE}`}
           </p>
           {quoteWarnings(quote, today).map((w) => (
             <p key={w} style={{ margin: 'var(--space-xs) 0 0' }}><span className="badge badge--warn">{w}</span></p>
@@ -74,13 +86,20 @@ export function QuoteBlock({ wineId, quote, idealwineUrl }: { wineId: string; qu
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
           <label className="field__label" htmlFor="quote-cote">Cote en euros</label>
-          <input id="quote-cote" inputMode="decimal" value={cote} onChange={(e) => setCote(e.target.value)} placeholder="85" />
-          {typeof coteCents === 'string' && cote.trim() !== '' && <p className="text-error" style={{ margin: 0 }}>{coteCents}</p>}
+          <input id="quote-cote" inputMode="decimal" value={cote} onChange={(e) => setCote(e.target.value)} placeholder="85" {...fieldA11y(coteError, ERR.cote)} />
+          <div aria-live="polite"><FieldError id={ERR.cote} message={coteError} /></div>
           <label className="field__label" htmlFor="quote-transactions">Nombre de transactions (facultatif)</label>
-          <input id="quote-transactions" inputMode="numeric" value={transactions} onChange={(e) => setTransactions(e.target.value)} />
-          {typeof nTransactions === 'string' && <p className="text-error" style={{ margin: 0 }}>{nTransactions}</p>}
+          <input
+            id="quote-transactions" inputMode="numeric" value={transactions} onChange={(e) => setTransactions(e.target.value)}
+            {...fieldA11y(transactionsError, ERR.transactions)}
+          />
+          <div aria-live="polite"><FieldError id={ERR.transactions} message={transactionsError} /></div>
           <label className="field__label" htmlFor="quote-date">Date de la cote</label>
-          <input id="quote-date" type="date" min={MIN_QUOTED_ON} max={today} value={quotedOn} onChange={(e) => setQuotedOn(e.target.value)} />
+          <input
+            id="quote-date" type="date" min={MIN_QUOTED_ON} max={today} value={quotedOn} onChange={(e) => setQuotedOn(e.target.value)}
+            {...fieldA11y(dateError, ERR.date)}
+          />
+          <div aria-live="polite"><FieldError id={ERR.date} message={dateError} /></div>
           <label className="field__label" htmlFor="quote-url">Lien de la page iDealwine (facultatif)</label>
           <input
             id="quote-url" type="url" inputMode="url" autoComplete="off" value={sourceUrl}
@@ -92,7 +111,10 @@ export function QuoteBlock({ wineId, quote, idealwineUrl }: { wineId: string; qu
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)', flexWrap: 'wrap' }}>
-          {link(quote ? 'Voir sur iDealwine' : 'Voir la cote sur iDealwine')}
+          <a className="btn btn--outline" href={idealwineUrl} target="_blank" rel="noopener noreferrer">
+            {quote ? 'Voir sur iDealwine' : 'Voir la cote sur iDealwine'}
+            <span className="visually-hidden"> (nouvel onglet)</span>
+          </a>
           <Button variant="outline" onClick={open}>{quote ? 'Mettre à jour' : 'Saisir la cote'}</Button>
         </div>
       )}

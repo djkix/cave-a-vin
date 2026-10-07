@@ -5,6 +5,7 @@
  */
 export const COTE_INVALID = 'La cote doit être comprise entre 0,01 € et 100 000 €';
 export const TRANSACTIONS_INVALID = 'Nombre de transactions invalide';
+export const DATE_INVALID = 'Date de cote invalide';
 export const FEW_TRANSACTIONS = 'Peu de transactions : ordre de grandeur';
 export const OLD_QUOTE = "Cote de plus d'un an";
 const MAX_COTE_CENTS = 10_000_000;
@@ -34,6 +35,7 @@ const EUROS_CENTS = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, m
 /** « 85 € », « 85,50 € » : les centimes seulement s'il y en a. */
 export const formatCoteEuros = (cents: number) => `${(cents % 100 === 0 ? EUROS : EUROS_CENTS).format(cents / 100)} €`;
 /** Estimation (valeur de cession, totaux) : à l'euro près. */
+export const CESSION_NOTE = "(cote hors frais acheteur d'environ 16 %)";
 export const formatEurosRounded = (cents: number) => `${EUROS.format(Math.round(cents / 100))} €`;
 
 const parts = (day: string) => day.split('-').map(Number) as [number, number, number];
@@ -74,6 +76,3 @@ export function quoteWarnings(q: { nTransactions: number | null; quotedOn: strin
   if (anniversary < today) out.push(OLD_QUOTE);
   return out;
 }
-
-/** Le lien de recherche calculé par l'api (aucune page enregistrée) se termine ainsi. */
-export const isSearchUrl = (url: string) => url.endsWith('/le_marche_search/ok_results.jsp');
