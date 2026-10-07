@@ -1,6 +1,6 @@
 import { GoneException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -76,6 +76,9 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     const own = await entryPhoto();
     const w = await wine(own.id);
     const first = await service.chooseReference(w.id, (await candidate(w.id)).id);
+    // Versions d’affichage gardées : l’actuelle (v2) comme celle de l’ancien traitement.
+    writeFileSync(join(dir, 'normalized', `${first.referencePhotoId}.display-v2.jpg`), Buffer.from('v2'));
+    writeFileSync(join(dir, 'normalized', `${first.referencePhotoId}.display.jpg`), Buffer.from('v1'));
     const second = await service.chooseReference(w.id, (await candidate(w.id, 'tempier.fr', 'https://tempier.fr/')).id);
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
     expect(after).toMatchObject({
@@ -84,6 +87,8 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     });
     expect(await prisma.photo.findUnique({ where: { id: first.referencePhotoId! } })).toBeNull();
     expect(existsSync(join(dir, 'normalized', `${first.referencePhotoId}.jpg`))).toBe(false);
+    expect(existsSync(join(dir, 'normalized', `${first.referencePhotoId}.display-v2.jpg`))).toBe(false);
+    expect(existsSync(join(dir, 'normalized', `${first.referencePhotoId}.display.jpg`))).toBe(false);
   });
 
   it('« Revenir à ma photo » rétablit la vignette d’avant, efface la source et l’image du web', async () => {

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
 import { parseExtraction, safeParseExtraction } from '../vision/extraction-schema';
-import { buildDisplayImage } from './display-image';
+import { buildDisplayImage, displayFileName } from './display-image';
 import { ImageNormalizationService } from './image-normalization.service';
 
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
@@ -141,7 +141,7 @@ export class PhotosService {
   /**
    * Version d'affichage (vignettes, écrans de confirmation) : recadrée sur
    * l'étiquette et retouchée, fabriquée à la première demande puis gardée dans
-   * `normalized/<id>.display.jpg`. Seulement pour une photo lue (DONE) ou en
+   * `normalized/<id>.display-v2.jpg` (nom versionné, voir `displayFileName`). Seulement pour une photo lue (DONE) ou en
    * échec (FAILED) : avant la lecture, le cadre de l'étiquette n'est pas connu,
    * l'image d'origine est rendue sans rien garder. Une fabrication ratée ne
    * prive jamais l'utilisateur de sa photo : l'image d'origine est rendue.
@@ -151,7 +151,7 @@ export class PhotosService {
     const photo = await this.findById(id);
     if (photo.status !== 'DONE' && photo.status !== 'FAILED') return this.readNormalized(id);
 
-    const displayPath = join(this.dir, 'normalized', `${id}.display.jpg`);
+    const displayPath = join(this.dir, 'normalized', displayFileName(id));
     try {
       return await readFile(displayPath);
     } catch (e) {

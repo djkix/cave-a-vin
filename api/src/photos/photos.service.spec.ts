@@ -366,7 +366,7 @@ describe('PhotosService.readDisplay', () => {
     const prisma = fakePrisma();
     prisma.photos.push({ id, contentHash: 'h', status: 'DONE', purpose: 'ENTRY', rawExtraction: null, ...row });
     const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, { add: jest.fn() } as any);
-    return { dir, id, original, service, displayPath: join(dir, 'normalized', `${id}.display.jpg`) };
+    return { dir, id, original, service, displayPath: join(dir, 'normalized', `${id}.display-v2.jpg`) };
   }
 
   it('recadre sur l’étiquette (marge de 8 %) et garde la version d’affichage sur le disque', async () => {
@@ -395,6 +395,38 @@ describe('PhotosService.readDisplay', () => {
     const before = (await sharp(img).stats()).channels.map((c) => c.mean);
     const after = (await sharp(await service.readDisplay(id)).stats()).channels.map((c) => c.mean);
     expect(after[0] - after[2]).toBeLessThan(before[0] - before[2]);
+  });
+
+  it('ignore une version gardée par l’ancien traitement (<id>.display.jpg) et la refabrique', async () => {
+    const { dir, id, service, displayPath } = await setup({ rawExtraction: lecture(null) });
+    writeFileSync(join(dir, 'normalized', `${id}.display.jpg`), Buffer.from('ancienne-retouche'));
+    const out = await service.readDisplay(id);
+    expect(out.toString()).not.toBe('ancienne-retouche');
+    expect((await sharp(out).metadata()).format).toBe('jpeg');
+    expect(existsSync(displayPath)).toBe(true);
+  });
+
+  it('retouche avec douceur : étiquette crème, fond olive et texte bordeaux gardent leurs couleurs', async () => {
+    // Fond olive, étiquette crème (lignes 200..600, colonnes 250..750), texte bordeaux dans l’étiquette.
+    const label = await sharp({ create: { width: 500, height: 400, channels: 3, background: { r: 240, g: 235, b: 220 } } }).png().toBuffer();
+    const text = await sharp({ create: { width: 200, height: 40, channels: 3, background: '#5C2423' } }).png().toBuffer();
+    const img = await sharp({ create: { width: 1000, height: 800, channels: 3, background: { r: 150, g: 140, b: 90 } } })
+      .composite([{ input: label, left: 250, top: 200 }, { input: text, left: 400, top: 380 }])
+      .jpeg({ quality: 95 }).toBuffer();
+    const { id, service } = await setup({ rawExtraction: lecture([250, 250, 750, 750]) }, img);
+    const out = await service.readDisplay(id);
+    // Recadrage : left 210, top 168 → étiquette en x 40..540, y 32..432 ; texte en x 190..390, y 212..252.
+    const means = async (left: number, top: number, width: number, height: number) =>
+      (await sharp(out).extract({ left, top, width, height }).stats()).channels.map((c) => c.mean);
+    const [cr, cg, cb] = await means(60, 50, 100, 50);
+    expect(cr - cb).toBeGreaterThanOrEqual(8);
+    expect(cg).toBeGreaterThan(cb);
+    const [or, og, ob] = await means(0, 0, 30, 464);
+    expect(0.2126 * or + 0.7152 * og + 0.0722 * ob).toBeGreaterThanOrEqual(80);
+    expect(og).toBeGreaterThan(ob);
+    const [tr, , tb] = await means(220, 220, 140, 24);
+    expect(tr).toBeGreaterThan(tb);
+    expect(tr).toBeGreaterThan(60);
   });
 
   it('réutilise la version d’affichage déjà fabriquée', async () => {

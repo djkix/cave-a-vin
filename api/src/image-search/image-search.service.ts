@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { DISPLAY_FILE_NAMES } from '../photos/display-image';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
@@ -234,7 +235,7 @@ export class ImageSearchService {
   private async removeFiles(photoId: string): Promise<void> {
     try {
       await unlinkQuietly(join(this.dir, 'normalized', `${photoId}.jpg`));
-      await unlinkQuietly(join(this.dir, 'normalized', `${photoId}.display.jpg`));
+      for (const name of DISPLAY_FILE_NAMES(photoId)) await unlinkQuietly(join(this.dir, 'normalized', name));
     } catch (e) {
       this.logger.warn(`Image du web ${photoId} non effacée du disque : ${(e as Error).message}`);
     }

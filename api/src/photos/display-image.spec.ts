@@ -1,4 +1,4 @@
-import { cropRect, grayWorldFactors, plausibleLabelBox } from './display-image';
+import { cropRect, DISPLAY_FILE_NAMES, displayFileName, grayWorldFactors, plausibleLabelBox } from './display-image';
 
 describe('plausibleLabelBox', () => {
   it('accepte un cadre cohérent couvrant entre 5 % et 95 % de l’image', () => {
@@ -60,23 +60,37 @@ describe('cropRect', () => {
 });
 
 describe('grayWorldFactors', () => {
-  it('ramène chaque canal à la moyenne des trois', () => {
-    const [r, g, b] = grayWorldFactors([110, 100, 90]);
-    expect(110 * r).toBeCloseTo(100);
-    expect(100 * g).toBeCloseTo(100);
-    expect(90 * b).toBeCloseTo(100);
+  it('n’applique que la moitié de la correction « monde gris »', () => {
+    const [r, g, b] = grayWorldFactors([110, 100, 100]);
+    // Correction complète du rouge : (310/3)/110 = 0,9394 → moitié : 1 + (0,9394 − 1) / 2 = 0,9697.
+    expect(r).toBeCloseTo(1 + (310 / 3 / 110 - 1) / 2);
+    expect(g).toBeCloseTo(1 + (310 / 3 / 100 - 1) / 2);
+    expect(b).toBeCloseTo(1 + (310 / 3 / 100 - 1) / 2);
   });
 
   it('ne touche pas une image déjà neutre', () => {
     expect(grayWorldFactors([120, 120, 120])).toEqual([1, 1, 1]);
   });
 
-  it('borne les facteurs entre 0,8 et 1,25', () => {
-    expect(grayWorldFactors([200, 50, 50])).toEqual([0.8, 1.25, 1.25]);
-    expect(grayWorldFactors([0, 100, 200])).toEqual([1.25, 1, 0.8]);
+  it('borne les facteurs entre 0,95 et 1,05', () => {
+    expect(grayWorldFactors([200, 50, 50])).toEqual([0.95, 1.05, 1.05]);
+    expect(grayWorldFactors([0, 100, 200])).toEqual([1.05, 1, 0.95]);
+    for (const means of [[240, 235, 220], [150, 140, 90], [92, 36, 35], [10, 250, 30]] as [number, number, number][]) {
+      for (const f of grayWorldFactors(means)) {
+        expect(f).toBeGreaterThanOrEqual(0.95);
+        expect(f).toBeLessThanOrEqual(1.05);
+      }
+    }
   });
 
   it('laisse une image noire telle quelle', () => {
     expect(grayWorldFactors([0, 0, 0])).toEqual([1, 1, 1]);
+  });
+});
+
+describe('displayFileName', () => {
+  it('versionne le nom du fichier gardé, pour ignorer les versions d’un ancien traitement', () => {
+    expect(displayFileName('abc')).toBe('abc.display-v2.jpg');
+    expect(DISPLAY_FILE_NAMES('abc')).toEqual(['abc.display-v2.jpg', 'abc.display.jpg']);
   });
 });
