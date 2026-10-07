@@ -19,10 +19,13 @@ export function DomaineBlock({
   wineId,
   producerKey,
   producerProfile,
+  canEdit,
 }: {
   wineId: string;
   producerKey: string | null;
   producerProfile: ProducerProfile | null | undefined;
+  /** Les descriptifs sont communs à toutes les caves : seul un administrateur les écrit ou les régénère. */
+  canEdit: boolean;
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -101,7 +104,7 @@ export function DomaineBlock({
 
       {error && <p role="alert" className="text-error">{error}</p>}
 
-      {editing ? (
+      {canEdit && editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
           <label className="field__label" htmlFor="domaine-description">Descriptif du domaine</label>
           <textarea id="domaine-description" value={text} onChange={(e) => setText(e.target.value)} rows={6} />
@@ -112,7 +115,7 @@ export function DomaineBlock({
           <Button variant="link" onClick={() => { setEditing(false); setError(null); }}>Abandonner</Button>
         </div>
       ) : (
-        !pending && (
+        canEdit && !pending && (
           <div style={{ display: 'flex', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)', flexWrap: 'wrap' }}>
             {profile.status === 'DONE' && (
               <>

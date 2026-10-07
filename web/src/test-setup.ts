@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 import 'fake-indexeddb/auto';
+import { beforeEach, vi } from 'vitest';
+import * as api from './lib/api-client';
+import { meFixture } from './test-fixtures';
 
 // react-router's data router (createBrowserRouter) builds an internal `Request`
 // for every navigation, carrying an AbortSignal from an AbortController it creates
@@ -20,3 +23,13 @@ if (typeof globalThis.Request !== 'undefined') {
   }
   globalThis.Request = TestRequest as typeof Request;
 }
+
+// Session par défaut de tous les tests : un propriétaire de sa seule cave. Les
+// écrans lisent le rôle courant depuis `/auth/me` ; un test qui a besoin d'un
+// autre compte (membre, en attente, administrateur…) remplace ce retour par son
+// propre `vi.spyOn(api, 'getMe')`. Recréé avant chaque test, car les fichiers de
+// test restaurent leurs espions après chacun.
+
+beforeEach(() => {
+  vi.spyOn(api, 'getMe').mockResolvedValue(meFixture());
+});

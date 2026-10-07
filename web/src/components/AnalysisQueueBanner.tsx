@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getPhotoQueueStatus } from '../lib/api-client';
+import { useCurrentCave } from '../lib/use-current-cave';
 import { Icon } from './Icon';
 
 /**
@@ -12,8 +13,10 @@ import { Icon } from './Icon';
  * téléphone, celui-là les photos déjà reçues par le serveur.
  */
 export function AnalysisQueueBanner({ hideLink = false }: { hideLink?: boolean }) {
-  const status = useQuery({ queryKey: ['photos', 'queue-status'], queryFn: getPhotoQueueStatus, refetchInterval: 30_000 });
-  const waiting = status.data?.waiting ?? 0;
+  // File d'analyse réservée au propriétaire (403 pour un membre) : aucune requête ni sondage sinon.
+  const { isOwner } = useCurrentCave();
+  const status = useQuery({ queryKey: ['photos', 'queue-status'], queryFn: getPhotoQueueStatus, refetchInterval: 30_000, enabled: isOwner });
+  const waiting = isOwner ? (status.data?.waiting ?? 0) : 0;
   if (waiting === 0) return null;
   return (
     <aside className="banner" role="status">

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
@@ -19,9 +20,11 @@ afterEach(() => {
 
 function mount() {
   return render(
-    <MemoryRouter>
-      <EntreeCapturePage />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <EntreeCapturePage />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

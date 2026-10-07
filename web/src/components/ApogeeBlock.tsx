@@ -15,7 +15,8 @@ function check(minText: string, maxText: string): { min: number; max: number } |
   return { min, max };
 }
 
-export function ApogeeBlock({ wine }: { wine: CaveRow }) {
+/** `readOnly` : membre en lecture seule, sans correction manuelle. */
+export function ApogeeBlock({ wine, readOnly = false }: { wine: CaveRow; readOnly?: boolean }) {
   const qc = useQueryClient();
   const apogee = wine.apogee;
   const [editing, setEditing] = useState(false);
@@ -67,7 +68,7 @@ export function ApogeeBlock({ wine }: { wine: CaveRow }) {
         apogee.reason && <p className="list__meta">{apogeeReasonMessage(apogee.reason)}</p>
       )}
       {error && <p role="alert" className="text-error">{error}</p>}
-      {editing ? (
+      {readOnly ? null : editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
           <label className="field__label" htmlFor="apogee-min">Année de début</label>
           <input id="apogee-min" inputMode="numeric" value={minText} onChange={(e) => setMinText(e.target.value.trim())} />

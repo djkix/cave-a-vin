@@ -166,3 +166,11 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 .image-search__image { width: 100%; max-width: 160px; height: 180px; align-self: center; object-fit: contain; border-radius: var(--radius-md); background: var(--color-surface); }
 .image-search__link { font-size: 13px; color: var(--color-secondary); }
 .image-search__choose { width: 100%; padding: 0 var(--space-sm); }
+
+/* Cave courante dans la barre de titre : le titre et le sélecteur se partagent
+   la largeur (375 px), chacun tronqué plutôt que de pousser la version hors champ. */
+.topbar__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar__cave { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; max-width: 45%; flex: 0 1 auto; }
+.topbar__select { min-height: 32px; max-width: 100%; padding: 0 var(--space-xs); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.topbar__badge { white-space: nowrap; font-size: 10px; padding: 1px 6px; }
+.topbar__error { position: absolute; top: 100%; right: 0; z-index: 41; width: max-content; max-width: 70vw; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-md); background: var(--color-error-container); color: var(--color-error); font-size: 12px; }

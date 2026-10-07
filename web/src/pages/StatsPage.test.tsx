@@ -115,3 +115,17 @@ it('dit quand les statistiques ne se chargent pas', async () => {
   mount();
   expect(await screen.findByRole('alert')).toHaveTextContent('Impossible de charger les statistiques.');
 });
+
+it('affiche les statistiques d’un membre sans aucune section de prix, clés absentes', async () => {
+  const { pricedReferences, purchaseValueCents, mostExpensive, ...viewerStats } = base;
+  void pricedReferences; void purchaseValueCents; void mostExpensive;
+  vi.spyOn(api, 'getStats').mockResolvedValue(viewerStats);
+  mount();
+  expect(await screen.findByText('références')).toBeInTheDocument();
+  expect(screen.queryByText('au prix d’achat')).not.toBeInTheDocument();
+  expect(screen.queryByText('Aucun prix d’achat saisi')).not.toBeInTheDocument();
+  expect(screen.queryByText(/€/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Les plus chères' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Les plus bus' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Les mieux notés' })).toBeInTheDocument();
+});

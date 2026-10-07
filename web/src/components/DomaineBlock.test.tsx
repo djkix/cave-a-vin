@@ -6,10 +6,12 @@ import { DomaineBlock, producerPollInterval } from './DomaineBlock';
 
 afterEach(() => vi.restoreAllMocks());
 
-const mount = (producerKey: string | null, producerProfile: api.ProducerProfile | null | undefined) =>
+// Écrire ou régénérer un descriptif est réservé à l'administrateur : les tests
+// d'édition montent le bloc pour un administrateur, sauf mention contraire.
+const mount = (producerKey: string | null, producerProfile: api.ProducerProfile | null | undefined, canEdit = true) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <DomaineBlock wineId="w1" producerKey={producerKey} producerProfile={producerProfile} />
+      <DomaineBlock wineId="w1" producerKey={producerKey} producerProfile={producerProfile} canEdit={canEdit} />
     </QueryClientProvider>,
   );
 
@@ -155,4 +157,24 @@ it('rafraîchit la fiche toutes les 5 s tant que le descriptif est en préparati
   expect(producerPollInterval('domaine tempier', gemini({ status: 'FAILED' }))).toBe(false);
   expect(producerPollInterval('domaine tempier', gemini({ status: 'UNKNOWN' }))).toBe(false);
   expect(producerPollInterval(null, null)).toBe(false);
+});
+
+describe('compte non administrateur (propriétaire compris)', () => {
+  it.each([
+    ['généré', { status: 'DONE', source: 'GEMINI' }],
+    ['saisi à la main', { status: 'DONE', source: 'MANUEL', updatedBy: 'Franck' }],
+    ['peu documenté', { status: 'UNKNOWN', description: null }],
+    ['en échec', { status: 'FAILED', description: null, errorMessage: 'Réponse de Gemini inexploitable' }],
+  ] as const)('montre le texte d’un descriptif %s sans aucun bouton', (_label, overrides) => {
+    mount('domaine tempier', gemini(overrides as Partial<api.ProducerProfile>), false);
+    expect(screen.getByRole('heading', { name: 'Le domaine' })).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('n’écrit jamais « null » quand l’auteur d’un texte manuel est masqué', () => {
+    mount('domaine tempier', gemini({ source: 'MANUEL', updatedBy: null }), false);
+    expect(screen.getByText('Un domaine du Var…')).toBeInTheDocument();
+    expect(screen.getByText('Texte saisi à la main')).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+  });
 });

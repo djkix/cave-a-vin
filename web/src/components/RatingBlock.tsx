@@ -6,7 +6,8 @@ import { Button } from './Button';
 
 const DATE = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 
-export function RatingBlock({ wine }: { wine: CaveRow }) {
+/** `readOnly` : membre en lecture seule, qui voit la note sans pouvoir la changer. */
+export function RatingBlock({ wine, readOnly = false }: { wine: CaveRow; readOnly?: boolean }) {
   const qc = useQueryClient();
   const rating = wine.rating ?? null;
   const [editing, setEditing] = useState(false);
@@ -36,9 +37,10 @@ export function RatingBlock({ wine }: { wine: CaveRow }) {
     }
   }
 
+  if (readOnly && !rating) return null;
   return (
     <section className="card">
-      <h3 style={{ fontSize: 16, margin: 0 }}>Ma note</h3>
+      <h3 style={{ fontSize: 16, margin: 0 }}>{readOnly ? 'Note' : 'Ma note'}</h3>
       {rating && !editing && (
         <>
           <p className="num" style={{ fontSize: 22, margin: 'var(--space-xs) 0' }}>{formatRating(rating.value)}</p>
@@ -48,7 +50,7 @@ export function RatingBlock({ wine }: { wine: CaveRow }) {
         </>
       )}
       {error && <p role="alert" className="text-error">{error}</p>}
-      {editing ? (
+      {readOnly ? null : editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
           <label className="field__label" htmlFor="rating-value">Note sur 20</label>
           <input id="rating-value" inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} placeholder="16,5" />
