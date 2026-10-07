@@ -576,3 +576,37 @@ describe('MovementsService — descriptif du domaine à la création d’un vin'
     expect(hanging).toHaveBeenCalledWith('Domaine Test');
   });
 });
+
+describe('MovementsService — photo d’une image du web (REFERENCE)', () => {
+  const reference = (h: ReturnType<typeof harness>) => {
+    h.prisma.photo.findUnique = async () => ({ status: 'DONE', purpose: 'REFERENCE' });
+  };
+
+  it('refuse une entrée qui s’appuierait sur une image du web, sans rien écrire', async () => {
+    const h = harness();
+    reference(h);
+    const e = await h.service.createIn({ ...input, photoId: 'p-ref' }).catch((x) => x);
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(e.message).toBe('Photo invalide pour une entrée');
+    expect(h.movements).toHaveLength(0);
+    expect(h.wine.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('refuse une sortie qui s’appuierait sur une image du web, sans débiter', async () => {
+    const h = harness();
+    await h.service.createIn(input);
+    reference(h);
+    const e = await h.service.createOut({ idempotencyKey: 'o-ref', wineId: 'w1', quantity: 1, photoId: 'p-ref' }).catch((x) => x);
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(e.message).toBe('Photo invalide pour une sortie');
+    expect(h.movements).toHaveLength(1);
+  });
+
+  it('accepte toujours une photo d’entrée ou de sortie ordinaire', async () => {
+    const h = harness();
+    h.prisma.photo.findUnique = async () => ({ status: 'DONE', purpose: 'ENTRY' });
+    await expect(h.service.createIn({ ...input, photoId: 'p-in' })).resolves.toMatchObject({ created: true });
+    h.prisma.photo.findUnique = async () => ({ status: 'DONE', purpose: 'EXIT' });
+    await expect(h.service.createOut({ idempotencyKey: 'o2', wineId: 'w1', quantity: 1, photoId: 'p-out' })).resolves.toMatchObject({ created: true });
+  });
+});

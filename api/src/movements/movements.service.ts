@@ -54,12 +54,16 @@ export class MovementsService {
       return { movement, wine, stock: await this.stockOf(existing.wineId), created: false };
     }
 
+    const photo = input.photoId
+      ? await this.prisma.photo.findUnique({ where: { id: input.photoId }, select: { status: true, purpose: true } })
+      : null;
+    // Une image du web choisie comme vignette n'est pas la photo d'une bouteille entrée.
+    if (photo?.purpose === 'REFERENCE') throw new BadRequestException('Photo invalide pour une entrée');
+
     const { wine, created: wineCreated } = await this.matching.matchOrCreate(input.wine);
     // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
     // la mesure « zéro saisie » la comparera à un formulaire vide.
-    const readingShown = input.photoId
-      ? (await this.prisma.photo.findUnique({ where: { id: input.photoId }, select: { status: true } }))?.status === 'DONE'
-      : false;
+    const readingShown = photo?.status === 'DONE';
     try {
       const movement = await this.prisma.movement.create({
         data: {
@@ -231,6 +235,9 @@ export class MovementsService {
       return { replay: await this.asReplay(byKey) };
     }
     if (!input.photoId) return { photoId: null };
+    const photo = await this.prisma.photo.findUnique({ where: { id: input.photoId }, select: { purpose: true } });
+    // Une image du web choisie comme vignette n'est pas la photo d'une bouteille sortie.
+    if (photo?.purpose === 'REFERENCE') throw new BadRequestException('Photo invalide pour une sortie');
 
     const byPhoto = await this.prisma.movement.findFirst({ where: { photoId: input.photoId, type: 'OUT' }, include: { wine: true } });
     if (!byPhoto) return { photoId: input.photoId };
