@@ -81,9 +81,10 @@ export class CaveService {
   /**
    * Tous les vins avec leur stock. Lu en une requête puis filtré en mémoire : la
    * cave compte quelques centaines de références, et le filtre se teste ainsi
-   * sans base.
+   * sans base. Seulement les vins de la cave `caveId` (la vue stock_courant
+   * n'a pas de cave : elle est jointe par le vin).
    */
-  allWithStock(): Promise<CaveDbRow[]> {
+  allWithStock(caveId: string): Promise<CaveDbRow[]> {
     return this.prisma.$queryRaw<CaveDbRow[]>`
       SELECT w.id, w.producer, w.cuvee, w.appellation_raw AS "appellationRaw", w.vintage,
              w.color::TEXT AS color, w.format_cl AS "formatCl", w.reference_photo_id AS "referencePhotoId",
@@ -100,11 +101,12 @@ export class CaveService {
       LEFT JOIN appellation a ON a.id = w.appellation_id
       LEFT JOIN app_user u ON u.id = w.rated_by
       LEFT JOIN pairing p ON p.wine_id = w.id
+      WHERE w.cave_id = ${caveId}
       ORDER BY w.producer ASC, w.vintage ASC NULLS FIRST`;
   }
 
-  async list(filter: CaveFilter): Promise<CaveItem[]> {
-    const [rows, rules] = await Promise.all([this.allWithStock(), this.rules.load()]);
+  async list(caveId: string, filter: CaveFilter): Promise<CaveItem[]> {
+    const [rows, rules] = await Promise.all([this.allWithStock(caveId), this.rules.load()]);
     const year = new Date().getFullYear();
     const kept = filterCave(rows, filter);
     let items = kept.map((r) => toItem(r, rules, year));
@@ -124,8 +126,9 @@ export class CaveService {
     return items;
   }
 
-  async detail(id: string) {
-    const [rows, rules] = await Promise.all([this.allWithStock(), this.rules.load()]);
+  /** Fiche d'un vin de la cave ; un vin d'une autre cave est « introuvable », comme un identifiant inconnu. */
+  async detail(caveId: string, id: string) {
+    const [rows, rules] = await Promise.all([this.allWithStock(caveId), this.rules.load()]);
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
@@ -154,8 +157,8 @@ export class CaveService {
     };
   }
 
-  async exitCandidates(photoId: string): Promise<ExitCandidatesResponse> {
-    const photo = await this.prisma.photo.findUnique({ where: { id: photoId } });
+  async exitCandidates(caveId: string, photoId: string): Promise<ExitCandidatesResponse> {
+    const photo = await this.prisma.photo.findFirst({ where: { id: photoId, caveId } });
     if (!photo) throw new NotFoundException('Photo introuvable');
     if (photo.status === 'PENDING' || photo.status === 'PROCESSING') return { status: photo.status };
     if (photo.status === 'FAILED') return { status: 'FAILED', errorMessage: photo.errorMessage ?? null };
@@ -169,7 +172,7 @@ export class CaveService {
       // lecture inexploitable renvoie vers la liste, jamais vers un vin deviné.
       return { status: 'FAILED', errorMessage: 'Lecture de l’étiquette inexploitable' };
     }
-    const inStock = (await this.allWithStock())
+    const inStock = (await this.allWithStock(caveId))
       .filter((r) => r.quantity > 0)
       .map((r) => ({
         wine: { id: r.id, producer: r.producer, cuvee: r.cuvee, appellationRaw: r.appellationRaw, vintage: r.vintage, color: r.color, formatCl: r.formatCl },
@@ -179,32 +182,29 @@ export class CaveService {
     return { status: 'DONE', read, ...rankExitCandidates(read, inStock) };
   }
 
-  async setManualApogee(id: string, input: ManualApogeeInput): Promise<Apogee> {
-    await this.updateWine(id, { apogeeMin: input.min, apogeeMax: input.max, apogeeSource: 'MANUEL' });
-    return (await this.detail(id)).wine.apogee;
+  async setManualApogee(caveId: string, id: string, input: ManualApogeeInput): Promise<Apogee> {
+    await this.updateWine(caveId, id, { apogeeMin: input.min, apogeeMax: input.max, apogeeSource: 'MANUEL' });
+    return (await this.detail(caveId, id)).wine.apogee;
   }
 
-  async clearManualApogee(id: string): Promise<Apogee> {
-    await this.updateWine(id, { apogeeMin: null, apogeeMax: null, apogeeSource: null });
-    return (await this.detail(id)).wine.apogee;
+  async clearManualApogee(caveId: string, id: string): Promise<Apogee> {
+    await this.updateWine(caveId, id, { apogeeMin: null, apogeeMax: null, apogeeSource: null });
+    return (await this.detail(caveId, id)).wine.apogee;
   }
 
-  async setRating(id: string, value: number, userId: string): Promise<Rating | null> {
-    await this.updateWine(id, { rating: value, ratedAt: new Date(), ratedById: userId });
-    return (await this.detail(id)).wine.rating;
+  async setRating(caveId: string, id: string, value: number, userId: string): Promise<Rating | null> {
+    await this.updateWine(caveId, id, { rating: value, ratedAt: new Date(), ratedById: userId });
+    return (await this.detail(caveId, id)).wine.rating;
   }
 
-  async clearRating(id: string): Promise<null> {
-    await this.updateWine(id, { rating: null, ratedAt: null, ratedById: null });
+  async clearRating(caveId: string, id: string): Promise<null> {
+    await this.updateWine(caveId, id, { rating: null, ratedAt: null, ratedById: null });
     return null;
   }
 
-  private async updateWine(id: string, data: Prisma.WineUncheckedUpdateInput) {
-    try {
-      await this.prisma.wine.update({ where: { id }, data });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') throw new NotFoundException('Vin introuvable');
-      throw e;
-    }
+  /** Écrit sur un vin de la cave seulement : la condition de cave est vérifiée par la base au moment de l'écriture. */
+  private async updateWine(caveId: string, id: string, data: Prisma.WineUncheckedUpdateManyInput) {
+    const { count } = await this.prisma.wine.updateMany({ where: { id, caveId }, data });
+    if (count === 0) throw new NotFoundException('Vin introuvable');
   }
 }

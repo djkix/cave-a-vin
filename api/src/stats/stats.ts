@@ -58,6 +58,18 @@ export interface Stats {
   bestRated: RankedWine[];
 }
 
+/** Champs tirés des prix d'achat : absents de la réponse pour un membre en lecture seule. */
+export const PRICE_KEYS = ['pricedReferences', 'purchaseValueCents', 'mostExpensive'] as const;
+export type ViewerStats = Omit<Stats, (typeof PRICE_KEYS)[number]>;
+
+/** Statistiques vues par un rôle : un VIEWER ne reçoit aucun champ de prix (absents, pas null). */
+export function statsForRole(stats: Stats, role: 'OWNER' | 'VIEWER'): Stats | ViewerStats {
+  if (role === 'OWNER') return stats;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- champs de prix retirés de la réponse
+  const { pricedReferences, purchaseValueCents, mostExpensive, ...rest } = stats;
+  return rest;
+}
+
 const monthFormat = new Intl.DateTimeFormat('en-CA', { timeZone: STATS_TIME_ZONE, year: 'numeric', month: '2-digit' });
 
 /** « AAAA-MM » du mois où tombe la date, à l'heure de Paris. */

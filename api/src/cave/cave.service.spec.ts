@@ -1,5 +1,4 @@
 import { NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { compileApogeeRules } from '../apogee/apogee';
 import { CaveRow } from './cave-filter';
 import { CaveService } from './cave.service';
@@ -19,40 +18,47 @@ function service(photo: any, rows: any[] = [tempier19], rules = compileApogeeRul
   const prisma = {
     producerProfile: { findUnique: jest.fn(async () => profile) },
     $queryRaw: jest.fn(async () => rows),
-    photo: { findUnique: jest.fn(async () => photo) },
+    photo: { findFirst: jest.fn(async () => photo) },
     movement: { findMany: jest.fn(async () => []) },
-    wine: { update: jest.fn(async ({ where }: any) => (rows.some((r) => r.id === where.id) ? {} : Promise.reject(new Prisma.PrismaClientKnownRequestError('absent', { code: 'P2025', clientVersion: 'test' })))) },
+    wine: { updateMany: jest.fn(async ({ where }: any) => ({ count: rows.some((r) => r.id === where.id && where.caveId === 'c1') ? 1 : 0 })) },
   };
   return Object.assign(new CaveService(prisma as any, { load: async () => rules } as any), { mockPrisma: prisma });
 }
 
 describe('CaveService.exitCandidates', () => {
   it('répond 404 pour une photo inconnue', async () => {
-    await expect(service(null).exitCandidates('x')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service(null).exitCandidates('c1', 'x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('ne cherche la photo et les vins en stock que dans la cave', async () => {
+    const s = service({ status: 'DONE', purpose: 'EXIT', rawExtraction: raw(2019) });
+    await s.exitCandidates('c1', 'p');
+    expect(s.mockPrisma.photo.findFirst).toHaveBeenCalledWith({ where: { id: 'p', caveId: 'c1' } });
+    expect(s.mockPrisma.$queryRaw.mock.calls[0]).toContain('c1');
   });
 
   it('dit que l’analyse est en cours tant que la photo n’est pas lue', async () => {
-    expect(await service({ status: 'PROCESSING' }).exitCandidates('p')).toEqual({ status: 'PROCESSING' });
+    expect(await service({ status: 'PROCESSING' }).exitCandidates('c1', 'p')).toEqual({ status: 'PROCESSING' });
   });
 
   it('transmet l’échec de l’analyse', async () => {
-    expect(await service({ status: 'FAILED', errorMessage: 'saturé' }).exitCandidates('p')).toEqual({ status: 'FAILED', errorMessage: 'saturé' });
+    expect(await service({ status: 'FAILED', errorMessage: 'saturé' }).exitCandidates('c1', 'p')).toEqual({ status: 'FAILED', errorMessage: 'saturé' });
   });
 
   it('classe les vins en stock et renvoie ce que le modèle a lu', async () => {
-    const r = await service({ status: 'DONE', purpose: 'EXIT', rawExtraction: raw(2019) }).exitCandidates('p');
+    const r = await service({ status: 'DONE', purpose: 'EXIT', rawExtraction: raw(2019) }).exitCandidates('c1', 'p');
     expect(r).toMatchObject({ status: 'DONE', outcome: 'UNIQUE', read: { producer: 'Domaine Tempier', vintage: 2019 } });
     expect((r as any).candidates[0].wine.id).toBe('w19');
     expect((r as any).candidates[0].referencePhotoId).toBe('ref19');
   });
 
   it('fonctionne aussi sur une photo d’entrée réutilisée par la déduplication', async () => {
-    const r = await service({ status: 'DONE', purpose: 'ENTRY', rawExtraction: raw(2019) }).exitCandidates('p');
+    const r = await service({ status: 'DONE', purpose: 'ENTRY', rawExtraction: raw(2019) }).exitCandidates('c1', 'p');
     expect((r as any).outcome).toBe('UNIQUE');
   });
 
   it('traite une extraction illisible comme un échec, jamais comme un vin', async () => {
-    expect(await service({ status: 'DONE', rawExtraction: { n: 'importe quoi' } }).exitCandidates('p')).toEqual({
+    expect(await service({ status: 'DONE', rawExtraction: { n: 'importe quoi' } }).exitCandidates('c1', 'p')).toEqual({
       status: 'FAILED',
       errorMessage: 'Lecture de l’étiquette inexploitable',
     });
@@ -60,27 +66,33 @@ describe('CaveService.exitCandidates', () => {
 });
 
 describe('CaveService.detail', () => {
+  it('lit les vins de la cave seulement (cave passée à la requête)', async () => {
+    const s = service(null);
+    await s.list('c1', {});
+    expect(s.mockPrisma.$queryRaw.mock.calls[0]).toContain('c1');
+  });
+
   it('répond 404 pour un vin inconnu', async () => {
-    await expect(service(null, []).detail('nope')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service(null, []).detail('c1', 'nope')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('renvoie le vin avec son stock et ses derniers mouvements', async () => {
-    const r = await service(null).detail('w19');
+    const r = await service(null).detail('c1', 'w19');
     expect(r.wine).toMatchObject(tempier19);
     expect(r.movements).toEqual([]);
   });
 
   it('expose la provenance de la vignette venue du web (null pour une photo de l’utilisateur)', async () => {
-    const own = await service(null).detail('w19');
+    const own = await service(null).detail('c1', 'w19');
     expect(own.wine).toMatchObject({ referencePhotoSource: null, referencePhotoSourceUrl: null });
     const web = { ...tempier19, referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1' };
-    const r = await service(null, [web]).detail('w19');
+    const r = await service(null, [web]).detail('c1', 'w19');
     expect(r.wine).toMatchObject({ referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1' });
   });
 
   it('la liste de la cave ne porte pas la provenance (réservée à la fiche)', async () => {
     const web = { ...tempier19, referencePhotoSource: 'tempier.fr', referencePhotoSourceUrl: 'https://tempier.fr/' };
-    const [item] = await service(null, [web]).list({});
+    const [item] = await service(null, [web]).list('c1', {});
     expect(item).not.toHaveProperty('referencePhotoSource');
     expect(item).not.toHaveProperty('referencePhotoSourceUrl');
   });
@@ -97,12 +109,12 @@ describe('CaveService — apogée', () => {
   afterAll(() => jest.useRealTimers());
 
   it('calcule l’apogée de chaque vin de la liste', async () => {
-    const [item] = await service(null, [cdp]).list({});
+    const [item] = await service(null, [cdp]).list('c1', {});
     expect(item.apogee).toEqual({ min: 2024, max: 2036, confidence: 'FAIBLE', status: 'A_BOIRE', reason: null, source: 'REGLE' });
   });
 
   it('n’expose pas les champs internes du calcul', async () => {
-    const [item] = await service(null, [cdp]).list({});
+    const [item] = await service(null, [cdp]).list('c1', {});
     expect(item).not.toHaveProperty('referenceGuardMin');
     expect(item).not.toHaveProperty('apogeeSource');
     expect(item).not.toHaveProperty('region');
@@ -118,21 +130,21 @@ describe('CaveService — apogée', () => {
       producerProfile: { findUnique: jest.fn(async () => null) },
     };
     const s = new CaveService(prisma as any, { load: async () => loads.shift()! } as any);
-    expect((await s.detail('w16')).wine.apogee).toMatchObject({ min: 2024, max: 2036 });
-    expect((await s.detail('w16')).wine.apogee).toMatchObject({ min: 2026, max: 2040, confidence: 'MOYENNE' });
+    expect((await s.detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2024, max: 2036 });
+    expect((await s.detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2026, max: 2040, confidence: 'MOYENNE' });
   });
 
   it('montre la correction manuelle, même pour un vin non millésimé', async () => {
     const nv = { ...cdp, vintage: null, apogeeMin: 2027, apogeeMax: 2029, apogeeSource: 'MANUEL' };
-    expect((await service(null, [nv]).detail('w16')).wine.apogee).toMatchObject({ min: 2027, max: 2029, confidence: 'SAISIE' });
+    expect((await service(null, [nv]).detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2027, max: 2029, confidence: 'SAISIE' });
   });
 
   it('rend les accords du vin sur la fiche, et null sans accords', async () => {
     const withPairing = { ...cdp, pairingStatus: 'DONE', pairingDishes: ['Agneau'], pairingError: null, pairingGeneratedAt: new Date('2026-10-05T10:00:00Z') };
-    expect((await service(null, [withPairing]).detail('w16')).wine.pairing).toEqual({
+    expect((await service(null, [withPairing]).detail('c1', 'w16')).wine.pairing).toEqual({
       status: 'DONE', dishes: ['Agneau'], errorMessage: null, generatedAt: new Date('2026-10-05T10:00:00Z'),
     });
-    expect((await service(null, [cdp]).detail('w16')).wine.pairing).toBeNull();
+    expect((await service(null, [cdp]).detail('c1', 'w16')).wine.pairing).toBeNull();
   });
 
   it('rend le descriptif du domaine sur la fiche, retrouvé par la clé normalisée du producteur', async () => {
@@ -143,7 +155,7 @@ describe('CaveService — apogée', () => {
       updatedBy: { displayName: 'Franck', email: 'franck@example.com' }, updatedAt: generatedAt,
     };
     const s = service(null, [cdp], undefined, profile);
-    expect((await s.detail('w16')).wine.producerProfile).toEqual({
+    expect((await s.detail('c1', 'w16')).wine.producerProfile).toEqual({
       key: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte',
       source: 'MANUEL', errorMessage: null, generatedAt, updatedBy: 'Franck',
     });
@@ -158,16 +170,16 @@ describe('CaveService — apogée', () => {
       producerKey: 'chateau de beaucastel', displayName: 'Château de Beaucastel', status: 'DONE', description: 'Texte', source: 'MANUEL',
       errorMessage: null, generatedAt: null, updatedBy: { displayName: null, email: 'franck@example.com' },
     };
-    expect((await service(null, [cdp], undefined, profile).detail('w16')).wine.producerProfile).toMatchObject({ updatedBy: 'franck@example.com' });
+    expect((await service(null, [cdp], undefined, profile).detail('c1', 'w16')).wine.producerProfile).toMatchObject({ updatedBy: 'franck@example.com' });
     const generated = { ...profile, source: 'GEMINI', updatedBy: null };
-    expect((await service(null, [cdp], undefined, generated).detail('w16')).wine.producerProfile).toMatchObject({ updatedBy: null });
-    expect((await service(null, [cdp]).detail('w16')).wine.producerProfile).toBeNull();
+    expect((await service(null, [cdp], undefined, generated).detail('c1', 'w16')).wine.producerProfile).toMatchObject({ updatedBy: null });
+    expect((await service(null, [cdp]).detail('c1', 'w16')).wine.producerProfile).toBeNull();
   });
 
   it('expose toujours la clé du domaine, même sans descriptif, et null pour un nom sans lettre ni chiffre', async () => {
-    expect((await service(null, [cdp]).detail('w16')).wine.producerKey).toBe('chateau de beaucastel');
+    expect((await service(null, [cdp]).detail('c1', 'w16')).wine.producerKey).toBe('chateau de beaucastel');
     const s = service(null, [{ ...cdp, producer: ' — ' }]);
-    const { wine } = await s.detail('w16');
+    const { wine } = await s.detail('c1', 'w16');
     expect(wine.producerKey).toBeNull();
     expect(wine.producerProfile).toBeNull();
     expect(s.mockPrisma.producerProfile.findUnique).not.toHaveBeenCalled();
@@ -181,36 +193,36 @@ describe('CaveService — apogée', () => {
     const rows = [at('v08', 2008), at('v07b', 2007, 'B'), at('v16', 2016), at('nv', null), at('v06', 2006), at('v07', 2007, 'A')];
 
     it('« à boire en priorité » garde les fins d’apogée jusqu’à l’an prochain, la plus proche en premier', async () => {
-      const items = await service(null, rows).list({ drinkSoon: true });
+      const items = await service(null, rows).list('c1', { drinkSoon: true });
       expect(items.map((i) => i.id)).toEqual(['v06', 'v07b', 'v07']);
     });
 
     it('« sans apogée » ne garde que les vins sans estimation', async () => {
-      const items = await service(null, rows).list({ noApogee: true });
+      const items = await service(null, rows).list('c1', { noApogee: true });
       expect(items.map((i) => i.id)).toEqual(['nv']);
       expect(items[0].apogee.reason).toBe('NON_MILLESIME');
     });
 
     it('se combine avec la recherche et ignore les vins épuisés', async () => {
       const r = [...rows, { ...at('vide', 2006), quantity: 0 }];
-      expect((await service(null, r).list({ drinkSoon: true, q: 'b' })).map((i) => i.id)).toEqual(['v07b']);
+      expect((await service(null, r).list('c1', { drinkSoon: true, q: 'b' })).map((i) => i.id)).toEqual(['v07b']);
     });
   });
 
   it('enregistre une correction manuelle', async () => {
     const s = service(null, [cdp]);
-    await s.setManualApogee('w16', { min: 2030, max: 2035 });
-    expect((s as any).prisma.wine.update).toHaveBeenCalledWith({ where: { id: 'w16' }, data: { apogeeMin: 2030, apogeeMax: 2035, apogeeSource: 'MANUEL' } });
+    await s.setManualApogee('c1', 'w16', { min: 2030, max: 2035 });
+    expect((s as any).prisma.wine.updateMany).toHaveBeenCalledWith({ where: { id: 'w16', caveId: 'c1' }, data: { apogeeMin: 2030, apogeeMax: 2035, apogeeSource: 'MANUEL' } });
   });
 
   it('retire la correction manuelle', async () => {
     const s = service(null, [cdp]);
-    await s.clearManualApogee('w16');
-    expect((s as any).prisma.wine.update).toHaveBeenCalledWith({ where: { id: 'w16' }, data: { apogeeMin: null, apogeeMax: null, apogeeSource: null } });
+    await s.clearManualApogee('c1', 'w16');
+    expect((s as any).prisma.wine.updateMany).toHaveBeenCalledWith({ where: { id: 'w16', caveId: 'c1' }, data: { apogeeMin: null, apogeeMax: null, apogeeSource: null } });
   });
 
   it('répond 404 pour un vin inconnu', async () => {
-    await expect(service(null, [cdp]).setManualApogee('nope', { min: 2030, max: 2035 })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service(null, [cdp]).setManualApogee('c1', 'nope', { min: 2030, max: 2035 })).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('cherche par plat, à boire en priorité d’abord, et dit quel plat correspond', async () => {
@@ -221,7 +233,7 @@ describe('CaveService — apogée', () => {
       at('soon', 2006, 'C', ['Agneau de sept heures']), // fin 2026
       at('fish', 2006, 'D', ['Bar grillé']),
     ];
-    const items = await service(null, rows).list({ dish: 'agneau' });
+    const items = await service(null, rows).list('c1', { dish: 'agneau' });
     expect(items.map((i) => [i.id, i.matchedDish])).toEqual([['soon', 'Agneau de sept heures'], ['young', 'Gigot d’agneau']]);
   });
 });
@@ -229,7 +241,7 @@ describe('CaveService — apogée', () => {
 describe('CaveService — note de dégustation', () => {
   it('expose la note avec son auteur, et null pour un vin non noté', async () => {
     const rated = { ...cdp, id: 'r1', rating: 16.5, ratedAt: new Date('2026-10-05T10:00:00Z'), ratedBy: 'Franck' };
-    const items = await service(null, [rated, { ...cdp, id: 'r2' }]).list({});
+    const items = await service(null, [rated, { ...cdp, id: 'r2' }]).list('c1', {});
     expect(items.find((i) => i.id === 'r1')!.rating).toEqual({ value: 16.5, ratedAt: new Date('2026-10-05T10:00:00Z'), ratedBy: 'Franck' });
     expect(items.find((i) => i.id === 'r2')!.rating).toBeNull();
     expect(items[0]).not.toHaveProperty('ratedAt');
@@ -238,19 +250,19 @@ describe('CaveService — note de dégustation', () => {
 
   it('enregistre la note avec la date et l’auteur', async () => {
     const s = service(null, [cdp]);
-    await s.setRating('w16', 16.5, 'u1');
-    expect((s as any).prisma.wine.update).toHaveBeenCalledWith({
-      where: { id: 'w16' }, data: { rating: 16.5, ratedAt: expect.any(Date), ratedById: 'u1' },
+    await s.setRating('c1', 'w16', 16.5, 'u1');
+    expect((s as any).prisma.wine.updateMany).toHaveBeenCalledWith({
+      where: { id: 'w16', caveId: 'c1' }, data: { rating: 16.5, ratedAt: expect.any(Date), ratedById: 'u1' },
     });
   });
 
   it('retire la note', async () => {
     const s = service(null, [cdp]);
-    expect(await s.clearRating('w16')).toBeNull();
-    expect((s as any).prisma.wine.update).toHaveBeenCalledWith({ where: { id: 'w16' }, data: { rating: null, ratedAt: null, ratedById: null } });
+    expect(await s.clearRating('c1', 'w16')).toBeNull();
+    expect((s as any).prisma.wine.updateMany).toHaveBeenCalledWith({ where: { id: 'w16', caveId: 'c1' }, data: { rating: null, ratedAt: null, ratedById: null } });
   });
 
   it('répond 404 pour un vin inconnu', async () => {
-    await expect(service(null, [cdp]).setRating('nope', 12, 'u1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service(null, [cdp]).setRating('c1', 'nope', 12, 'u1')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

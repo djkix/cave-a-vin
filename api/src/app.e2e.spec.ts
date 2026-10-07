@@ -98,6 +98,10 @@ describeIfInfra('api HTTP', () => {
     expect(res.status).toBe(201);
     expect(res.body.email).toBe(email.toLowerCase());
     expect(String(res.headers['set-cookie'])).toContain('cave.sid');
+    // Les routes de cave passent par CaveAccessGuard : le compte de secours
+    // devient propriétaire de la cave de test, qui devient sa cave courante.
+    await prisma.caveMember.create({ data: { caveId, userId: res.body.id, role: 'OWNER' } });
+    expect((await agent.put('/api/auth/current-cave').send({ caveId })).status).toBe(200);
   });
 
   it('serves /photos/pending-review as a list, not as a photo id', async () => {

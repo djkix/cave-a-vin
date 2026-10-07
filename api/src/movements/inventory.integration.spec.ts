@@ -36,8 +36,8 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
     const wine = await wineWithStock(6);
     // Sans verrou, les deux calculeraient −2 sur un stock de 6 et laisseraient 2.
     const [a, b] = await Promise.all([
-      service.adjustTo(wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
-      service.adjustTo(wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
+      service.adjustTo(caveId, wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
+      service.adjustTo(caveId, wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
     ]);
     expect([a.created, b.created].filter(Boolean)).toHaveLength(1);
     const sum = await prisma.movement.aggregate({ _sum: { delta: true }, where: { wineId: wine.id } });
@@ -67,7 +67,7 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
     // lui-même ce verrou, il lirait le stock immédiatement (6) au lieu d'attendre
     // la fin de A (5).
     await locked;
-    const adjustPromise = service.adjustTo(wine.id, { idempotencyKey: key('inv-adjust'), counted: 4 });
+    const adjustPromise = service.adjustTo(caveId, wine.id, { idempotencyKey: key('inv-adjust'), counted: 4 });
 
     await Promise.all([txA, adjustPromise]);
 

@@ -45,9 +45,9 @@ describeIfDb('sortie par photo réutilisée (base réelle)', () => {
     const a = await wineWithStock(2);
     const b = await wineWithStock(2);
     const p = await exitPhoto();
-    const outA = await service.createOut({ idempotencyKey: crypto.randomUUID(), wineId: a.id, quantity: 1, photoId: p.id });
-    await service.cancel(outA.movement.id, crypto.randomUUID());
-    const outB = await service.createOut({ idempotencyKey: crypto.randomUUID(), wineId: b.id, quantity: 1, photoId: p.id });
+    const outA = await service.createOut(caveId, { idempotencyKey: crypto.randomUUID(), wineId: a.id, quantity: 1, photoId: p.id });
+    await service.cancel(caveId, outA.movement.id, crypto.randomUUID());
+    const outB = await service.createOut(caveId, { idempotencyKey: crypto.randomUUID(), wineId: b.id, quantity: 1, photoId: p.id });
     expect(outB.created).toBe(true);
     expect(outB.movement.wineId).toBe(b.id);
     expect(await service.stockOf(b.id)).toBe(1);
@@ -58,9 +58,9 @@ describeIfDb('sortie par photo réutilisée (base réelle)', () => {
     const a = await wineWithStock(2);
     const b = await wineWithStock(2);
     const p = await exitPhoto();
-    await service.createOut({ idempotencyKey: crypto.randomUUID(), wineId: a.id, quantity: 1, photoId: p.id });
+    await service.createOut(caveId, { idempotencyKey: crypto.randomUUID(), wineId: a.id, quantity: 1, photoId: p.id });
     await expect(
-      service.createOut({ idempotencyKey: crypto.randomUUID(), wineId: b.id, quantity: 1, photoId: p.id }),
+      service.createOut(caveId, { idempotencyKey: crypto.randomUUID(), wineId: b.id, quantity: 1, photoId: p.id }),
     ).rejects.toThrow(new ConflictException('Cette photo a déjà servi à sortir un autre vin — annulez d’abord cette sortie'));
     expect(await service.stockOf(b.id)).toBe(2);
     expect(await service.stockOf(a.id)).toBe(1);

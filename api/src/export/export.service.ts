@@ -3,7 +3,6 @@ import { Prisma, WineColor } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { ApogeeConfidence, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
-import { resolveLegacyCaveId } from '../caves/legacy-cave';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ExportFilter {
@@ -25,11 +24,14 @@ export class ExportService {
     private readonly rules: ApogeeRulesService,
   ) {}
 
-  async buildWorkbook(filter: ExportFilter, userId: string): Promise<{ buffer: Buffer; rowCount: number }> {
+  /** Classeur de la cave `caveId` (stock, journal, référentiel commun), journalisé dans cette cave. */
+  async buildWorkbook(caveId: string, filter: ExportFilter, userId: string): Promise<{ buffer: Buffer; rowCount: number }> {
     const [stockRows, wines, movements, appellations] = await Promise.all([
-      this.prisma.$queryRaw<{ wine_id: string; quantity: number }[]>`SELECT wine_id, quantity FROM stock_courant`,
-      this.prisma.wine.findMany({ include: { appellation: true, pairing: true }, orderBy: [{ producer: 'asc' }, { vintage: 'asc' }] }),
-      this.prisma.movement.findMany({ include: { wine: true }, orderBy: { occurredAt: 'desc' } }),
+      // stock_courant n'a pas de cave : jointe par le vin.
+      this.prisma.$queryRaw<{ wine_id: string; quantity: number }[]>`
+        SELECT s.wine_id, s.quantity FROM stock_courant s JOIN wine w ON w.id = s.wine_id WHERE w.cave_id = ${caveId}`,
+      this.prisma.wine.findMany({ where: { caveId }, include: { appellation: true, pairing: true }, orderBy: [{ producer: 'asc' }, { vintage: 'asc' }] }),
+      this.prisma.movement.findMany({ where: { wine: { caveId } }, include: { wine: true }, orderBy: { occurredAt: 'desc' } }),
       this.prisma.appellation.findMany({ orderBy: { canonicalName: 'asc' } }),
     ]);
     const stockByWine = new Map(stockRows.map((r) => [r.wine_id, Number(r.quantity)]));
@@ -142,8 +144,6 @@ export class ExportService {
     ref.getRow(1).font = { bold: true };
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-    // TODO(multi-caves): remplacer par la cave courante (tâche 3/4)
-    const caveId = await resolveLegacyCaveId(this.prisma);
     await this.prisma.exportLog.create({ data: { caveId, userId, filter: filter as Prisma.InputJsonValue, rowCount: inStock.length } });
     return { buffer, rowCount: inStock.length };
   }

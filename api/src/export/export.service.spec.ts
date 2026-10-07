@@ -28,14 +28,15 @@ function fakePrisma() {
     movement: { findMany: async () => [...movements].reverse() },
     appellation: { findMany: async () => [{ canonicalName: 'Bandol', region: 'Provence', allowedColors: ['ROUGE', 'ROSE'], guardMinYears: 5, guardMaxYears: 20 }] },
     exportLog: { create: jest.fn(async ({ data }: any) => data) },
-    cave: { findFirst: async () => ({ id: 'c1' }) },
   };
 }
 
 describe('ExportService.buildWorkbook', () => {
   it('writes three sheets and only wines in stock on Stock', async () => {
     const prisma = fakePrisma();
-    const { buffer, rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const wineFind = jest.spyOn(prisma.wine, 'findMany');
+    const movementFind = jest.spyOn(prisma.movement, 'findMany');
+    const { buffer, rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', {}, 'u1');
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exceljs's index.d.ts shadows the global Buffer
     // with a local `interface Buffer extends ArrayBuffer {}` stub inside .load()'s signature, so a real Node Buffer
@@ -50,6 +51,8 @@ describe('ExportService.buildWorkbook', () => {
     expect(rowCount).toBe(1);
     expect(wb.getWorksheet('Mouvements')!.rowCount).toBe(4);
     expect(prisma.exportLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'u1', rowCount: 1, caveId: 'c1' }) }));
+    expect(wineFind).toHaveBeenCalledWith(expect.objectContaining({ where: { caveId: 'c1' } }));
+    expect(movementFind).toHaveBeenCalledWith(expect.objectContaining({ where: { wine: { caveId: 'c1' } } }));
     expect(stock.autoFilter).toBeTruthy();
     expect(wb.getWorksheet('Mouvements')!.autoFilter).toBeTruthy();
     expect(wb.getWorksheet('Référence')!.autoFilter).toBeTruthy();
@@ -57,12 +60,12 @@ describe('ExportService.buildWorkbook', () => {
 
   it('filters Stock by colour', async () => {
     const prisma = fakePrisma();
-    const { rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook({ color: 'BLANC' }, 'u1');
+    const { rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', { color: 'BLANC' }, 'u1');
     expect(rowCount).toBe(0);
   });
 
   it('ajoute l’apogée estimée et sa confiance après le millésime', async () => {
-    const { buffer } = await new ExportService(fakePrisma() as any, noRules as any).buildWorkbook({}, 'u1');
+    const { buffer } = await new ExportService(fakePrisma() as any, noRules as any).buildWorkbook('c1', {}, 'u1');
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
     await wb.xlsx.load(buffer as any);
@@ -78,7 +81,7 @@ describe('ExportService.buildWorkbook', () => {
       appellationId: 'a-bandol', apogeeMin: null, apogeeMax: null, apogeeSource: null, appellation: { region: 'Provence', guardMinYears: 5, guardMaxYears: 20 } };
     prisma.wine.findMany = async () => [old] as any;
     prisma.$queryRaw = async () => [{ wine_id: 'w9', quantity: 1 }];
-    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', {}, 'u1');
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
     await wb.xlsx.load(buffer as any);
@@ -93,7 +96,7 @@ describe('ExportService.buildWorkbook', () => {
       appellationId: 'a-ch', apogeeMin: null, apogeeMax: null, apogeeSource: null, appellation: { region: 'Champagne', guardMinYears: 1, guardMaxYears: 4 } };
     prisma.wine.findMany = async () => [nv] as any;
     prisma.$queryRaw = async () => [{ wine_id: 'w8', quantity: 3 }];
-    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', {}, 'u1');
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
     await wb.xlsx.load(buffer as any);
@@ -115,7 +118,7 @@ describe('ExportService.buildWorkbook', () => {
       { id: 'm3', wineId: 'w1', delta: -6, type: 'ADJUST', occurredAt: new Date('2026-09-11'), priceUnitCents: null, note: 'Annulation', reversesId: 'm2', wine },
     ];
     prisma.movement.findMany = async () => [...movements].reverse();
-    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', {}, 'u1');
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
     await wb.xlsx.load(buffer as any);
@@ -134,7 +137,7 @@ describe('ExportService.buildWorkbook', () => {
       // Fins d'apogée : 2027, 2028, 2020.
       prisma.wine.findMany = async () => [bandol('w7', 'Sept', 2007), bandol('w8', 'Huit', 2008), bandol('w0', 'Zéro', 2000)] as any;
       prisma.$queryRaw = async () => [{ wine_id: 'w7', quantity: 1 }, { wine_id: 'w8', quantity: 1 }, { wine_id: 'w0', quantity: 1 }];
-      const { buffer, rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook({ drinkSoon: true }, 'u1');
+      const { buffer, rowCount } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', { drinkSoon: true }, 'u1');
       const wb = new ExcelJS.Workbook();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
       await wb.xlsx.load(buffer as any);
@@ -157,7 +160,7 @@ describe('ExportService.buildWorkbook', () => {
     };
     prisma.wine.findMany = async () => [rated] as any;
     prisma.$queryRaw = async () => [{ wine_id: 'w5', quantity: 2 }];
-    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook({}, 'u1');
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', {}, 'u1');
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
     await wb.xlsx.load(buffer as any);
