@@ -24,7 +24,6 @@ const detail: api.WineDetail = {
     { id: null, label: 'Sans emplacement', quantity: 3 },
   ],
   exitDefault: 'l1',
-  lastLocation: { zone: 'Cave 2', casier: 'B', position: '3' },
 };
 
 const cellar: api.Location[] = [

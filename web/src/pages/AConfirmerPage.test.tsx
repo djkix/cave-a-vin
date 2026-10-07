@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
@@ -287,4 +287,51 @@ it('ne laisse pas valider tant que les emplacements ne sont pas lus', async () =
   await screen.findAllByRole('article');
   expect(screen.getByRole('button', { name: /^Valider$/ })).toBeDisabled();
   expect(screen.getByRole('button', { name: /Tout valider/ })).toBeDisabled();
+});
+
+describe('emplacements illisibles ou sans réponse : la validation n’attend jamais plus de 2 s', () => {
+  // Client aux réglages par défaut (3 nouvelles tentatives, ~7 s).
+  function renderWithRetries() {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter><AConfirmerPage /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('erreur : les boutons reviennent dès l’erreur, sans nouvelles tentatives', async () => {
+    vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({ toConfirm: [done('p-a', ext('Domaine A', 0.95, 6))] }));
+    const list = vi.spyOn(api, 'getLocations').mockRejectedValue(new api.ApiError(500, 'Erreur'));
+    const bulk = vi.spyOn(api, 'createMovementsBulk').mockImplementation(async (items) => items.map((i) => okResult(i.idempotencyKey)));
+    renderWithRetries();
+    await screen.findAllByRole('article');
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Valider$/ })).toBeEnabled(), { timeout: 900 });
+    expect(list).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: /^Valider$/ }));
+    await waitFor(() => expect(bulk).toHaveBeenCalledTimes(1));
+    expect(bulk.mock.calls[0][0][0].location).toBeNull();
+  });
+
+  it('sans réponse : les boutons reviennent au bout de 2 s, fiches envoyées sans emplacement', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({ toConfirm: [done('p-a', ext('Domaine A', 0.95, 6))] }));
+      vi.spyOn(api, 'getLocations').mockImplementation(() => new Promise(() => {}));
+      const bulk = vi.spyOn(api, 'createMovementsBulk').mockImplementation(async (items) => items.map((i) => okResult(i.idempotencyKey)));
+      renderWithRetries();
+      await screen.findAllByRole('article');
+      const all = screen.getByRole('button', { name: /Tout valider/ });
+      expect(all).toBeDisabled();
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(all).toBeEnabled();
+      expect(screen.getByRole('button', { name: /^Valider$/ })).toBeEnabled();
+      fireEvent.click(all);
+      await waitFor(() => expect(bulk).toHaveBeenCalledTimes(1));
+      expect(bulk.mock.calls[0][0][0].location).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

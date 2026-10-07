@@ -199,6 +199,53 @@ describe('emplacement à l’entrée', () => {
     expect(screen.getByRole('button', { name: /Confirmer l’entrée/ })).toBeDisabled();
   });
 
+  // Client aux réglages par défaut (3 nouvelles tentatives, ~7 s) : l'entrée ne doit jamais attendre si longtemps.
+  function mountWithRetries() {
+    return render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/entree/p1']}>
+          <Routes><Route path="/entree/:photoId" element={<EntreeConfirmationPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('emplacements illisibles : « Confirmer » revient dès l’erreur, sans nouvelles tentatives, et l’entrée part sans emplacement', async () => {
+    ready();
+    const list = vi.spyOn(api, 'getLocations').mockRejectedValue(new api.ApiError(500, 'Erreur'));
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    mountWithRetries();
+    await screen.findByDisplayValue('Domaine Tempier');
+    const button = screen.getByRole('button', { name: /Confirmer l’entrée/ });
+    await waitFor(() => expect(button).toBeEnabled(), { timeout: 900 });
+    expect(list).toHaveBeenCalledTimes(1);
+    await userEvent.click(button);
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toBeNull();
+  });
+
+  it('emplacements sans réponse : « Confirmer » revient au bout de 2 s, et l’entrée part sans emplacement', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      ready();
+      vi.spyOn(api, 'getLocations').mockImplementation(() => new Promise(() => {}));
+      const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+      mountWithRetries();
+      await screen.findByDisplayValue('Domaine Tempier');
+      const button = screen.getByRole('button', { name: /Confirmer l’entrée/ });
+      expect(button).toBeDisabled();
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+      expect(create.mock.calls[0][0].location).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('envoie null (« Sans emplacement ») quand les champs sont vidés', async () => {
     ready();
     vi.spyOn(api, 'getLocations').mockResolvedValue(locations);

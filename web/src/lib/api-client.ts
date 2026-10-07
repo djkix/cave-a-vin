@@ -212,7 +212,6 @@ export interface WineDetail {
   locations?: Place[];
   /** Pré-sélection de la sortie (null = « Sans emplacement ») ; clé absente quand il ne reste rien. */
   exitDefault?: string | null;
-  lastLocation?: LocationParts | null;
   /** Propriétaire seulement : cote iDealwine courante, null sans cote. Clé absente pour un membre. */
   quote?: Quote | null;
   /** Propriétaire seulement : page iDealwine enregistrée, sinon la recherche. Clé absente pour un membre. */

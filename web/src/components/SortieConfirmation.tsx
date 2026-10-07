@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import { cancelMovement, CaveRow, createOut, getWine, MovementResult, Place } from '../lib/api-client';
+import { ApiError, cancelMovement, CaveRow, createOut, getWine, MovementResult, Place } from '../lib/api-client';
+import { useBoundedWait } from '../lib/locations';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { PlacePicker } from './LocationFields';
@@ -17,7 +18,9 @@ export function SortieConfirmation({ wine, photoId, onDone, places: givenPlaces,
   places?: Place[]; exitDefault?: string | null;
 }) {
   const qc = useQueryClient();
-  const detail = useQuery({ queryKey: ['wine', wine.id], queryFn: () => getWine(wine.id), enabled: givenPlaces === undefined });
+  // Sans nouvelles tentatives, et 2 s d'attente au plus : passé ce délai, la sortie part sans endroit.
+  const detail = useQuery({ queryKey: ['wine', wine.id], queryFn: () => getWine(wine.id), enabled: givenPlaces === undefined, retry: false });
+  const detailWaiting = useBoundedWait(detail.isLoading);
   const places = givenPlaces ?? detail.data?.locations;
   const exitDefault = givenPlaces !== undefined ? givenDefault : detail.data?.exitDefault;
   // Choix fait à l'écran ; sinon la pré-sélection de l'api (le dernier endroit
@@ -66,6 +69,8 @@ export function SortieConfirmation({ wine, photoId, onDone, places: givenPlaces,
       onDone?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sortie impossible');
+      // 409 (endroit vidé entre-temps) : la fiche est relue, le choix montre les quantités à jour.
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: ['wine', wine.id] });
       sending.current = false;
     } finally {
       setBusy(false);
@@ -130,8 +135,8 @@ export function SortieConfirmation({ wine, photoId, onDone, places: givenPlaces,
       </div>
       {error && <p role="alert" className="text-error">{error}</p>}
       {/* Sortie par photo : on attend les endroits de la fiche, sinon l'api choisirait sans la pré-sélection.
-          Fiche illisible (erreur) : la sortie reste possible, l'api applique sa règle. */}
-      <Button variant="dark" onClick={sortir} disabled={busy || detail.isLoading || max < 1}>
+          Fiche illisible (erreur) ou lente (plus de 2 s) : la sortie reste possible, l'api applique sa règle. */}
+      <Button variant="dark" onClick={sortir} disabled={busy || detailWaiting || max < 1}>
         <Icon name="remove_circle_outline" />
         {busy ? 'Sortie…' : `Sortir ${safeQuantity} bouteille${safeQuantity > 1 ? 's' : ''}`}
       </Button>
