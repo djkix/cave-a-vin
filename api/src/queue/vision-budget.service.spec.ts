@@ -186,6 +186,40 @@ describe('VisionBudgetService — part par cave', () => {
       expect(prisma.photo.aggregate).not.toHaveBeenCalled();
     });
 
+    describe('ensemble des caves invitées', () => {
+      /** La cave a dépensé 50 ; toutes les caves invitées ensemble, `invited`. */
+      const withInvited = (invited: number, setting: string | null = null) => {
+        const prisma: any = fake({ setting });
+        const byFilter = jest.fn(async (args: any) => {
+          const filter = args.where.caveId ?? args.where.wine?.caveId;
+          return { _sum: { costCents: typeof filter === 'object' ? invited : 50 } };
+        });
+        prisma.photo.aggregate = byFilter;
+        prisma.pairing.aggregate = jest.fn(async () => ({ _sum: { costCents: 0 } }));
+        prisma.imageSearchCost.aggregate = jest.fn(async () => ({ _sum: { costCents: 0 } }));
+        return { prisma, byFilter };
+      };
+
+      it('reporte quand les caves invitées ont atteint plafond × 0,6, même sous la part de la cave', async () => {
+        const { prisma, byFilter } = withInvited(300);
+        await expect(new VisionBudgetService(prisma as any, 500).assertCaveUnderShare(CAVE)).rejects.toThrow(
+          'Part mensuelle des caves invitées atteinte — reprise le mois prochain',
+        );
+        expect(byFilter).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ caveId: { not: EXEMPT } }) }));
+      });
+
+      it('passe juste en dessous, et suit le réglage', async () => {
+        await expect(new VisionBudgetService(withInvited(299).prisma as any, 500).assertCaveUnderShare(CAVE)).resolves.toBeUndefined();
+        await expect(new VisionBudgetService(withInvited(299, '0.5').prisma as any, 500).assertCaveUnderShare(CAVE)).rejects.toBeInstanceOf(
+          CaveBudgetShareExceededError,
+        );
+      });
+
+      it('la cave principale n’y est jamais soumise', async () => {
+        await expect(new VisionBudgetService(withInvited(10_000).prisma as any, 500).assertCaveUnderShare(EXEMPT)).resolves.toBeUndefined();
+      });
+    });
+
     it('sans premier administrateur, aucune cave n’est exemptée', async () => {
       await expect(
         new VisionBudgetService(fake({ photos: 100, firstAdmin: null }) as any, 500).assertCaveUnderShare(EXEMPT),

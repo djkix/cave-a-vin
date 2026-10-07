@@ -77,10 +77,10 @@ export const createUserCave = (userId: string) =>
   apiFetch<{ id: string; name: string }>(`/admin/users/${userId}/cave`, { method: 'POST' });
 
 /** `spentThisMonthCents` : dépense globale du mois, celle que compare le plafond. */
-export interface AdminBudget { caveShare: number; capCents: number; spentThisMonthCents: number }
+export interface AdminBudget { caveShare: number; invitedShare: number; capCents: number; spentThisMonthCents: number }
 export const getAdminBudget = () => apiFetch<AdminBudget>('/admin/budget');
-export const putAdminBudget = (caveShare: number) =>
-  apiFetch<AdminBudget>('/admin/budget', { method: 'PUT', body: JSON.stringify({ caveShare }) });
+export const putAdminBudget = (shares: { caveShare: number; invitedShare: number }) =>
+  apiFetch<AdminBudget>('/admin/budget', { method: 'PUT', body: JSON.stringify(shares) });
 
 /** Membre de la cave courante ; `pending` = invitation pas encore rattachée à un compte. */
 export interface MemberView { id: string; email: string; displayName: string | null; role: CaveRole; pending: boolean }

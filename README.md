@@ -377,6 +377,11 @@ l'accueil) réunit, pour les administrateurs :
   prochain », comme pour le plafond global. **La cave de l'administrateur
   principal** (le plus ancien administrateur qui n'est pas le compte de
   secours) **n'est pas limitée** ; le plafond global, lui, vaut pour tous.
+  Les caves invitées (toutes les autres) ont aussi une **part maximale
+  ensemble** (60 % par défaut, réglable de 0 à 100 %) : quel que soit leur
+  nombre, elles laissent au moins le reste du plafond à la cave principale
+  (motif « Part mensuelle des caves invitées atteinte — reprise le mois
+  prochain »).
   Les accords mets-vins et les descriptifs de domaine ne sont soumis à
   aucune part, seulement au plafond global.
 - **Qualité de la lecture** et **règles d'apogée** (voir plus haut).
@@ -646,9 +651,10 @@ jour comme d'habitude. Au démarrage, la migration, en une seule transaction :
   (*Créer sa cave*) ;
 - règle la part de budget par cave à 20 %.
 
-**Compte de secours** : après la 2.0.0, le compte de secours devient un
-membre en lecture seule de votre cave. Il atteint toujours l'Administration,
-mais ne permet plus d'entrées ni de sorties pendant une panne de Google.
+**Compte de secours** : la migration l'inscrit comme membre de votre cave,
+mais depuis la 2.1.0 il y a les droits du propriétaire (entrées, sorties,
+journal, prix) : pendant une panne de Google, il permet de continuer à tenir
+la cave.
 
 Aucune variable d'environnement n'est ajoutée. Après la mise à jour, les
 nouvelles adresses Google qui se connectent attendent une validation dans
@@ -777,10 +783,11 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   est une estimation à l'ordre de grandeur, pas une facturation réelle. Le
   réglage se comporte donc comme un nombre maximum de photos par mois.
 - **Compte de secours** : `BREAK_GLASS_EMAIL` / `BREAK_GLASS_PASSWORD` vides =
-  connexion Google uniquement. Après la 2.0.0, le compte de secours devient un
-  membre en lecture seule de votre cave : il atteint toujours
-  l'Administration, mais ne permet plus d'entrées ni de sorties pendant une
-  panne de Google.
+  connexion Google uniquement. Le compte de secours a les droits du
+  propriétaire sur la cave de l'administrateur principal (le plus ancien
+  administrateur actif qui n'est pas le compte de secours), quelle que soit
+  sa ligne de membre : pendant une panne de Google, il permet de saisir
+  entrées et sorties. Il n'a pas d'autre droit sur les autres caves.
 - **Blocage de compte manuel** : il n'y a pas de modération automatique ; un
   administrateur doit bloquer un compte indésirable depuis `/admin`. Le blocage
   prend effet dès la requête suivante (la session en cours cesse de

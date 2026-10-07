@@ -71,6 +71,6 @@ describe('caves, membres et administration', () => {
     expect(await call(() => api.refuseRegistration('u1'))).toEqual({ url: '/api/admin/registrations/u1/refuse', method: 'POST', body: undefined });
     expect(await call(() => api.createUserCave('u1'))).toEqual({ url: '/api/admin/users/u1/cave', method: 'POST', body: undefined });
     expect(await call(() => api.getAdminBudget())).toEqual({ url: '/api/admin/budget', method: 'GET', body: undefined });
-    expect(await call(() => api.putAdminBudget(0.35))).toEqual({ url: '/api/admin/budget', method: 'PUT', body: '{"caveShare":0.35}' });
+    expect(await call(() => api.putAdminBudget({ caveShare: 0.35, invitedShare: 0.6 }))).toEqual({ url: '/api/admin/budget', method: 'PUT', body: '{"caveShare":0.35,"invitedShare":0.6}' });
   });
 });

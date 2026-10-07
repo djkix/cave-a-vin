@@ -13,7 +13,7 @@ const users: api.AdminUser[] = [
   { id: 'u1', email: 'admin@example.com', displayName: 'Admin', status: 'ACTIVE', isAdmin: true, isBreakGlass: false, createdAt: '2026-01-01T00:00:00Z', lastLoginAt: '2026-02-01T00:00:00Z', hasCave: true },
   { id: 'u2', email: 'other@example.com', displayName: 'Other', status: 'ACTIVE', isAdmin: false, isBreakGlass: false, createdAt: '2026-01-02T00:00:00Z', lastLoginAt: null, hasCave: true },
 ];
-const budget: api.AdminBudget = { caveShare: 0.2, capCents: 500, spentThisMonthCents: 123 };
+const budget: api.AdminBudget = { caveShare: 0.2, invitedShare: 0.6, capCents: 500, spentThisMonthCents: 123 };
 
 // Sections ajoutées par les caves : réponses neutres par défaut, chaque test les remplace au besoin.
 beforeEach(() => {
@@ -187,7 +187,7 @@ describe('Budget', () => {
     mount();
     expect(await screen.findByText(/Dépensé ce mois : 1,23\s€ sur 5,00\s€/)).toBeInTheDocument();
     expect(screen.getByLabelText('Part maximale par cave (%)')).toHaveValue(20);
-    expect(screen.getByText('La cave de l’administrateur principal n’est pas limitée.')).toBeInTheDocument();
+    expect(screen.getByText(/La cave de l’administrateur principal n’est pas limitée/)).toBeInTheDocument();
   });
 
   it('enregistre la part en fraction (35 % → 0,35)', async () => {
@@ -200,7 +200,20 @@ describe('Budget', () => {
     await userEvent.clear(input);
     await userEvent.type(input, '35');
     await userEvent.click(within(screen.getByRole('heading', { name: 'Budget' }).closest('section')!).getByRole('button', { name: 'Enregistrer' }));
-    await waitFor(() => expect(put).toHaveBeenCalledWith(0.35));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ caveShare: 0.35, invitedShare: 0.6 }));
+  });
+
+  it('enregistre aussi la part de l’ensemble des caves invitées (45 % → 0,45)', async () => {
+    vi.spyOn(api, 'getMe').mockResolvedValue(me);
+    vi.spyOn(api, 'getAdminUsers').mockResolvedValue(users);
+    const put = vi.spyOn(api, 'putAdminBudget').mockResolvedValue({ ...budget, invitedShare: 0.45 });
+    mount();
+    const input = await screen.findByLabelText('Part maximale de l’ensemble des caves invitées (%)');
+    await waitFor(() => expect(input).toHaveValue(60));
+    await userEvent.clear(input);
+    await userEvent.type(input, '45');
+    await userEvent.click(within(screen.getByRole('heading', { name: 'Budget' }).closest('section')!).getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(put).toHaveBeenCalledWith({ caveShare: 0.2, invitedShare: 0.45 }));
   });
 
   it('refuse une part hors de 0 à 100 ou non entière, sans appel', async () => {
