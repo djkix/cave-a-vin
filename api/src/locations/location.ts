@@ -32,7 +32,7 @@ export const LOCATION_TOO_LONG = '40 caractères au plus par champ d\'emplacemen
 export const LOCATION_NOT_FOUND = 'Emplacement introuvable';
 export const NOT_ENOUGH_AT_LOCATION = 'Pas assez de bouteilles à cet emplacement';
 export const SAME_LOCATION = 'Emplacement d\'origine et de destination identiques';
-export const CANCEL_MOVED = 'Impossible d\'annuler : ces bouteilles ont été déplacées depuis — annulez d\'abord le déplacement';
+export const CANCEL_MOVED = 'Impossible d’annuler : ces bouteilles ne sont plus à cet emplacement (déplacées ou sorties depuis)';
 
 /**
  * Champs nettoyés (espaces retirés, vide = absent) et clé d'unicité : les trois

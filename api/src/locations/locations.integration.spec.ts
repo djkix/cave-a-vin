@@ -8,7 +8,7 @@ import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 import { LocationsService } from './locations.service';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
-const CANCEL_MOVED = 'Impossible d\'annuler : ces bouteilles ont été déplacées depuis — annulez d\'abord le déplacement';
+const CANCEL_MOVED = 'Impossible d’annuler : ces bouteilles ne sont plus à cet emplacement (déplacées ou sorties depuis)';
 
 describeIfDb('emplacements (base réelle)', () => {
   const prisma = new PrismaClient();

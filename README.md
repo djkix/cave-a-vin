@@ -669,6 +669,16 @@ Si les images sont construites localement, remplacer `docker compose pull` par
 fusionner la demande de version proposée par release-please puis renseigner
 `IMAGE_TAG=<version>` dans le `.env`.
 
+### Passage à la 2.2.0 (emplacements et cote)
+
+Une migration ajoute les emplacements et les cotes ; les bouteilles existantes
+sont toutes « Sans emplacement », rien d'autre ne change. **Faire une
+sauvegarde avant la mise à jour** (même commande qu'au passage à la 2.0.0,
+fichier `backups/cave-avant-2.2.0.sql.gz`). **Retour arrière** : possible en
+remettant l'image 2.1.x tant qu'aucun déplacement n'a été enregistré ; dès
+qu'un déplacement existe, la 2.1.x ne sait plus lire le journal — il faut alors
+restaurer cette sauvegarde (procédure du retour arrière de la 2.0.0).
+
 ### Passage à la 2.0.0 (une cave par compte)
 
 La 2.0.0 change le fonctionnement pour tous les comptes. **Vérifier d'abord
