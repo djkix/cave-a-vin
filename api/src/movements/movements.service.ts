@@ -27,6 +27,8 @@ function isUniqueViolation(e: unknown, target: string): e is Prisma.PrismaClient
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002' && String(e.meta?.target ?? '').includes(target);
 }
 
+/** Une image du web choisie comme vignette n'est la photo d'aucune bouteille. */
+const WEB_IMAGE_FOR_MOVEMENT = 'Cette image vient du web : prenez une photo de la bouteille';
 const KEY_REUSED = 'Clé d’idempotence déjà utilisée pour un autre mouvement';
 
 /**
@@ -76,7 +78,7 @@ export class MovementsService {
     // Une photo d'une autre cave est traitée comme une photo inconnue.
     if (input.photoId && !photo) throw new NotFoundException('Photo introuvable');
     // Une image du web choisie comme vignette n'est pas la photo d'une bouteille entrée.
-    if (photo?.purpose === 'REFERENCE') throw new BadRequestException('Photo invalide pour une entrée');
+    if (photo?.purpose === 'REFERENCE') throw new BadRequestException(WEB_IMAGE_FOR_MOVEMENT);
 
     const { wine, created: wineCreated } = await this.matching.matchOrCreate(caveId, input.wine);
     // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
@@ -263,7 +265,7 @@ export class MovementsService {
     // Une photo d'une autre cave est traitée comme une photo inconnue.
     if (!photo) throw new NotFoundException('Photo introuvable');
     // Une image du web choisie comme vignette n'est pas la photo d'une bouteille sortie.
-    if (photo?.purpose === 'REFERENCE') throw new BadRequestException('Photo invalide pour une sortie');
+    if (photo?.purpose === 'REFERENCE') throw new BadRequestException(WEB_IMAGE_FOR_MOVEMENT);
 
     const byPhoto = await this.prisma.movement.findFirst({ where: { photoId: input.photoId, type: 'OUT' }, include: { wine: true } });
     if (!byPhoto) return { photoId: input.photoId };

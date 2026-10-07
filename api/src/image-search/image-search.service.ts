@@ -24,6 +24,10 @@ export const SEARCH_DEADLINE_MS = 30_000;
 
 class DeadlineError extends Error {}
 
+/** Dépense comptée pour un appel ancré abandonné au délai : une recherche Google (1,4 ct, arrondie). */
+export const ABORTED_CALL_COST_CENTS = 2;
+const ABORTED_CALL_MODEL = 'délai dépassé (estimation)';
+
 /**
  * Rejette (DeadlineError) dès que le délai global est écoulé, même si l'opération
  * attendue ignore le signal : la réponse au client ne dépend jamais d'un tiers lent.
@@ -190,6 +194,13 @@ export class ImageSearchService {
     } catch (e) {
       const reason = e instanceof DeadlineError ? `pas de réponse en ${this.deadlineMs} ms` : (e as Error).message;
       this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
+      // Abandonné au délai, l'appel a pu être facturé : on compte l'estimation
+      // d'une recherche (le plafond ne doit jamais sous-estimer la dépense).
+      if (e instanceof DeadlineError) {
+        await this.prisma.imageSearchCost.create({
+          data: { caveId: wine.caveId, wineId: wine.id, model: ABORTED_CALL_MODEL, costCents: ABORTED_CALL_COST_CENTS },
+        });
+      }
       throw new ServiceUnavailableException(UNAVAILABLE);
     }
     // La dépense est portée par la cave du vin (part de budget par cave).

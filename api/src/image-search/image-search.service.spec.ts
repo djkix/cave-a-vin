@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { CaveBudgetShareExceededError, VisionBudgetExceededError } from '../queue/vision-budget.service';
 import { CandidateStore } from './candidates';
-import { ImageSearchService } from './image-search.service';
+import { ABORTED_CALL_COST_CENTS, ImageSearchService } from './image-search.service';
 import { OFF_SOURCE } from './open-food-facts';
 
 const WINE = { id: 'w1', caveId: 'c1', producer: 'Domaine Tempier', cuvee: 'La Migoua', appellationRaw: 'Bandol', vintage: 2019 };
@@ -169,7 +169,7 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
 
   afterEach(() => jest.useRealTimers());
 
-  it('la recherche entière est bornée à 30 s : Gemini qui ne répond jamais → 503 au bout de 30 s, pas avant', async () => {
+  it('la recherche entière est bornée à 30 s : Gemini qui ne répond jamais → 503 au bout de 30 s, pas avant, dépense estimée comptée', async () => {
     jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
     const { service, provider, prisma } = setup();
     provider.findOfficialSite.mockImplementation(never);
@@ -186,7 +186,10 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
     const e = await pending.catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
     expect(e.message).toBe('Recherche d’image indisponible pour le moment');
-    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+    // L'appel abandonné a pu être facturé : son estimation est comptée.
+    expect(prisma.imageSearchCost.create).toHaveBeenCalledWith({
+      data: { caveId: 'c1', wineId: 'w1', model: 'délai dépassé (estimation)', costCents: ABORTED_CALL_COST_CENTS },
+    });
   });
 
   it('délai atteint après deux images prêtes : rend ces deux images, sans appeler Gemini', async () => {

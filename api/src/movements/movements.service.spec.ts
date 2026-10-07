@@ -625,7 +625,7 @@ describe('MovementsService — photo d’une image du web (REFERENCE)', () => {
     reference(h);
     const e = await h.service.createIn('c1', { ...input, photoId: 'p-ref' }).catch((x) => x);
     expect(e).toBeInstanceOf(BadRequestException);
-    expect(e.message).toBe('Photo invalide pour une entrée');
+    expect(e.message).toBe('Cette image vient du web : prenez une photo de la bouteille');
     expect(h.movements).toHaveLength(0);
     expect(h.wine.updateMany).not.toHaveBeenCalled();
   });
@@ -636,7 +636,7 @@ describe('MovementsService — photo d’une image du web (REFERENCE)', () => {
     reference(h);
     const e = await h.service.createOut('c1', { idempotencyKey: 'o-ref', wineId: 'w1', quantity: 1, photoId: 'p-ref' }).catch((x) => x);
     expect(e).toBeInstanceOf(BadRequestException);
-    expect(e.message).toBe('Photo invalide pour une sortie');
+    expect(e.message).toBe('Cette image vient du web : prenez une photo de la bouteille');
     expect(h.movements).toHaveLength(1);
   });
 
