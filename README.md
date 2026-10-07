@@ -840,6 +840,15 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.0.1 — 7 octobre 2026
+
+Publiée ([v2.0.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.0.1)),
+images `ghcr.io/djkix/cave-a-vin-api:2.0.1` et `-web:2.0.1`.
+
+**Prêt pour les prochains modèles Gemini.** Les appels à Gemini n'envoient plus
+de température, que les prochains modèles refuseront. Rien à faire de plus
+qu'une mise à jour habituelle (passer d'abord par la 2.0.0 et sa sauvegarde).
+
 ### 2.0.0 — 7 octobre 2026
 
 Publiée ([v2.0.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.0.0)),

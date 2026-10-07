@@ -11,6 +11,18 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.0.1](https://github.com/djkix/cave-a-vin/compare/v2.0.0...v2.0.1) (2026-10-07)
 
+### Résumé
+
+Préparation aux prochains modèles Gemini : Google annonce que les réglages
+`temperature`, `top_p` et `top_k` y seront refusés (ils sont déjà sans effet
+depuis Gemini 3.6 Flash). Les appels de lecture d'étiquette, de sortie,
+d'accords mets-vins et de descriptif du domaine n'envoient plus de température
+et utilisent les réglages par défaut du modèle. Aucune migration, aucune
+nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Corrections
 
