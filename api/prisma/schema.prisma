@@ -186,7 +186,9 @@ model AppUser {
 }
 
 /// Une cave : ses vins, photos, exports et recherches d'image. Sans
-/// propriétaire seulement si elle a été migrée sur une base sans aucun compte.
+/// propriétaire seulement si elle a été migrée sur une base sans administrateur
+/// actif ni compte de secours actif : le premier administrateur qui se connecte
+/// sans cave la reçoit (CavesService.claimOrphanCave).
 model Cave {
   id               String            @id @default(uuid())
   name             String

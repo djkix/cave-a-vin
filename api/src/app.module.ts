@@ -18,8 +18,9 @@ import { ReadingQualityModule } from './reading-quality/reading-quality.module';
 import { StatsModule } from './stats/stats.module';
 import { WinesModule } from './wines/wines.module';
 
-// Pas de garde globale : seules les routes coûteuses ou sensibles (upload de photo,
-// connexion locale) portent ThrottlerGuard, avec leur propre plafond.
+// Pas de limitation de débit globale : seules les routes coûteuses ou sensibles
+// (upload de photo, connexion locale) portent ThrottlerGuard, avec leur propre
+// plafond. La seule garde globale est PendingGuard (AuthModule).
 @Module({
   imports: [
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),

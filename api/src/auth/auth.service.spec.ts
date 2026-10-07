@@ -10,10 +10,19 @@ process.env.DATABASE_URL ??= 'postgresql://postgres:dev@localhost:5432/cave';
 process.env.SESSION_SECRET ??= 'a'.repeat(32);
 process.env.ADMIN_EMAILS = 'admin@example.com';
 
-function fakePrisma() {
+function fakePrisma(invitations: { id: string; invitedEmail: string | null; userId: string | null }[] = []) {
   const users = new Map<string, any>();
-  return {
+  const prisma: any = {
     users,
+    invitations,
+    caveMember: {
+      count: async ({ where }: any) => invitations.filter((i) => i.invitedEmail === where.invitedEmail && i.userId === where.userId).length,
+      updateMany: async ({ where, data }: any) => {
+        const hits = invitations.filter((i) => i.invitedEmail === where.invitedEmail && i.userId === where.userId);
+        hits.forEach((i) => Object.assign(i, data));
+        return { count: hits.length };
+      },
+    },
     appUser: {
       findUnique: async ({ where }: any) => {
         for (const u of users.values()) {
@@ -33,20 +42,103 @@ function fakePrisma() {
       },
     },
   };
+  prisma.$transaction = async (fn: any) => fn(prisma);
+  return prisma;
+}
+
+function fakeCaves() {
+  return { claimOrphanCave: jest.fn(async () => null) };
+}
+
+function serviceWith(prisma: any, caves = fakeCaves()) {
+  return new AuthService(prisma, caves as any);
 }
 
 describe('AuthService', () => {
-  it('creates a Google account for any e-mail (inscription libre) and gives immediate access', async () => {
+  it('creates an unknown Google address as PENDING (inscription à valider)', async () => {
     const prisma = fakePrisma();
-    const service = new AuthService(prisma as any);
-    const user = await service.findOrCreateGoogleUser({ sub: '123', email: 'x@example.com', displayName: 'X' });
+    const service = serviceWith(prisma);
+    const user = await service.findOrCreateGoogleUser({ sub: '123', email: 'X@example.com', displayName: 'X' });
     expect(user.email).toBe('x@example.com');
+    expect(user.status).toBe('PENDING');
+    expect(user.isAdmin).toBe(false);
+  });
+
+  it('creates an ADMIN_EMAILS address as ACTIVE administrator', async () => {
+    const prisma = fakePrisma();
+    const user = await serviceWith(prisma).findOrCreateGoogleUser({ sub: '1', email: 'admin@example.com', displayName: 'Admin' });
     expect(user.status).toBe('ACTIVE');
+    expect(user.isAdmin).toBe(true);
+  });
+
+  it('creates an invited address as ACTIVE and attaches its invitations (the account replaces the address)', async () => {
+    const prisma = fakePrisma([
+      { id: 'm1', invitedEmail: 'guest@example.com', userId: null },
+      { id: 'm2', invitedEmail: 'guest@example.com', userId: null },
+      { id: 'm3', invitedEmail: 'someone@example.com', userId: null },
+    ]);
+    const user = await serviceWith(prisma).findOrCreateGoogleUser({ sub: 'g', email: 'Guest@Example.com', displayName: 'Guest' });
+    expect(user.status).toBe('ACTIVE');
+    expect(user.isAdmin).toBe(false);
+    expect(prisma.invitations).toEqual([
+      { id: 'm1', invitedEmail: null, userId: user.id },
+      { id: 'm2', invitedEmail: null, userId: user.id },
+      { id: 'm3', invitedEmail: 'someone@example.com', userId: null },
+    ]);
+  });
+
+  it('attaches invitations to a new ADMIN_EMAILS account too', async () => {
+    const prisma = fakePrisma([{ id: 'm1', invitedEmail: 'admin@example.com', userId: null }]);
+    const user = await serviceWith(prisma).findOrCreateGoogleUser({ sub: '1', email: 'admin@example.com', displayName: 'Admin' });
+    expect(prisma.invitations[0]).toEqual({ id: 'm1', invitedEmail: null, userId: user.id });
+  });
+
+  it('never changes the status of an existing account on login', async () => {
+    const prisma = fakePrisma([{ id: 'm1', invitedEmail: 'p@example.com', userId: null }]);
+    await prisma.appUser.create({ data: { email: 'p@example.com', googleSub: 'gp', status: 'PENDING' } });
+    const user = await serviceWith(prisma).findOrCreateGoogleUser({ sub: 'gp', email: 'p@example.com', displayName: 'P' });
+    expect(user.status).toBe('PENDING');
+  });
+
+  it('gives an orphan cave to an administrator on login (not to anyone else)', async () => {
+    const caves = fakeCaves();
+    const prisma = fakePrisma();
+    const admin = await serviceWith(prisma, caves).findOrCreateGoogleUser({ sub: '1', email: 'admin@example.com', displayName: 'Admin' });
+    expect(caves.claimOrphanCave).toHaveBeenCalledWith(admin.id);
+
+    const other = fakeCaves();
+    await serviceWith(fakePrisma(), other).findOrCreateGoogleUser({ sub: '2', email: 'nobody@example.com', displayName: 'N' });
+    expect(other.claimOrphanCave).not.toHaveBeenCalled();
+  });
+
+  it('gives an orphan cave to an existing administrator promoted from /admin', async () => {
+    const caves = fakeCaves();
+    const prisma = fakePrisma();
+    const promoted = await prisma.appUser.create({ data: { email: 'promoted@example.com', googleSub: 'gp', isAdmin: true } });
+    await serviceWith(prisma, caves).findOrCreateGoogleUser({ sub: 'gp', email: 'promoted@example.com', displayName: 'P' });
+    expect(caves.claimOrphanCave).toHaveBeenCalledWith(promoted.id);
+  });
+
+  it('never gives an orphan cave on a break-glass login', async () => {
+    const caves = fakeCaves();
+    const prisma = fakePrisma();
+    const hash = await argon2.hash('correct horse battery');
+    await prisma.appUser.create({ data: { email: 'admin@example.com', isBreakGlass: true, passwordHash: hash, isAdmin: true } });
+    expect(await serviceWith(prisma, caves).verifyLocalLogin('admin@example.com', 'correct horse battery')).not.toBeNull();
+    expect(caves.claimOrphanCave).not.toHaveBeenCalled();
+  });
+
+  it('never gives an orphan cave to a blocked administrator', async () => {
+    const caves = fakeCaves();
+    const prisma = fakePrisma();
+    await prisma.appUser.create({ data: { email: 'admin@example.com', googleSub: 'gb', status: 'BLOCKED', isAdmin: true } });
+    await expect(serviceWith(prisma, caves).findOrCreateGoogleUser({ sub: 'gb', email: 'admin@example.com', displayName: 'A' })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(caves.claimOrphanCave).not.toHaveBeenCalled();
   });
 
   it('creates then reuses a Google user, keyed by sub', async () => {
     const prisma = fakePrisma();
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     const first = await service.findOrCreateGoogleUser({ sub: '123', email: 'franck@example.com', displayName: 'Franck' });
     const second = await service.findOrCreateGoogleUser({ sub: '123', email: 'new@example.com', displayName: 'Franck' });
     expect(second.id).toBe(first.id);
@@ -58,7 +150,7 @@ describe('AuthService', () => {
       data: { email: 'owner@example.com', isBreakGlass: true, passwordHash: 'hash', googleSub: null },
     });
     expect(preexisting.googleSub).toBeNull();
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
 
     const linked = await service.findOrCreateGoogleUser({ sub: '999', email: 'owner@example.com', displayName: 'Owner' });
 
@@ -69,14 +161,14 @@ describe('AuthService', () => {
 
   it('marks a user admin when its e-mail is in ADMIN_EMAILS, re-derived on every login', async () => {
     const prisma = fakePrisma();
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     const user = await service.findOrCreateGoogleUser({ sub: '1', email: 'admin@example.com', displayName: 'Admin' });
     expect(user.isAdmin).toBe(true);
   });
 
   it('does not mark a user admin when its e-mail is absent from ADMIN_EMAILS', async () => {
     const prisma = fakePrisma();
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     const user = await service.findOrCreateGoogleUser({ sub: '2', email: 'nobody@example.com', displayName: 'Nobody' });
     expect(user.isAdmin).toBe(false);
   });
@@ -84,7 +176,7 @@ describe('AuthService', () => {
   it('keeps a promotion made from /admin on a later login, even when the e-mail is absent from ADMIN_EMAILS', async () => {
     const prisma = fakePrisma();
     await prisma.appUser.create({ data: { email: 'promoted@example.com', googleSub: 'g-promoted', isAdmin: true } });
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
 
     const user = await service.findOrCreateGoogleUser({ sub: 'g-promoted', email: 'promoted@example.com', displayName: 'Promoted' });
 
@@ -94,7 +186,7 @@ describe('AuthService', () => {
   it('grants isAdmin for an ADMIN_EMAILS address even when the database still says false (ADMIN_EMAILS is a floor, not a ceiling)', async () => {
     const prisma = fakePrisma();
     await prisma.appUser.create({ data: { email: 'admin@example.com', googleSub: 'g-admin', isAdmin: false } });
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
 
     const user = await service.findOrCreateGoogleUser({ sub: 'g-admin', email: 'admin@example.com', displayName: 'Admin' });
 
@@ -103,7 +195,7 @@ describe('AuthService', () => {
 
   it('sets lastLoginAt on a Google sign-in', async () => {
     const prisma = fakePrisma();
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     const user = await service.findOrCreateGoogleUser({ sub: '1', email: 'a@example.com', displayName: 'A' });
     expect(user.lastLoginAt).toBeInstanceOf(Date);
   });
@@ -111,7 +203,7 @@ describe('AuthService', () => {
   it('refuses a blocked Google account after updating lastLoginAt, without ever handing out a session', async () => {
     const prisma = fakePrisma();
     await prisma.appUser.create({ data: { email: 'blocked@example.com', googleSub: 'g1', status: 'BLOCKED' } });
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     await expect(
       service.findOrCreateGoogleUser({ sub: 'g1', email: 'blocked@example.com', displayName: 'Blocked' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -123,7 +215,7 @@ describe('AuthService', () => {
     const prisma = fakePrisma();
     const hash = await argon2.hash('correct horse battery');
     await prisma.appUser.create({ data: { email: 'bg@example.com', isBreakGlass: true, passwordHash: hash } });
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     expect(await service.verifyLocalLogin('bg@example.com', 'wrong')).toBeNull();
     expect((await service.verifyLocalLogin('bg@example.com', 'correct horse battery'))?.email).toBe('bg@example.com');
   });
@@ -132,7 +224,7 @@ describe('AuthService', () => {
     const prisma = fakePrisma();
     const hash = await argon2.hash('correct horse battery');
     await prisma.appUser.create({ data: { email: 'bg@example.com', isBreakGlass: true, passwordHash: hash, status: 'BLOCKED' } });
-    const service = new AuthService(prisma as any);
+    const service = serviceWith(prisma);
     expect(await service.verifyLocalLogin('bg@example.com', 'correct horse battery')).toBeNull();
   });
 });

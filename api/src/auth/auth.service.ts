@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { AppUser } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { loadEnv } from '../config/env';
+import { CavesService } from '../caves/caves.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { adminEmailsFromEnv } from './admin-emails';
 
@@ -15,7 +16,10 @@ export interface GoogleProfile {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly caves: CavesService,
+  ) {}
 
   // ADMIN_EMAILS est un plancher garanti, jamais un plafond : une adresse listée
   // est toujours administrateur (le propriétaire ne peut jamais s'enfermer
@@ -48,16 +52,45 @@ export class AuthService {
           },
         });
       } else {
-        user = await this.prisma.appUser.create({
-          data: { googleSub: profile.sub, email, displayName: profile.displayName, lastLoginAt: new Date(), isAdmin: this.resolveIsAdmin(email, false) },
-        });
+        user = await this.createGoogleUser(profile, email);
       }
     }
 
     // Le refus vient après la mise à jour : la date de dernière tentative
     // reste juste, mais un compte bloqué n'obtient jamais de session.
     if (user.status === 'BLOCKED') throw new ForbiddenException('Compte bloqué');
+
+    // Cave migrée sans propriétaire : elle revient au premier administrateur
+    // (Google, jamais le compte de secours) qui se connecte sans avoir de cave.
+    if (user.isAdmin && user.status === 'ACTIVE' && !user.isBreakGlass) await this.caves.claimOrphanCave(user.id);
     return user;
+  }
+
+  /**
+   * Adresse inconnue : ADMIN_EMAILS → actif et administrateur ; adresse
+   * invitée par un propriétaire → active, et le compte remplace l'adresse dans
+   * ses invitations ; sinon → en attente de validation. Les invitations sont
+   * rattachées dans tous les cas (un administrateur peut aussi être invité).
+   */
+  private async createGoogleUser(profile: GoogleProfile, email: string): Promise<AppUser> {
+    return this.prisma.$transaction(async (tx) => {
+      const isAdmin = this.resolveIsAdmin(email, false);
+      const invitations = await tx.caveMember.count({ where: { invitedEmail: email, userId: null } });
+      const user = await tx.appUser.create({
+        data: {
+          googleSub: profile.sub,
+          email,
+          displayName: profile.displayName,
+          lastLoginAt: new Date(),
+          isAdmin,
+          status: isAdmin || invitations > 0 ? 'ACTIVE' : 'PENDING',
+        },
+      });
+      if (invitations > 0) {
+        await tx.caveMember.updateMany({ where: { invitedEmail: email, userId: null }, data: { userId: user.id, invitedEmail: null } });
+      }
+      return user;
+    });
   }
 
   async verifyLocalLogin(email: string, password: string): Promise<AppUser | null> {

@@ -22,9 +22,10 @@ const schema = z.object({
   PHOTO_STORAGE_DIR: z.string().default('./data/photos'),
   BREAK_GLASS_EMAIL: emptyToUndefined(z.string().email().optional()),
   BREAK_GLASS_PASSWORD: emptyToUndefined(z.string().min(12).optional()),
-  // Inscription libre : n'importe quel compte Google obtient un accès immédiat.
-  // C'est la seule façon de désigner un administrateur, sinon personne ne
-  // pourrait administrer les comptes. Adresses séparées par des virgules.
+  // Toute adresse Google peut s'inscrire, mais attend la validation d'un
+  // administrateur (sauf invitation). ADMIN_EMAILS est la seule façon de
+  // désigner un administrateur sans passer par /admin. Adresses séparées par
+  // des virgules.
   ADMIN_EMAILS: z.string().default(''),
 });
 

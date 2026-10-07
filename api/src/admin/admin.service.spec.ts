@@ -17,7 +17,7 @@ function fakePrisma() {
       findMany: async ({ orderBy }: any) => {
         const list = [...users.values()];
         if (orderBy?.createdAt === 'desc') list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        return list;
+        return list.map((u) => ({ ...u, _count: { ownedCaves: u.ownedCaves ?? 0 } }));
       },
       findUnique: async ({ where }: any) => users.get(where.id) ?? null,
       update: async ({ where, data }: any) => {
@@ -52,18 +52,28 @@ describe('AdminService', () => {
     const newer = user('u2', { createdAt: new Date('2026-02-01') });
     prisma.users.set(older.id, older);
     prisma.users.set(newer.id, newer);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     const list = await service.listUsers();
 
     expect(list.map((u) => u.id)).toEqual(['u2', 'u1']);
   });
 
+  it('tells whether each account owns a cave (hasCave), without leaking the raw count', async () => {
+    const prisma = fakePrisma();
+    prisma.users.set('u1', { ...user('u1'), ownedCaves: 1 });
+    prisma.users.set('u2', user('u2'));
+    const list = await new AdminService(prisma as any, {} as any).listUsers();
+    expect(list.find((u) => u.id === 'u1')).toMatchObject({ hasCave: true });
+    expect(list.find((u) => u.id === 'u2')).toMatchObject({ hasCave: false });
+    expect(list.every((u) => !('_count' in u))).toBe(true);
+  });
+
   it('refuses to let an admin modify their own account', async () => {
     const prisma = fakePrisma();
     const admin = user('u1', { isAdmin: true });
     prisma.users.set(admin.id, admin);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     await expect(service.updateUser('u1', admin, { status: 'BLOCKED' })).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -74,7 +84,7 @@ describe('AdminService', () => {
     const target = user('u2');
     prisma.users.set(admin.id, admin);
     prisma.users.set(target.id, target);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     const updated = await service.updateUser('u2', admin, { status: 'BLOCKED' });
 
@@ -87,7 +97,7 @@ describe('AdminService', () => {
     const target = user('u2');
     prisma.users.set(admin.id, admin);
     prisma.users.set(target.id, target);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     const updated = await service.updateUser('u2', admin, { isAdmin: true });
 
@@ -98,7 +108,7 @@ describe('AdminService', () => {
     const prisma = fakePrisma();
     const admin = user('u1', { isAdmin: true });
     prisma.users.set(admin.id, admin);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     await expect(service.updateUser('missing', admin, { status: 'BLOCKED' })).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -109,7 +119,7 @@ describe('AdminService', () => {
     const configuredAdmin = user('u2', { email: 'owner@example.com', isAdmin: true });
     prisma.users.set(admin.id, admin);
     prisma.users.set(configuredAdmin.id, configuredAdmin);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     await expect(service.updateUser('u2', admin, { status: 'BLOCKED' })).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -120,7 +130,7 @@ describe('AdminService', () => {
     const configuredAdmin = user('u2', { email: 'owner@example.com', isAdmin: true });
     prisma.users.set(admin.id, admin);
     prisma.users.set(configuredAdmin.id, configuredAdmin);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     await expect(service.updateUser('u2', admin, { isAdmin: false })).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -131,7 +141,7 @@ describe('AdminService', () => {
     const target = user('u2', { email: 'nobody@example.com', isAdmin: true });
     prisma.users.set(admin.id, admin);
     prisma.users.set(target.id, target);
-    const service = new AdminService(prisma as any);
+    const service = new AdminService(prisma as any, {} as any);
 
     expect((await service.updateUser('u2', admin, { status: 'BLOCKED' })).status).toBe('BLOCKED');
     expect((await service.updateUser('u2', admin, { isAdmin: false })).isAdmin).toBe(false);
