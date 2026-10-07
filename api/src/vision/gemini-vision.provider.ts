@@ -61,20 +61,31 @@ function pairingCostCentsOf(usage: { promptTokenCount?: number; candidatesTokenC
   return Math.round(rawCostCentsOf(usage));
 }
 
+/** Ordre de grandeur du prix d'une requête de recherche ancrée (~35 $ les 1000 requêtes). */
+const PRICE_PER_GROUNDED_QUERY_CENTS = 1.4;
+
 /**
- * Un appel ancré sur la recherche Google est facturé à part (par requête ancrée),
- * et les jetons des résultats de recherche (`toolUsePromptTokenCount`) s'ajoutent à
- * l'entrée : compter au moins 1 ct par appel, majoré, pour que le plafond mensuel
- * voie réellement cette dépense.
+ * Un appel ancré sur la recherche Google est facturé à part, par requête de
+ * recherche lancée (`groundingMetadata.webSearchQueries`), et les jetons des
+ * résultats (`toolUsePromptTokenCount`) s'ajoutent à l'entrée : compter au moins
+ * 1 ct par appel, et le plus élevé des deux coûts (jetons, requêtes), majoré, pour
+ * que le plafond mensuel voie réellement cette dépense.
  */
 function groundedCostCentsOf(
   usage: { promptTokenCount?: number; candidatesTokenCount?: number; toolUsePromptTokenCount?: number } | undefined,
+  searchQueries: number,
 ): number {
   const tokens = rawCostCentsOf({
     promptTokenCount: (usage?.promptTokenCount ?? 0) + (usage?.toolUsePromptTokenCount ?? 0),
     candidatesTokenCount: usage?.candidatesTokenCount,
   });
-  return Math.max(1, Math.ceil(tokens));
+  return Math.max(1, Math.ceil(tokens), Math.ceil(searchQueries * PRICE_PER_GROUNDED_QUERY_CENTS));
+}
+
+/** Nombre de requêtes de recherche lancées par Gemini pour un appel ancré (0 si la réponse ne le dit pas). */
+function searchQueriesOf(response: { candidates?: Array<{ groundingMetadata?: { webSearchQueries?: unknown } }> }): number {
+  const queries = response.candidates?.[0]?.groundingMetadata?.webSearchQueries;
+  return Array.isArray(queries) ? queries.length : 0;
 }
 
 const stripFences = (text: string) => text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -268,23 +279,24 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
   /**
    * Site officiel du domaine, trouvé par Gemini avec la recherche Google. Pas de
    * `responseMimeType` JSON : il n'est pas garanti avec un outil de recherche, la
-   * consigne suffit et la réponse est lue avec tolérance. Coût : au moins 1 ct
-   * (voir `groundedCostCentsOf`). Une réponse
-   * inexploitable vaut « pas de site » (l'appel reste facturé).
+   * consigne suffit et la réponse est lue avec tolérance. Coût : au moins 1 ct,
+   * et par requête de recherche (voir `groundedCostCentsOf`). Une réponse
+   * inexploitable vaut « pas de site » (l'appel reste facturé). `signal` : délai
+   * global de la recherche d'image, l'appel est abandonné quand il est levé.
    */
-  async findOfficialSite(query: OfficialSiteQuery): Promise<OfficialSiteResult> {
+  async findOfficialSite(query: OfficialSiteQuery, signal?: AbortSignal): Promise<OfficialSiteResult> {
     const request: GroundedRequest = {
       contents: [{ role: 'user', parts: [{ text: officialSitePrompt(query) }] }],
       tools: [{ googleSearch: {} }],
       generationConfig: { temperature: 0 },
     };
-    const result = await this.model.generateContent(request as Parameters<GenerativeModel['generateContent']>[0]);
+    const result = await this.model.generateContent(request as Parameters<GenerativeModel['generateContent']>[0], { signal });
     let text = '';
     try {
       text = result.response.text();
     } catch {
       // Réponse bloquée ou vide : pas de site.
     }
-    return { site: siteOf(text), model: this.modelName, costCents: groundedCostCentsOf(result.response.usageMetadata) };
+    return { site: siteOf(text), model: this.modelName, costCents: groundedCostCentsOf(result.response.usageMetadata, searchQueriesOf(result.response)) };
   }
 }

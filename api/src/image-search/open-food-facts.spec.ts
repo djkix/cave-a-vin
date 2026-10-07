@@ -131,6 +131,17 @@ describe('searchOpenFoodFacts — repli sur l’ancienne recherche', () => {
     expect(options.headers['User-Agent']).toBe(USER_AGENT);
   });
 
+  it('transmet le signal de la recherche (8 s au plus) et ne tente pas l’ancienne recherche une fois le délai global écoulé', async () => {
+    const controller = new AbortController();
+    const fetcher = jest.fn(async () => {
+      controller.abort();
+      throw new Error('Téléchargement abandonné : délai dépassé');
+    });
+    await expect(searchOpenFoodFacts(wine, fetcher, controller.signal)).resolves.toEqual([]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ signal: controller.signal, timeoutMs: 8000 }));
+  });
+
   it('les deux en panne (503 puis page HTML) : liste vide, sans erreur', async () => {
     const fetcher = network({ status: 503, body: htmlDown, type: 'text/html' }, { status: 503, body: htmlDown, type: 'text/html' });
     await expect(searchOpenFoodFacts(wine, fetcher)).resolves.toEqual([]);

@@ -59,6 +59,13 @@ describe('readOfficialSiteImages', () => {
     expect(images[0]).toEqual({ imageUrl: 'https://cdn.tempier.fr/partage.jpg?v=2&w=1200', source: 'tempier.fr', sourceUrl: 'https://www.tempier.fr/' });
   });
 
+  it('transmet le signal de la recherche au téléchargement de la page (8 s au plus)', async () => {
+    const fetcher = jest.fn(async () => ({ buffer: Buffer.from(PAGE), contentType: 'text/html', finalUrl: 'https://tempier.fr/' }));
+    const signal = new AbortController().signal;
+    await readOfficialSiteImages('https://tempier.fr', wine, fetcher, signal);
+    expect(fetcher).toHaveBeenCalledWith('https://tempier.fr', expect.objectContaining({ signal, timeoutMs: 8000 }));
+  });
+
   it('rend une liste vide si le site est injoignable ou n’est pas une page HTML', async () => {
     const down = jest.fn(async () => {
       throw new Error('Téléchargement refusé : adresse interdite');

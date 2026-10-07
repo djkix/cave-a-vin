@@ -18,6 +18,36 @@ export const IMAGE_SEARCH_FETCHER = 'IMAGE_SEARCH_FETCHER';
 
 const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
 
+/** Délai global d'une recherche : Open Food Facts, Gemini, page du site et téléchargements compris. */
+export const SEARCH_DEADLINE_MS = 30_000;
+
+class DeadlineError extends Error {}
+
+/**
+ * Rejette (DeadlineError) dès que le délai global est écoulé, même si l'opération
+ * attendue ignore le signal : la réponse au client ne dépend jamais d'un tiers lent.
+ */
+function beforeDeadline<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    promise.catch(() => undefined);
+    return Promise.reject(new DeadlineError());
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DeadlineError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (v) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(e);
+      },
+    );
+  });
+}
+
 export interface ImageCandidateView {
   id: string;
   source: string;
@@ -52,11 +82,14 @@ function viewOf(w: { referencePhotoId: string | null; referencePhotoSource: stri
  * « Chercher une image » : Open Food Facts d'abord, puis, s'il ne donne rien, le
  * site officiel du domaine trouvé par Gemini. Le client ne voit que des
  * identifiants de candidates : aucune adresse venue de lui n'est jamais
- * téléchargée.
+ * téléchargée. La recherche entière tient en 30 s : passé ce délai, les images
+ * déjà prêtes sont rendues, et sans aucune image prête c'est un 503.
  */
 @Injectable()
 export class ImageSearchService {
   private readonly logger = new Logger(ImageSearchService.name);
+  /** Délai global, modifiable par les tests. */
+  deadlineMs = SEARCH_DEADLINE_MS;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -78,26 +111,63 @@ export class ImageSearchService {
     await this.store.cleanup();
     const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage };
 
-    let candidates = await this.download(await searchOpenFoodFacts(query, this.fetcher), wine.id);
-    if (candidates.length === 0) candidates = await this.download(await this.officialSiteImages(wine), wine.id);
-
-    return {
-      candidates: candidates.map((c) => ({ id: c.id, source: c.source, sourceUrl: c.sourceUrl, imageUrl: `/api/image-candidates/${c.id}` })),
-    };
-  }
-
-  /** Une image à la fois : cinq décodages sharp simultanés pèseraient trop sur la mémoire du serveur domestique. */
-  private async download(images: RemoteImage[], wineId: string): Promise<CandidateMeta[]> {
-    const kept: CandidateMeta[] = [];
-    for (const image of images) {
-      const candidate = await this.store.add(image, wineId);
-      if (candidate) kept.push(candidate);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.deadlineMs);
+    const signal = controller.signal;
+    try {
+      const kept: CandidateMeta[] = [];
+      await this.download(await this.offImages(query, signal), wine.id, signal, kept);
+      if (kept.length === 0 && !signal.aborted) {
+        await this.download(await this.officialSiteImages(wine, signal), wine.id, signal, kept);
+      }
+      if (kept.length === 0 && signal.aborted) {
+        this.logger.warn(`Recherche d'image du vin ${wine.id} interrompue : délai de ${this.deadlineMs} ms écoulé`);
+        throw new ServiceUnavailableException(UNAVAILABLE);
+      }
+      return {
+        candidates: kept.map((c) => ({ id: c.id, source: c.source, sourceUrl: c.sourceUrl, imageUrl: `/api/image-candidates/${c.id}` })),
+      };
+    } finally {
+      clearTimeout(timer);
     }
-    return kept;
   }
 
-  /** Gemini avec la recherche Google, dans la part du plafond réservée aux accords ; sa dépense est comptée. */
-  private async officialSiteImages(wine: { id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null }): Promise<RemoteImage[]> {
+  private async offImages(query: Parameters<typeof searchOpenFoodFacts>[0], signal: AbortSignal): Promise<RemoteImage[]> {
+    try {
+      return await beforeDeadline(searchOpenFoodFacts(query, this.fetcher, signal), signal);
+    } catch (e) {
+      if (e instanceof DeadlineError) return [];
+      throw e;
+    }
+  }
+
+  /**
+   * Une image à la fois : cinq décodages sharp simultanés pèseraient trop sur la
+   * mémoire du serveur domestique. Le délai global écoulé, on s'arrête et on garde
+   * celles déjà prêtes.
+   */
+  private async download(images: RemoteImage[], wineId: string, signal: AbortSignal, kept: CandidateMeta[]): Promise<void> {
+    for (const image of images) {
+      if (signal.aborted) return;
+      try {
+        const candidate = await beforeDeadline(this.store.add(image, wineId, signal), signal);
+        if (candidate) kept.push(candidate);
+      } catch (e) {
+        if (e instanceof DeadlineError) return;
+        throw e;
+      }
+    }
+  }
+
+  /**
+   * Gemini avec la recherche Google, dans la part du plafond réservée aux accords ;
+   * sa dépense est comptée. Gemini en panne ou qui ne répond pas avant le délai
+   * global : 503 (on n'arrive ici que sans image d'Open Food Facts).
+   */
+  private async officialSiteImages(
+    wine: { id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null },
+    signal: AbortSignal,
+  ): Promise<RemoteImage[]> {
     try {
       await this.budget.assertUnderShare(PAIRING_BUDGET_SHARE);
     } catch (e) {
@@ -106,14 +176,23 @@ export class ImageSearchService {
     }
     let result;
     try {
-      result = await this.provider.findOfficialSite({ producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage });
+      result = await beforeDeadline(
+        this.provider.findOfficialSite({ producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage }, signal),
+        signal,
+      );
     } catch (e) {
-      this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${(e as Error).message}`);
+      const reason = e instanceof DeadlineError ? `pas de réponse en ${this.deadlineMs} ms` : (e as Error).message;
+      this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
       throw new ServiceUnavailableException(UNAVAILABLE);
     }
     await this.prisma.imageSearchCost.create({ data: { wineId: wine.id, model: result.model, costCents: result.costCents } });
     if (!result.site) return [];
-    return readOfficialSiteImages(result.site, wine, this.fetcher);
+    try {
+      return await beforeDeadline(readOfficialSiteImages(result.site, wine, this.fetcher, signal), signal);
+    } catch (e) {
+      if (e instanceof DeadlineError) return [];
+      throw e;
+    }
   }
 
   async candidateImage(candidateId: string): Promise<Buffer> {

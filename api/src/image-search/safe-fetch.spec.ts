@@ -24,9 +24,11 @@ describe('isBlockedAddress', () => {
     // 6to4 vers une IPv4 interdite, Teredo, NAT64 local, discard, documentation.
     '2002:7f00:1::', '2002:a00:1::1', '2002:c0a8:101::', '2001::1', '2001:0:4136:e378::1', '64:ff9b:1::a00:1',
     '100::1', '2001:db8::1', '2001:db8:ffff::1',
+    // Réseaux de documentation (TEST-NET-1, 2, 3) et relais 6to4 anycast.
+    '192.0.2.1', '192.0.2.255', '198.51.100.7', '203.0.113.200', '192.88.99.1', '::ffff:203.0.113.5',
   ])('refuse %s', (ip) => expect(isBlockedAddress(ip)).toBe(true));
 
-  it.each(['93.184.216.34', '8.8.8.8', '172.15.0.1', '172.32.0.1', '192.169.0.1', '2606:4700::1111', '::ffff:8.8.8.8', '2002:808:808::1', '2001:4860::8888', '2001:1::1'])(
+  it.each(['93.184.216.34', '8.8.8.8', '172.15.0.1', '172.32.0.1', '192.169.0.1', '2606:4700::1111', '::ffff:8.8.8.8', '2002:808:808::1', '2001:4860::8888', '2001:1::1', '192.0.3.1', '198.51.101.1', '203.0.114.1', '192.88.100.1'])(
     'accepte %s', (ip) => expect(isBlockedAddress(ip)).toBe(false),
   );
 
@@ -160,6 +162,26 @@ describe('safeFetch', () => {
       close: jest.fn(),
     };
     await expect(safeFetch('https://lent.exemple/', { maxBytes: 100, timeoutMs: 30, lookup: publicLookup, transport: async () => res })).rejects.toThrow(/délai/);
+  });
+
+  it('abandonne dès que le signal de la recherche est levé, avant le délai propre', async () => {
+    const controller = new AbortController();
+    const transport: Transport = (_url, _pinned, init) =>
+      new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+    const pending = safeFetch('https://lent.exemple/', { maxBytes: 100, timeoutMs: 60_000, signal: controller.signal, lookup: publicLookup, transport });
+    setTimeout(() => controller.abort(), 20);
+    const started = Date.now();
+    await expect(pending).rejects.toThrow(/délai/);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('ne télécharge rien si le signal est déjà levé', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const lookup = jest.fn(publicLookup);
+    const transport = jest.fn();
+    await expect(safeFetch('https://exemple.fr/', { maxBytes: 100, signal: controller.signal, lookup, transport })).rejects.toBeInstanceOf(SafeFetchError);
+    expect(transport).not.toHaveBeenCalled();
   });
 
   it('refuse un nom introuvable', async () => {

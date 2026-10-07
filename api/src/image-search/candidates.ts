@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -9,6 +9,8 @@ import { Fetcher, RemoteImage } from './types';
 export const CANDIDATE_TTL_MS = 60 * 60 * 1000;
 const CANDIDATE_MAX_BYTES = 5 * 1024 * 1024;
 const CANDIDATE_MAX_SIDE = 1200;
+/** Une image qui met plus de 4 s à arriver ne vaut pas d'entamer le délai global de la recherche. */
+export const CANDIDATE_TIMEOUT_MS = 4000;
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ACCEPTED_FORMATS = new Set(['jpeg', 'png', 'webp']);
 const MAX_INPUT_PIXELS = 25_000_000;
@@ -43,9 +45,9 @@ async function unlinkQuietly(path: string): Promise<void> {
  * ramenées à un JPEG de 1200 px au plus et gardées une heure dans
  * `<PHOTO_STORAGE_DIR>/candidates/`, avec leurs métadonnées dans un `.json`
  * voisin (elles survivent ainsi à un redémarrage de l'api). Les candidates
- * périmées sont effacées à chaque nouvelle recherche.
+ * périmées sont effacées au démarrage de l'api et à chaque nouvelle recherche.
  */
-export class CandidateStore {
+export class CandidateStore implements OnModuleInit {
   private readonly logger = new Logger(CandidateStore.name);
   private readonly dir: string;
 
@@ -62,10 +64,15 @@ export class CandidateStore {
   }
 
   /** Télécharge et garde une image pour ce vin ; null si elle est inaccessible, trop lourde ou d'un type refusé. */
-  async add(remote: RemoteImage, wineId: string): Promise<CandidateMeta | null> {
+  async add(remote: RemoteImage, wineId: string, signal?: AbortSignal): Promise<CandidateMeta | null> {
     let jpeg: Buffer;
     try {
-      const res = await this.fetcher(remote.imageUrl, { maxBytes: CANDIDATE_MAX_BYTES, headers: { Accept: 'image/jpeg,image/png,image/webp' } });
+      const res = await this.fetcher(remote.imageUrl, {
+        maxBytes: CANDIDATE_MAX_BYTES,
+        timeoutMs: CANDIDATE_TIMEOUT_MS,
+        signal,
+        headers: { Accept: 'image/jpeg,image/png,image/webp' },
+      });
       const type = res.contentType?.split(';')[0].trim().toLowerCase() ?? '';
       if (!ACCEPTED_TYPES.has(type)) throw new Error(`type ${type || 'inconnu'} refusé`);
       const image = sharp(res.buffer, { limitInputPixels: MAX_INPUT_PIXELS });
@@ -126,6 +133,15 @@ export class CandidateStore {
     }
     await unlinkQuietly(this.paths(id).meta);
     return meta;
+  }
+
+  /** Au démarrage : les candidates laissées par une exécution précédente ne restent pas sur le disque. */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.cleanup();
+    } catch (e) {
+      this.logger.warn(`Nettoyage des images proposées impossible au démarrage : ${(e as Error).message}`);
+    }
   }
 
   /** Efface les candidates de plus d'une heure (et les fichiers orphelins du même âge). */

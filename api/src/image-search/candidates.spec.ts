@@ -62,6 +62,13 @@ describe('CandidateStore', () => {
     await expect(s.read(c.id)).resolves.toBeInstanceOf(Buffer);
   });
 
+  it('limite chaque téléchargement à 4 s et transmet le signal de la recherche', async () => {
+    const fetcher = fetcherOf(await png(300, 300));
+    const signal = new AbortController().signal;
+    await store(fetcher).add(remote, 'w1', signal);
+    expect(fetcher).toHaveBeenCalledWith(remote.imageUrl, expect.objectContaining({ timeoutMs: 4000, signal }));
+  });
+
   it('rend null si le téléchargement échoue', async () => {
     const fetcher = jest.fn(async () => {
       throw new Error('Téléchargement refusé : adresse interdite');
@@ -95,6 +102,21 @@ describe('CandidateStore', () => {
     const files = readdirSync(join(dir, 'candidates'));
     expect(files.filter((f) => f.startsWith(old.id))).toEqual([]);
     expect(files.filter((f) => f.startsWith(recent.id)).sort()).toEqual([`${recent.id}.jpg`, `${recent.id}.json`]);
+  });
+
+  it('au démarrage, efface les candidates périmées laissées par une exécution précédente', async () => {
+    const s = store(fetcherOf(await png(300, 300)));
+    const old = (await s.add(remote, 'w1'))!;
+    clock += CANDIDATE_TTL_MS + 60_000;
+    // Nouvelle instance (redémarrage de l'api) : le nettoyage a lieu à l'initialisation du module.
+    await new CandidateStore(dir, fetcherOf(Buffer.alloc(0)), () => clock).onModuleInit();
+    expect(readdirSync(join(dir, 'candidates')).filter((f) => f.startsWith(old.id))).toEqual([]);
+  });
+
+  it('un nettoyage de démarrage en échec n’empêche pas l’api de démarrer', async () => {
+    const s = new CandidateStore(dir, fetcherOf(Buffer.alloc(0)), () => clock);
+    jest.spyOn(s, 'cleanup').mockRejectedValue(new Error('EACCES'));
+    await expect(s.onModuleInit()).resolves.toBeUndefined();
   });
 
   it('take déplace le fichier et oublie la candidate', async () => {

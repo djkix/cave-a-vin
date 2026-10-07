@@ -67,7 +67,7 @@ describe('ImageSearchService.search', () => {
     const { service, provider, budget, prisma } = setup();
     const r = await service.search('w1');
     expect(budget.assertUnderShare).toHaveBeenCalledWith(0.8);
-    expect(provider.findOfficialSite).toHaveBeenCalledWith({ producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol', vintage: 2019 });
+    expect(provider.findOfficialSite).toHaveBeenCalledWith({ producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol', vintage: 2019 }, expect.any(AbortSignal));
     expect(prisma.imageSearchCost.create).toHaveBeenCalledWith({ data: { wineId: 'w1', model: 'gemini-test', costCents: 1 } });
     expect(r.candidates).toEqual([expect.objectContaining({ source: 'tempier.fr', sourceUrl: 'https://tempier.fr/' })]);
   });
@@ -131,6 +131,77 @@ describe('ImageSearchService.search', () => {
     const e = await service.search('nope').catch((x) => x);
     expect(e).toBeInstanceOf(NotFoundException);
     expect(e.message).toBe('Vin introuvable');
+  });
+});
+
+describe('ImageSearchService.search — délai global de 30 s', () => {
+  /** Promesse qui ne se règle jamais, et qui ignore le signal d'abandon. */
+  const never = <T>() => new Promise<T>(() => undefined);
+  const flushIo = () => new Promise((r) => setImmediate(r));
+  const fiveHits = { hits: Array.from({ length: 5 }, (_, i) => ({ code: String(i), product_name: 'Domaine Tempier', categories_tags: ['en:wines'], image_front_url: `https://images.openfoodfacts.org/${i}.jpg` })) };
+
+  afterEach(() => jest.useRealTimers());
+
+  it('la recherche entière est bornée à 30 s : Gemini qui ne répond jamais → 503 au bout de 30 s, pas avant', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
+    const { service, provider, prisma } = setup();
+    provider.findOfficialSite.mockImplementation(never);
+    let settled = false;
+    const pending = service.search('w1').finally(() => { settled = true; });
+    pending.catch(() => undefined);
+    while (provider.findOfficialSite.mock.calls.length === 0) await flushIo();
+    // Le signal de la recherche est transmis à Gemini.
+    expect((provider.findOfficialSite.mock.calls[0] as unknown[])[1]).toBeInstanceOf(AbortSignal);
+    await jest.advanceTimersByTimeAsync(29_999);
+    await flushIo();
+    expect(settled).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    const e = await pending.catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe('Recherche d’image indisponible pour le moment');
+    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
+  it('délai atteint après deux images prêtes : rend ces deux images, sans appeler Gemini', async () => {
+    const { service, provider, fetcher } = setup({ off: fiveHits });
+    service.deadlineMs = 300;
+    const base = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string) => {
+      if (/images\.openfoodfacts\.org\/[2-4]\.jpg/.test(url)) return never();
+      return base(url);
+    });
+    const started = Date.now();
+    const r = await service.search('w1');
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(r.candidates).toHaveLength(2);
+    expect(provider.findOfficialSite).not.toHaveBeenCalled();
+  });
+
+  it('rien de prêt au délai (Open Food Facts muet) : 503, sans appeler Gemini', async () => {
+    const { service, provider, fetcher } = setup();
+    service.deadlineMs = 100;
+    fetcher.mockImplementation(never);
+    const e = await service.search('w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe('Recherche d’image indisponible pour le moment');
+    expect(provider.findOfficialSite).not.toHaveBeenCalled();
+  });
+
+  it('le site officiel qui ne répond pas au délai : 503 puisque rien d’autre n’est prêt', async () => {
+    const { service, fetcher } = setup();
+    service.deadlineMs = 200;
+    const base = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string) => (url === 'https://tempier.fr/' ? never() : base(url)));
+    const e = await service.search('w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('transmet à chaque téléchargement le signal de la recherche', async () => {
+    const { service, fetcher } = setup({ off: OFF_HIT });
+    await service.search('w1');
+    for (const call of fetcher.mock.calls as unknown as Array<[string, { signal?: AbortSignal }]>) {
+      expect(call[1].signal).toBeInstanceOf(AbortSignal);
+    }
   });
 });
 

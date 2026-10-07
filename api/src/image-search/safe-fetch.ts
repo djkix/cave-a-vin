@@ -14,8 +14,8 @@ import { isIP, LookupFunction } from 'node:net';
  * - la connexion part vers l'adresse vérifiée (épinglée), jamais vers une
  *   seconde résolution qui pourrait répondre autre chose (rebinding DNS) ;
  * - redirections suivies à la main, au plus 3, chacune revérifiée ;
- * - délai global (8 s par défaut) et taille maximale, vérifiée sur l'en-tête puis
- *   pendant la lecture.
+ * - délai (8 s par défaut, ou plus tôt si le signal de l'appelant est levé) et
+ *   taille maximale, vérifiée sur l'en-tête puis pendant la lecture.
  */
 
 export interface ResolvedAddress {
@@ -46,6 +46,8 @@ export interface SafeFetchOptions {
   /** 'truncate' : garder les `maxBytes` premiers octets au lieu de refuser (page HTML). */
   overflow?: 'error' | 'truncate';
   maxRedirects?: number;
+  /** Signal de l'appelant (délai global de la recherche) : abandon dès qu'il est levé, même avant `timeoutMs`. */
+  signal?: AbortSignal;
   lookup?: LookupFn;
   transport?: Transport;
 }
@@ -72,8 +74,12 @@ const BLOCKED_V4: Array<[string, number]> = [
   ['169.254.0.0', 16], // link-local (métadonnées des hébergeurs)
   ['172.16.0.0', 12], // privé
   ['192.0.0.0', 24], // réservé IETF
+  ['192.0.2.0', 24], // documentation (TEST-NET-1)
+  ['192.88.99.0', 24], // relais 6to4 anycast (obsolète)
   ['192.168.0.0', 16], // privé
   ['198.18.0.0', 15], // bancs d'essai
+  ['198.51.100.0', 24], // documentation (TEST-NET-2)
+  ['203.0.113.0', 24], // documentation (TEST-NET-3)
   ['224.0.0.0', 4], // multicast
   ['240.0.0.0', 4], // réservé, diffusion
 ];
@@ -263,6 +269,10 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions): Prom
   const overflow = options.overflow ?? 'error';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? SAFE_FETCH_TIMEOUT_MS);
+  const outer = options.signal;
+  const onOuterAbort = () => controller.abort();
+  if (outer?.aborted) controller.abort();
+  else outer?.addEventListener('abort', onOuterAbort, { once: true });
   try {
     let url: URL;
     try {
@@ -300,5 +310,6 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions): Prom
     }
   } finally {
     clearTimeout(timer);
+    outer?.removeEventListener('abort', onOuterAbort);
   }
 }

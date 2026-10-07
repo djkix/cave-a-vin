@@ -367,6 +367,28 @@ describe('GeminiVisionProvider.findOfficialSite', () => {
     expect((await new GeminiVisionProvider(above as any, 'm').findOfficialSite(query)).costCents).toBe(6);
   });
 
+  it('compte aussi les requêtes de recherche ancrées (webSearchQueries) : 1,4 ct chacune, majoré', async () => {
+    const withQueries = (queries: string[] | undefined, usage = { promptTokenCount: 300, candidatesTokenCount: 40 }) => ({
+      generateContent: jest.fn(async () => ({
+        response: { text: () => '{"site": null}', usageMetadata: usage, candidates: [{ groundingMetadata: queries ? { webSearchQueries: queries } : {} }] },
+      })),
+    });
+    const cost = async (model: ReturnType<typeof withQueries>) => (await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).costCents;
+    expect(await cost(withQueries(['tempier']))).toBe(2); // 1,4 → 2
+    expect(await cost(withQueries(['a', 'b', 'c']))).toBe(5); // 4,2 → 5
+    expect(await cost(withQueries([]))).toBe(1);
+    expect(await cost(withQueries(undefined))).toBe(1);
+    // Les jetons l'emportent s'ils coûtent davantage : 300 000 / 1000 × 0,01 = 3 ct > 1,4 ct.
+    expect(await cost(withQueries(['tempier'], { promptTokenCount: 300000, candidatesTokenCount: 0 }))).toBe(3);
+  });
+
+  it('transmet le signal d’abandon de la recherche à Gemini', async () => {
+    const model = fake('{"site": null}');
+    const signal = new AbortController().signal;
+    await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query, signal);
+    expect((model.generateContent.mock.calls[0] as any)[1]).toEqual({ signal });
+  });
+
   it('laisse remonter une panne de Gemini', async () => {
     const model = { generateContent: jest.fn(async () => { throw new Error('503 Service Unavailable'); }) };
     await expect(new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).rejects.toThrow('503');

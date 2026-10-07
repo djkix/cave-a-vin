@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { safeFetch } from './safe-fetch';
+import { SAFE_FETCH_TIMEOUT_MS, safeFetch } from './safe-fetch';
 import { Fetcher, isHttpUrl, MAX_IMAGES_PER_SOURCE, RemoteImage } from './types';
 
 const PAGE_MAX_BYTES = 2 * 1024 * 1024;
@@ -98,17 +98,25 @@ export function extractImageUrls(html: string, baseUrl: string, keywords: string
 
 /**
  * Lit la page du site officiel (2 Mo au plus : au-delà, le début suffit, les
- * balises og:image sont dans l'en-tête) et en tire les images proposées. Site
+ * balises og:image sont dans l'en-tête) et en tire les images proposées, en 8 s
+ * au plus et jamais au-delà du délai global de la recherche (`signal`). Site
  * injoignable, refusé ou qui n'est pas une page HTML : liste vide.
  */
 export async function readOfficialSiteImages(
   site: string,
   wine: { producer: string; cuvee: string | null },
   fetcher: Fetcher = safeFetch,
+  signal?: AbortSignal,
 ): Promise<RemoteImage[]> {
   let page;
   try {
-    page = await fetcher(site, { maxBytes: PAGE_MAX_BYTES, overflow: 'truncate', headers: { Accept: 'text/html,application/xhtml+xml' } });
+    page = await fetcher(site, {
+      maxBytes: PAGE_MAX_BYTES,
+      overflow: 'truncate',
+      timeoutMs: SAFE_FETCH_TIMEOUT_MS,
+      signal,
+      headers: { Accept: 'text/html,application/xhtml+xml' },
+    });
   } catch (e) {
     logger.warn(`Site officiel illisible (${site}) : ${(e as Error).message}`);
     return [];

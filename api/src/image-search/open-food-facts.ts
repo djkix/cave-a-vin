@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { normalizeLabel } from '../appellations/appellations.service';
-import { safeFetch } from './safe-fetch';
+import { SAFE_FETCH_TIMEOUT_MS, safeFetch } from './safe-fetch';
 import { Fetcher, ImageSearchWine, isHttpUrl, MAX_IMAGES_PER_SOURCE, RemoteImage } from './types';
 
 export const OFF_SOURCE = 'Open Food Facts (CC BY-SA)';
@@ -32,25 +32,30 @@ interface OffProduct {
 const textOf = (value: unknown): string =>
   typeof value === 'string' ? value : Array.isArray(value) ? value.filter((v) => typeof v === 'string').join(' ') : '';
 
-async function fetchJson(url: URL, fetcher: Fetcher): Promise<unknown> {
-  const res = await fetcher(url.toString(), { maxBytes: OFF_MAX_BYTES, headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+async function fetchJson(url: URL, fetcher: Fetcher, signal?: AbortSignal): Promise<unknown> {
+  const res = await fetcher(url.toString(), {
+    maxBytes: OFF_MAX_BYTES,
+    timeoutMs: SAFE_FETCH_TIMEOUT_MS,
+    signal,
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+  });
   if (res.contentType && !/json/i.test(res.contentType)) throw new Error(`réponse ${res.contentType} au lieu de JSON`);
   return JSON.parse(res.buffer.toString('utf8'));
 }
 
 /** Service de recherche actuel : `{ count, hits }`, stable. */
-async function searchService(terms: string, fetcher: Fetcher): Promise<unknown[]> {
+async function searchService(terms: string, fetcher: Fetcher, signal?: AbortSignal): Promise<unknown[]> {
   const url = new URL('/search', OFF_SEARCH_ORIGIN);
   url.searchParams.set('q', terms);
   url.searchParams.set('page_size', '20');
   url.searchParams.set('fields', FIELDS);
-  const hits = ((await fetchJson(url, fetcher)) as { hits?: unknown } | null)?.hits;
+  const hits = ((await fetchJson(url, fetcher, signal)) as { hits?: unknown } | null)?.hits;
   if (!Array.isArray(hits)) throw new Error('réponse sans « hits »');
   return hits;
 }
 
 /** Ancienne recherche `cgi/search.pl` : `{ products }`, parfois indisponible (503 en HTML). */
-async function legacySearch(terms: string, fetcher: Fetcher): Promise<unknown[]> {
+async function legacySearch(terms: string, fetcher: Fetcher, signal?: AbortSignal): Promise<unknown[]> {
   const url = new URL('/cgi/search.pl', OFF_ORIGIN);
   url.searchParams.set('search_terms', terms);
   url.searchParams.set('search_simple', '1');
@@ -58,7 +63,7 @@ async function legacySearch(terms: string, fetcher: Fetcher): Promise<unknown[]>
   url.searchParams.set('json', '1');
   url.searchParams.set('page_size', '24');
   url.searchParams.set('fields', FIELDS);
-  const products = ((await fetchJson(url, fetcher)) as { products?: unknown } | null)?.products;
+  const products = ((await fetchJson(url, fetcher, signal)) as { products?: unknown } | null)?.products;
   if (!Array.isArray(products)) throw new Error('réponse sans « products »');
   return products;
 }
@@ -87,18 +92,23 @@ function producerMatcher(producer: string): (haystack: string) => boolean {
  * nomment le producteur, ceux qui portent aussi l'appellation ou le millésime
  * d'abord. Le service de recherche d'abord, l'ancienne recherche une fois en
  * secours ; toute panne rend une liste vide (la recherche passe alors au site
- * officiel), jamais une erreur.
+ * officiel), jamais une erreur. Chaque appel dure 8 s au plus et jamais au-delà du
+ * délai global de la recherche (`signal`) ; ce délai écoulé, pas de second essai.
  */
-export async function searchOpenFoodFacts(wine: ImageSearchWine, fetcher: Fetcher = safeFetch): Promise<RemoteImage[]> {
+export async function searchOpenFoodFacts(wine: ImageSearchWine, fetcher: Fetcher = safeFetch, signal?: AbortSignal): Promise<RemoteImage[]> {
   const terms = [wine.producer, wine.cuvee, wine.appellation].map((s) => s?.trim()).filter(Boolean).join(' ');
 
   let products: unknown[];
   try {
-    products = await searchService(terms, fetcher);
+    products = await searchService(terms, fetcher, signal);
   } catch (e) {
+    if (signal?.aborted) {
+      logger.warn(`Recherche Open Food Facts abandonnée : délai de la recherche écoulé`);
+      return [];
+    }
     logger.warn(`Service de recherche Open Food Facts indisponible, essai de l'ancienne recherche : ${(e as Error).message}`);
     try {
-      products = await legacySearch(terms, fetcher);
+      products = await legacySearch(terms, fetcher, signal);
     } catch (e2) {
       logger.warn(`Recherche Open Food Facts impossible : ${(e2 as Error).message}`);
       return [];

@@ -15,5 +15,6 @@ export interface OfficialSiteResult {
 }
 
 export interface OfficialSiteProvider {
-  findOfficialSite(query: OfficialSiteQuery): Promise<OfficialSiteResult>;
+  /** `signal` : délai global de la recherche d'image ; levé, l'appel est abandonné. */
+  findOfficialSite(query: OfficialSiteQuery, signal?: AbortSignal): Promise<OfficialSiteResult>;
 }
