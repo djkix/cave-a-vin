@@ -42,9 +42,9 @@ utilisée depuis un téléphone (PWA installable).
 **propriétaire** : ses vins, ses photos, ses mouvements et ses exports ne sont
 visibles que de lui et des membres qu'il invite. Une adresse Google inconnue
 qui se connecte ne voit rien tant qu'un administrateur n'a pas validé son
-inscription : l'écran affiche « Inscription en attente de validation — vous
-serez prévenu dès qu’un administrateur l’aura validée. Revenez plus tard. »
-(aucun e-mail n'est envoyé, il suffit de revenir). La validation crée sa cave,
+inscription : l'écran affiche « Inscription en attente de validation —
+revenez plus tard : l’accès s’ouvrira dès qu’un administrateur l’aura
+validée. » (aucun e-mail n'est envoyé, il suffit de revenir). La validation crée sa cave,
 « Cave de {nom affiché ou e-mail} ». Une adresse invitée par un propriétaire,
 elle, entre directement, sans validation. Un identifiant (vin, photo,
 mouvement, membre) d'une autre cave répond comme un identifiant inconnu (404),
@@ -610,9 +610,20 @@ fusionner la demande de version proposée par release-please puis renseigner
 
 ### Passage à la 2.0.0 (une cave par compte)
 
-La 2.0.0 change le fonctionnement pour tous les comptes. **Faire une
-sauvegarde de la base avant la mise à jour**, sans attendre le dump quotidien
-de `db-backup` :
+La 2.0.0 change le fonctionnement pour tous les comptes. **Vérifier d'abord
+les comptes**, avant la mise à jour :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT email, is_admin, is_break_glass, status FROM app_user ORDER BY created_at;"'
+```
+
+Votre adresse Google doit apparaître avec `is_admin` = `t` et le statut
+`ACTIVE`. Sinon, connectez-vous une fois avec Google avant de mettre à jour
+(`ADMIN_EMAILS` pose `is_admin` à la connexion) : c'est ce compte qui recevra
+la cave existante.
+
+**Faire ensuite une sauvegarde de la base**, juste avant la mise à jour, sans
+attendre le dump quotidien de `db-backup` :
 
 ```bash
 cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' | gzip > backups/cave-avant-2.0.0.sql.gz
@@ -635,9 +646,26 @@ jour comme d'habitude. Au démarrage, la migration, en une seule transaction :
   (*Créer sa cave*) ;
 - règle la part de budget par cave à 20 %.
 
+**Compte de secours** : après la 2.0.0, le compte de secours devient un
+membre en lecture seule de votre cave. Il atteint toujours l'Administration,
+mais ne permet plus d'entrées ni de sorties pendant une panne de Google.
+
 Aucune variable d'environnement n'est ajoutée. Après la mise à jour, les
 nouvelles adresses Google qui se connectent attendent une validation dans
 *Inscriptions*.
+
+Vérifier après la mise à jour que la cave appartient bien à votre adresse
+Google :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT c.name, u.email FROM cave c LEFT JOIN app_user u ON u.id = c.owner_id;"'
+```
+
+**Retour arrière** : restaurer la sauvegarde prise juste avant la mise à jour
+(`backups/cave-avant-2.0.0.sql.gz`, voir *Sauvegarde et restauration*), puis
+remettre `IMAGE_TAG=1.9.0` dans le `.env` et relancer `docker compose up -d`.
+Le schéma de la 1.9.0 ne sait pas lire la base migrée : remettre la 1.9.0
+sans restaurer la sauvegarde ne fonctionne pas.
 
 ## Sauvegarde et restauration
 
@@ -741,7 +769,10 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   est une estimation à l'ordre de grandeur, pas une facturation réelle. Le
   réglage se comporte donc comme un nombre maximum de photos par mois.
 - **Compte de secours** : `BREAK_GLASS_EMAIL` / `BREAK_GLASS_PASSWORD` vides =
-  connexion Google uniquement.
+  connexion Google uniquement. Après la 2.0.0, le compte de secours devient un
+  membre en lecture seule de votre cave : il atteint toujours
+  l'Administration, mais ne permet plus d'entrées ni de sorties pendant une
+  panne de Google.
 - **Blocage de compte manuel** : il n'y a pas de modération automatique ; un
   administrateur doit bloquer un compte indésirable depuis `/admin`. Le blocage
   prend effet dès la requête suivante (la session en cours cesse de
@@ -749,7 +780,9 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Réessai borné dans le temps** : une photo reportée est reprise pendant
   environ dix jours (1 000 tentatives au plafond de 15 minutes). Au-delà, elle
   passe en échec et attend une saisie manuelle — un travail qui ne meurt jamais
-  finirait par masquer une panne réelle.
+  finirait par masquer une panne réelle. Seule exception : un report pour
+  budget (plafond mensuel ou part de la cave atteints) est repris sans limite,
+  toutes les 15 minutes, et ne passe jamais en échec.
 - **Pas de relance manuelle d'une analyse** : il n'y a pas de bouton
   « réanalyser » sur une photo en échec définitif ; la saisie manuelle prend le
   relais, et reprendre la photo crée simplement une nouvelle entrée.

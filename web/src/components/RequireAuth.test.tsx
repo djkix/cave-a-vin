@@ -55,7 +55,7 @@ it('montre l’écran d’attente à un compte PENDING, avec la version et la d�
   const out = vi.spyOn(api, 'logout').mockResolvedValue({ ok: true });
   const send = vi.spyOn(sender, 'sendQueuedPhotos').mockResolvedValue(undefined);
   mount();
-  expect(await screen.findByText(/^Inscription en attente de validation — vous serez prévenu/)).toBeInTheDocument();
+  expect(await screen.findByText('Inscription en attente de validation — revenez plus tard : l’accès s’ouvrira dès qu’un administrateur l’aura validée.')).toBeInTheDocument();
   expect(screen.queryByText('Protégé')).not.toBeInTheDocument();
   expect(screen.getByLabelText(`Version ${APP_VERSION}`)).toBeInTheDocument();
   expect(send).not.toHaveBeenCalled();

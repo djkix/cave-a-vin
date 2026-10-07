@@ -35,7 +35,7 @@ export function PendingScreen() {
   return (
     <AccountScreen>
       <p className="centered" role="status">
-        Inscription en attente de validation — vous serez prévenu dès qu’un administrateur l’aura validée. Revenez plus tard.
+        Inscription en attente de validation — revenez plus tard : l’accès s’ouvrira dès qu’un administrateur l’aura validée.
       </p>
     </AccountScreen>
   );
