@@ -2,10 +2,8 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Internal
 import { Reflector } from '@nestjs/core';
 import { AppUser, CaveRole } from '@prisma/client';
 import { Request } from 'express';
-import { attachCave, CAVE_ROLE } from './cave-access.decorators';
+import { CAVE_ROLE } from './cave-access.decorators';
 import { CaveContextService } from './cave-context.service';
-
-const RANK: Record<CaveRole, number> = { VIEWER: 1, OWNER: 2 };
 
 /**
  * Garde des routes de cave : résout la cave courante du compte (session, sinon
@@ -33,8 +31,8 @@ export class CaveAccessGuard implements CanActivate {
 
     const access = await this.caves.resolveCurrent(user.id, req.session?.caveId ?? null);
     if (!access) throw new NotFoundException('Cave introuvable');
-    if (RANK[access.role] < RANK[minimum]) throw new ForbiddenException('Lecture seule');
-    attachCave(req, access);
+    if (minimum === 'OWNER' && access.role !== 'OWNER') throw new ForbiddenException('Lecture seule');
+    req.caveAccess = access;
     return true;
   }
 }

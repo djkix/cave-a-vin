@@ -1,7 +1,7 @@
 import { ExecutionContext, ForbiddenException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { CaveAccessGuard } from './cave-access.guard';
-import { CaveRole, CurrentCave, currentCaveOf } from './cave-access.decorators';
+import { CaveRole, CurrentCave, requireCave } from './cave-access.decorators';
 
 class Routes {
   @CaveRole('VIEWER') read() {}
@@ -38,7 +38,7 @@ describe('CaveAccessGuard', () => {
     const req = signedIn({ caveId: 'c1' });
     await expect(guard.canActivate(context(Routes.prototype.write, Routes, req))).resolves.toBe(true);
     expect(resolveCurrent).toHaveBeenCalledWith('u1', 'c1');
-    expect(currentCaveOf(req)).toEqual({ caveId: 'c1', role: 'OWNER' });
+    expect(req.caveAccess).toEqual({ caveId: 'c1', role: 'OWNER' });
   });
 
   it('sans cave accessible : 404 « Cave introuvable »', async () => {
@@ -53,7 +53,7 @@ describe('CaveAccessGuard', () => {
     const req = signedIn();
     await expect(guard.canActivate(context(Routes.prototype.write, Routes, req))).rejects.toBeInstanceOf(ForbiddenException);
     await expect(guard.canActivate(context(Routes.prototype.write, Routes, req))).rejects.toThrow('Lecture seule');
-    expect(currentCaveOf(req)).toBeUndefined();
+    expect(req.caveAccess).toBeUndefined();
   });
 
   it('un VIEWER lit, un OWNER lit aussi (OWNER satisfait VIEWER)', async () => {
@@ -61,7 +61,7 @@ describe('CaveAccessGuard', () => {
       const { guard } = guardWith({ caveId: 'c1', role });
       const req = signedIn();
       await expect(guard.canActivate(context(Routes.prototype.read, Routes, req))).resolves.toBe(true);
-      expect(currentCaveOf(req)).toEqual({ caveId: 'c1', role });
+      expect(req.caveAccess).toEqual({ caveId: 'c1', role });
     }
   });
 
@@ -70,7 +70,7 @@ describe('CaveAccessGuard', () => {
     const req = signedIn();
     await expect(guard.canActivate(context(Routes.prototype.undeclared, Routes, req))).rejects.toBeInstanceOf(InternalServerErrorException);
     expect(resolveCurrent).not.toHaveBeenCalled();
-    expect(currentCaveOf(req)).toBeUndefined();
+    expect(req.caveAccess).toBeUndefined();
   });
 
   it('le rôle de la méthode l’emporte sur celui du contrôleur', async () => {
@@ -88,7 +88,7 @@ describe('CaveAccessGuard', () => {
 
 describe('@CurrentCave()', () => {
   it('refuse une requête sans contexte de cave (garde absente)', () => {
-    expect(() => currentCaveOf({}, true)).toThrow(InternalServerErrorException);
+    expect(() => requireCave({})).toThrow(InternalServerErrorException);
     expect(CurrentCave).toBeDefined();
   });
 });
