@@ -11,6 +11,37 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [1.9.0](https://github.com/djkix/cave-a-vin/compare/v1.8.0...v1.9.0) (2026-10-07)
 
+### Résumé
+
+Des vignettes plus belles. L'application a enfin son icône (un verre de vin
+sur fond bordeaux) ; chaque photo est recadrée sur l'étiquette et retouchée
+avec douceur pour l'affichage ; et un bouton « Chercher une image » propose
+l'étiquette trouvée sur Open Food Facts ou sur le site officiel du domaine,
+toujours au choix de l'utilisateur. Une migration
+(`20261011000000_image_reference`) ; aucune nouvelle variable d'environnement.
+
+### Fonctionnalités
+
+- **Icône** : SVG, favicon, PNG 192 et 512, variante « maskable » pour Android,
+  icône iOS 180 px. Un raccourci installé avant garde l'ancien carré brun : le
+  supprimer puis le réinstaller.
+- **Photos plus nettes** : Gemini renvoie le cadre de l'étiquette pendant la
+  lecture (sans appel en plus) ; la version d'affichage est recadrée sur ce
+  cadre, avec une balance des blancs et un contraste légers et une netteté
+  modérée (1200 px, fabriquée une fois et gardée). La photo d'origine reste
+  intacte et c'est elle que Gemini lit.
+- **Chercher une image** sur la fiche vin : Open Food Facts d'abord (gratuit,
+  licence CC BY-SA, seuls les produits qui nomment le domaine), sinon le site
+  officiel du domaine retrouvé par Gemini avec la recherche Google (5 000
+  recherches gratuites par mois, chacune comptée au moins 1 ct dans le plafond).
+  Au plus 5 propositions avec leur source, délai global de 30 s, 10 recherches
+  par minute ; l'image choisie devient la vignette, avec « Image : {source} » et
+  « Revenir à ma photo ».
+- **Sécurité** : le serveur ne télécharge que des adresses publiques en http(s),
+  revérifiées à chaque redirection, avec des limites de taille, de durée et de
+  pixels.
+
+### Détail par commit
 
 ### Fonctionnalités
 

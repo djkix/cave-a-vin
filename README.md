@@ -680,6 +680,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 1.9.0 — 7 octobre 2026
+
+Publiée ([v1.9.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.9.0)),
+images `ghcr.io/djkix/cave-a-vin-api:1.9.0` et `-web:1.9.0`.
+
+**Icône, photos plus nettes et image trouvée sur le web.** L'application a son
+icône (un verre de vin sur fond bordeaux) ; les vignettes sont recadrées sur
+l'étiquette et retouchées avec douceur ; « Chercher une image » propose
+l'étiquette d'Open Food Facts ou du site officiel du domaine, au choix.
+Migration `20261011000000_image_reference`.
+
 ### 1.8.0 — 6 octobre 2026
 
 Publiée ([v1.8.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.8.0)),
