@@ -213,8 +213,21 @@ export interface WineDetail {
   /** Pré-sélection de la sortie (null = « Sans emplacement ») ; clé absente quand il ne reste rien. */
   exitDefault?: string | null;
   lastLocation?: LocationParts | null;
+  /** Propriétaire seulement : cote iDealwine courante, null sans cote. Clé absente pour un membre. */
+  quote?: Quote | null;
+  /** Propriétaire seulement : page iDealwine enregistrée, sinon la recherche. Clé absente pour un membre. */
+  idealwineUrl?: string;
 }
 export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
+
+/** Cote iDealwine saisie à la main ; `cessionCents` : cote moins 16 % de frais acheteur. */
+export interface Quote {
+  coteCents: number; nTransactions: number | null; /** « AAAA-MM-JJ » */ quotedOn: string; sourceUrl: string | null;
+  enteredBy: string | null; cessionCents: number;
+}
+export interface CreateQuoteInput { coteCents: number; nTransactions: number | null; quotedOn: string; sourceUrl: string | null }
+export const createQuote = (wineId: string, input: CreateQuoteInput) =>
+  apiFetch<Quote>(`/wines/${wineId}/quotes`, { method: 'POST', body: JSON.stringify(input) });
 
 /** Candidate trouvée par la recherche d'image : `imageUrl` sert toujours la miniature via l'api (jamais une adresse tierce directement). */
 export interface ImageCandidate { id: string; source: string; sourceUrl: string; imageUrl: string }
@@ -293,10 +306,15 @@ export interface StatsShare { key: string; bottles: number; share: number }
 export interface StatsRankedWine { id: string; producer: string; cuvee: string | null; vintage: number | null; value: number }
 /**
  * Pour un membre en lecture seule, l'api omet `pricedReferences`,
- * `purchaseValueCents` et `mostExpensive` : clés absentes, pas seulement nulles.
+ * `purchaseValueCents`, `mostExpensive` et les quatre clés de la cote : clés
+ * absentes, pas seulement nulles.
  */
 export interface Stats {
   bottles: number; references: number; pricedReferences?: number; purchaseValueCents?: number | null;
+  /** Somme cote × stock des vins en stock cotés ; null si aucun. */
+  quotedValueCents?: number | null; cessionValueCents?: number | null;
+  /** Vins en stock cotés, sur les vins en stock. */
+  quotedReferences?: number; quotableReferences?: number;
   byColor: StatsShare[]; byRegion: StatsShare[]; byDecade: StatsShare[]; byApogee: StatsShare[];
   months: Array<{ month: string; in: number; out: number }>;
   drinkRate: number; yearsLeft: number | null;

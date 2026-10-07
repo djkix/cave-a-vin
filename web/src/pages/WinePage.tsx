@@ -9,6 +9,7 @@ import { ImageSearchBlock } from '../components/ImageSearchBlock';
 import { PlacePicker } from '../components/LocationFields';
 import { LocationsBlock } from '../components/LocationsBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
+import { QuoteBlock } from '../components/QuoteBlock';
 import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
@@ -129,6 +130,10 @@ export function WinePage() {
             (avertissement « two children with the same key », rendu dupliqué). */}
         <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} readOnly={readOnly} />
         <RatingBlock key={`rating-${wine.id}`} wine={wine} readOnly={readOnly} />
+        {/* Cote : un prix, propriétaire seulement ; un membre ne reçoit pas les clés et le bloc n'est pas monté. */}
+        {isOwner && detail.data.idealwineUrl !== undefined && (
+          <QuoteBlock key={`quote-${wine.id}`} wineId={wine.id} quote={detail.data.quote ?? null} idealwineUrl={detail.data.idealwineUrl} />
+        )}
         <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} canEdit={isAdmin} />
         <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} readOnly={readOnly} />
 
