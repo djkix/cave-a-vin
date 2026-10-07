@@ -34,6 +34,8 @@ enum PhotoStatus {
 enum PhotoPurpose {
   ENTRY
   EXIT
+  /// Image trouvée sur le web et choisie comme vignette : jamais analysée ni à confirmer.
+  REFERENCE
 }
 
 enum VintageQualityLevel {
@@ -74,28 +76,33 @@ model Appellation {
 }
 
 model Wine {
-  id               String       @id @default(uuid())
-  matchKey         String       @unique @map("match_key")
-  producer         String
-  cuvee            String?
-  appellationId    String?      @map("appellation_id")
-  appellation      Appellation? @relation(fields: [appellationId], references: [id])
-  appellationRaw   String       @map("appellation_raw")
-  vintage          Int?
-  color            WineColor
-  formatCl         Int          @default(75) @map("format_cl")
-  apogeeMin        Int?         @map("apogee_min")
-  apogeeMax        Int?         @map("apogee_max")
-  apogeeSource     String?      @map("apogee_source")
-  idealwineRef     String?      @map("idealwine_ref")
-  referencePhotoId String?      @map("reference_photo_id")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  rating           Decimal?     @db.Decimal(3, 1)
-  ratedAt          DateTime?    @map("rated_at")
-  ratedById        String?      @map("rated_by")
-  ratedBy          AppUser?     @relation(fields: [ratedById], references: [id], onDelete: SetNull)
-  pairing          Pairing?
-  movements        Movement[]
+  id                       String       @id @default(uuid())
+  matchKey                 String       @unique @map("match_key")
+  producer                 String
+  cuvee                    String?
+  appellationId            String?      @map("appellation_id")
+  appellation              Appellation? @relation(fields: [appellationId], references: [id])
+  appellationRaw           String       @map("appellation_raw")
+  vintage                  Int?
+  color                    WineColor
+  formatCl                 Int          @default(75) @map("format_cl")
+  apogeeMin                Int?         @map("apogee_min")
+  apogeeMax                Int?         @map("apogee_max")
+  apogeeSource             String?      @map("apogee_source")
+  idealwineRef             String?      @map("idealwine_ref")
+  referencePhotoId         String?      @map("reference_photo_id")
+  /// Vignette d'avant l'image du web, rétablie par « Revenir à ma photo ».
+  referencePhotoPreviousId String?      @map("reference_photo_previous_id")
+  /// Provenance de la vignette quand elle vient du web (« Open Food Facts (CC BY-SA) », nom de domaine).
+  referencePhotoSource     String?      @map("reference_photo_source")
+  referencePhotoSourceUrl  String?      @map("reference_photo_source_url")
+  createdAt                DateTime     @default(now()) @map("created_at")
+  rating                   Decimal?     @db.Decimal(3, 1)
+  ratedAt                  DateTime?    @map("rated_at")
+  ratedById                String?      @map("rated_by")
+  ratedBy                  AppUser?     @relation(fields: [ratedById], references: [id], onDelete: SetNull)
+  pairing                  Pairing?
+  movements                Movement[]
 
   @@map("wine")
 }
@@ -235,4 +242,16 @@ model ProducerProfile {
   updatedAt    DateTime              @updatedAt @map("updated_at")
 
   @@map("producer_profile")
+}
+
+/// Dépense Gemini d'une recherche d'image (site officiel), comptée dans le plafond mensuel.
+model ImageSearchCost {
+  id        String   @id @default(uuid())
+  wineId    String?  @map("wine_id")
+  model     String?
+  costCents Int      @map("cost_cents")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("image_search_cost")
 }

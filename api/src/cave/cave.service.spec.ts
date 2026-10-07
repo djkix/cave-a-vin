@@ -69,6 +69,21 @@ describe('CaveService.detail', () => {
     expect(r.wine).toMatchObject(tempier19);
     expect(r.movements).toEqual([]);
   });
+
+  it('expose la provenance de la vignette venue du web (null pour une photo de l’utilisateur)', async () => {
+    const own = await service(null).detail('w19');
+    expect(own.wine).toMatchObject({ referencePhotoSource: null, referencePhotoSourceUrl: null });
+    const web = { ...tempier19, referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1' };
+    const r = await service(null, [web]).detail('w19');
+    expect(r.wine).toMatchObject({ referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1' });
+  });
+
+  it('la liste de la cave ne porte pas la provenance (réservée à la fiche)', async () => {
+    const web = { ...tempier19, referencePhotoSource: 'tempier.fr', referencePhotoSourceUrl: 'https://tempier.fr/' };
+    const [item] = await service(null, [web]).list({});
+    expect(item).not.toHaveProperty('referencePhotoSource');
+    expect(item).not.toHaveProperty('referencePhotoSourceUrl');
+  });
 });
 
 const cdp = {

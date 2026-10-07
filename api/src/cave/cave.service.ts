@@ -25,8 +25,11 @@ interface PairingColumns {
   pairingGeneratedAt?: Date | null;
 }
 
+/** Provenance d'une vignette trouvée sur le web : montrée sur la fiche seulement. */
+interface ReferenceSourceColumns { referencePhotoSource?: string | null; referencePhotoSourceUrl?: string | null }
+
 /** Ligne lue en base : la ligne publique plus ce qu'il faut pour estimer l'apogée, la note et les accords. */
-export type CaveDbRow = CaveRow & Omit<ApogeeWineInput, 'vintage' | 'color'> & RatingColumns & PairingColumns;
+export type CaveDbRow = CaveRow & Omit<ApogeeWineInput, 'vintage' | 'color'> & RatingColumns & PairingColumns & ReferenceSourceColumns;
 
 export interface Rating { value: number; ratedAt: Date; ratedBy: string | null }
 
@@ -61,6 +64,7 @@ function toItem(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number)
     /* eslint-disable @typescript-eslint/no-unused-vars -- champs internes retirés de la réponse */
     appellationId, region, referenceGuardMin, referenceGuardMax, apogeeMin, apogeeMax, apogeeSource,
     rating, ratedAt, ratedBy, pairingStatus, pairingDishes, pairingError, pairingGeneratedAt,
+    referencePhotoSource, referencePhotoSourceUrl,
     /* eslint-enable @typescript-eslint/no-unused-vars */
     ...pub
   } = row;
@@ -89,7 +93,8 @@ export class CaveService {
              w.apogee_min AS "apogeeMin", w.apogee_max AS "apogeeMax", w.apogee_source AS "apogeeSource"
              , w.rating::FLOAT8 AS rating, w.rated_at AS "ratedAt", COALESCE(u.display_name, u.email) AS "ratedBy",
              p.status::TEXT AS "pairingStatus", p.dishes AS "pairingDishes", p.error_message AS "pairingError",
-             p.generated_at AS "pairingGeneratedAt"
+             p.generated_at AS "pairingGeneratedAt",
+             w.reference_photo_source AS "referencePhotoSource", w.reference_photo_source_url AS "referencePhotoSourceUrl"
       FROM wine w
       LEFT JOIN stock_courant s ON s.wine_id = w.id
       LEFT JOIN appellation a ON a.id = w.appellation_id
@@ -138,6 +143,9 @@ export class CaveService {
       wine: {
         ...toItem(row, rules, new Date().getFullYear()),
         pairing: pairingOf(row),
+        // Vignette trouvée sur le web : « Image : {source} » (lien) sous la vignette ; null pour une photo de l'utilisateur.
+        referencePhotoSource: row.referencePhotoSource ?? null,
+        referencePhotoSourceUrl: row.referencePhotoSourceUrl ?? null,
         // Toujours présente (sauf nom sans lettre ni chiffre) : la fiche peut écrire ou régénérer avant tout profil.
         producerKey: producerKey || null,
         producerProfile: producerProfileOf(profile),

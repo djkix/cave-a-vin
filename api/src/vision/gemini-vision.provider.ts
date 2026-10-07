@@ -3,6 +3,7 @@ import { EXTRACTION_JSON_SCHEMA_DESCRIPTION, parseExtraction } from './extractio
 import { parsePairingOutput, PairingInvalidOutputError } from './pairing-output';
 import { PairingProvider, PairingResult, PairingWine } from './pairing-provider.interface';
 import { parseProducerOutput, ProducerInvalidOutputError } from './producer-output';
+import { OfficialSiteProvider, OfficialSiteQuery, OfficialSiteResult } from './official-site-provider.interface';
 import { ProducerProvider, ProducerQuery, ProducerResult } from './producer-provider.interface';
 import { BatchVisionResult, VisionProvider, VisionResult, WineExtraction } from './vision-provider.interface';
 
@@ -89,7 +90,41 @@ Si tu ne connais pas ce domaine de façon fiable, n'invente rien et réponds exa
 Domaine : « ${q.producer} » ; appellation(s) de ses vins : ${q.appellations.length ? q.appellations.map((a) => `« ${a} »`).join(', ') : 'inconnue'} ; région « ${q.region ?? 'inconnue'} ».`;
 }
 
-export class GeminiVisionProvider implements VisionProvider, PairingProvider, ProducerProvider {
+function officialSitePrompt(q: OfficialSiteQuery): string {
+  return `Trouve, avec la recherche Google, l'adresse du site officiel du domaine viticole qui produit ce vin (le site du domaine lui-même, pas un caviste, un guide ni un réseau social).
+Réponds UNIQUEMENT par un objet JSON strict de la forme {"site": "https://…"}.
+Si tu ne trouves pas de site officiel de façon fiable, réponds exactement {"site": null}.
+Vin : producteur « ${q.producer} » ; cuvée « ${q.cuvee ?? 'aucune'} » ; appellation « ${q.appellation} » ; ${q.vintage == null ? 'non millésimé' : `millésime ${q.vintage}`}.`;
+}
+
+/** Une réponse ancrée sur la recherche Google n'est pas garantie en JSON pur : on prend le premier objet du texte. */
+function siteOf(text: string): string | null {
+  const match = stripFences(text).match(/\{[\s\S]*?\}/);
+  if (!match) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+  const site = (raw as { site?: unknown } | null)?.site;
+  if (typeof site !== 'string') return null;
+  try {
+    const url = new URL(site.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * L'outil de recherche Google de Gemini 3 n'est pas encore typé par
+ * `@google/generative-ai` (qui ne connaît que `googleSearchRetrieval`) : la
+ * requête passe par ce type élargi, le reste de l'appel est inchangé.
+ */
+type GroundedRequest = Parameters<GenerativeModel['generateContent']>[0] & { tools: Array<{ googleSearch: Record<string, never> }> };
+
+export class GeminiVisionProvider implements VisionProvider, PairingProvider, ProducerProvider, OfficialSiteProvider {
   constructor(
     private readonly model: Pick<GenerativeModel, 'generateContent'>,
     private readonly modelName: string,
@@ -212,5 +247,27 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
       model: this.modelName,
       costCents: pairingCostCentsOf(result.response.usageMetadata),
     };
+  }
+
+  /**
+   * Site officiel du domaine, trouvé par Gemini avec la recherche Google. Pas de
+   * `responseMimeType` JSON : il n'est pas garanti avec un outil de recherche, la
+   * consigne suffit et la réponse est lue avec tolérance. Une réponse
+   * inexploitable vaut « pas de site » (l'appel reste facturé).
+   */
+  async findOfficialSite(query: OfficialSiteQuery): Promise<OfficialSiteResult> {
+    const request: GroundedRequest = {
+      contents: [{ role: 'user', parts: [{ text: officialSitePrompt(query) }] }],
+      tools: [{ googleSearch: {} }],
+      generationConfig: { temperature: 0 },
+    };
+    const result = await this.model.generateContent(request as Parameters<GenerativeModel['generateContent']>[0]);
+    let text = '';
+    try {
+      text = result.response.text();
+    } catch {
+      // Réponse bloquée ou vide : pas de site.
+    }
+    return { site: siteOf(text), model: this.modelName, costCents: pairingCostCentsOf(result.response.usageMetadata) };
   }
 }

@@ -19,17 +19,20 @@ export class VisionBudgetService {
     @Inject(VISION_MONTHLY_CAP_CENTS) private readonly capCents: number,
   ) {}
 
-  /** Photos, accords et descriptifs de domaine du mois : un seul plafond pour toute la dépense Gemini. */
+  /** Photos, accords, descriptifs de domaine et recherches d'image du mois : un seul plafond pour toute la dépense Gemini. */
   async spentThisMonthCents(): Promise<number> {
     const start = new Date();
     start.setUTCDate(1);
     start.setUTCHours(0, 0, 0, 0);
-    const [photos, pairings, producers] = await Promise.all([
+    const [photos, pairings, producers, imageSearches] = await Promise.all([
       this.prisma.photo.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start } } }),
       this.prisma.pairing.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start } } }),
       this.prisma.producerProfile.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start } } }),
+      this.prisma.imageSearchCost.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start } } }),
     ]);
-    return (photos._sum.costCents ?? 0) + (pairings._sum.costCents ?? 0) + (producers._sum.costCents ?? 0);
+    return (
+      (photos._sum.costCents ?? 0) + (pairings._sum.costCents ?? 0) + (producers._sum.costCents ?? 0) + (imageSearches._sum.costCents ?? 0)
+    );
   }
 
   async assertUnderCap(): Promise<void> {

@@ -313,3 +313,52 @@ describe('GeminiVisionProvider.describeProducer', () => {
     expect(promptOf(model)).toContain('inconnue');
   });
 });
+
+describe('GeminiVisionProvider.findOfficialSite', () => {
+  const query = { producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol', vintage: 2019 };
+  const fake = (body: string, usage = { promptTokenCount: 300, candidatesTokenCount: 40 }) => ({
+    generateContent: jest.fn(async () => ({ response: { text: () => body, usageMetadata: usage } })),
+  });
+  const requestOf = (model: ReturnType<typeof fake>) => (model.generateContent.mock.calls[0] as any)[0];
+
+  it('demande le site officiel avec la recherche Google et rend l’adresse', async () => {
+    const model = fake('{"site": "https://www.domainetempier.com/"}');
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').findOfficialSite(query);
+    expect(r).toEqual({ site: 'https://www.domainetempier.com/', model: 'gemini-test', costCents: 0 });
+    const req = requestOf(model);
+    expect(req.tools).toEqual([{ googleSearch: {} }]);
+    const prompt = req.contents[0].parts[0].text as string;
+    expect(prompt).toContain('Domaine Tempier');
+    expect(prompt).toContain('La Migoua');
+    expect(prompt).toContain('Bandol');
+    expect(prompt).toContain('{"site": null}');
+  });
+
+  it('rend null quand le domaine n’a pas de site connu', async () => {
+    expect((await new GeminiVisionProvider(fake('{"site": null}') as any, 'm').findOfficialSite(query)).site).toBeNull();
+  });
+
+  it('retrouve le JSON au milieu d’un texte ou d’une clôture (la recherche ancrée ne garantit pas un JSON pur)', async () => {
+    const fenced = fake('```json\n{"site": "https://tempier.fr"}\n```');
+    expect((await new GeminiVisionProvider(fenced as any, 'm').findOfficialSite(query)).site).toBe('https://tempier.fr/');
+    const prose = fake('Voici le résultat : {"site": "https://tempier.fr/vins"} — bonne dégustation.');
+    expect((await new GeminiVisionProvider(prose as any, 'm').findOfficialSite(query)).site).toBe('https://tempier.fr/vins');
+  });
+
+  it('rend null (avec le coût, déjà payé) pour une réponse inexploitable ou une adresse non http(s)', async () => {
+    for (const body of ['pas du json', '{"site": "javascript:alert(1)"}', '{"site": 42}', '{"autre": 1}']) {
+      const r = await new GeminiVisionProvider(fake(body, { promptTokenCount: 200000, candidatesTokenCount: 50000 }) as any, 'm').findOfficialSite(query);
+      expect(r).toEqual({ site: null, model: 'm', costCents: 4 });
+    }
+  });
+
+  it('arrondit le coût comme pour les accords', async () => {
+    const model = fake('{"site": null}', { promptTokenCount: 200000, candidatesTokenCount: 50000 });
+    expect((await new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).costCents).toBe(4);
+  });
+
+  it('laisse remonter une panne de Gemini', async () => {
+    const model = { generateContent: jest.fn(async () => { throw new Error('503 Service Unavailable'); }) };
+    await expect(new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).rejects.toThrow('503');
+  });
+});

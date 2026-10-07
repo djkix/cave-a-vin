@@ -345,6 +345,62 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
+  it('refuses the image search routes without a session', async () => {
+    const server = supertest(app.getHttpServer());
+    const id = '00000000-0000-4000-8000-000000000000';
+    expect((await server.post(`/api/wines/${id}/image-search`)).status).toBe(401);
+    expect((await server.get(`/api/image-candidates/${id}`)).status).toBe(401);
+    expect((await server.post(`/api/wines/${id}/reference-image`).send({ candidateId: id })).status).toBe(401);
+    expect((await server.delete(`/api/wines/${id}/reference-image`)).status).toBe(401);
+  });
+
+  it('answers 404 « Vin introuvable », 410 for an unknown candidate and 400 for a malformed choice', async () => {
+    const unknown = '00000000-0000-4000-8000-000000000000';
+    for (const res of [
+      await agent.post(`/api/wines/${unknown}/image-search`),
+      await agent.post(`/api/wines/${unknown}/reference-image`).send({ candidateId: unknown }),
+      await agent.delete(`/api/wines/${unknown}/reference-image`),
+    ]) {
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Vin introuvable');
+    }
+    const gone = await agent.get(`/api/image-candidates/${unknown}`);
+    expect(gone.status).toBe(410);
+    expect(gone.body.message).toBe('Proposition expirée, relancez la recherche');
+
+    const wine = await prisma.wine.create({
+      data: { matchKey: `e2e-reference-${Date.now()}`, producer: 'Domaine e2e image', appellationRaw: 'Inconnue', color: 'ROUGE' },
+    });
+    try {
+      const bad = await agent.post(`/api/wines/${wine.id}/reference-image`).send({ candidateId: 'pas-un-uuid' });
+      expect(bad.status).toBe(400);
+      const expired = await agent.post(`/api/wines/${wine.id}/reference-image`).send({ candidateId: unknown });
+      expect(expired.status).toBe(410);
+      const revert = await agent.delete(`/api/wines/${wine.id}/reference-image`);
+      expect(revert.status).toBe(200);
+      expect(revert.body).toEqual({ referencePhotoId: null, referencePhotoSource: null, referencePhotoSourceUrl: null });
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
+  it('exposes the source of a web image on the wine detail', async () => {
+    const wine = await prisma.wine.create({
+      data: {
+        matchKey: `e2e-reference-source-${Date.now()}`, producer: 'Domaine e2e source', appellationRaw: 'Inconnue', color: 'ROUGE',
+        referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1',
+      },
+    });
+    try {
+      const res = await agent.get(`/api/wines/${wine.id}`);
+      expect(res.status).toBe(200);
+      expect(res.body.wine.referencePhotoSource).toBe('Open Food Facts (CC BY-SA)');
+      expect(res.body.wine.referencePhotoSourceUrl).toBe('https://world.openfoodfacts.org/product/1');
+    } finally {
+      await prisma.wine.delete({ where: { id: wine.id } });
+    }
+  });
+
   it('refuses the admin listing without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/admin/users');
     expect(res.status).toBe(401);
