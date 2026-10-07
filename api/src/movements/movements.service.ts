@@ -82,6 +82,16 @@ export class MovementsService {
     @Optional() private readonly producers?: ProducerScheduler,
   ) {}
 
+  /**
+   * Une clé déjà prise par un déplacement (ses moitiés portent `K:from` et `K:to`)
+   * ne sert pas à un autre mouvement : 409, comme toute clé réutilisée.
+   */
+  private async assertKeyNotUsedByMove(key: string): Promise<void> {
+    if (await this.prisma.movement.findUnique({ where: { idempotencyKey: key + MOVE_FROM }, select: { id: true } })) {
+      throw new ConflictException(KEY_REUSED);
+    }
+  }
+
   async stockOf(wineId: string): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ quantity: number }[]>`
       SELECT quantity FROM stock_courant WHERE wine_id = ${wineId}`;
@@ -111,6 +121,7 @@ export class MovementsService {
     if (photo?.purpose === 'REFERENCE') throw new BadRequestException(WEB_IMAGE_FOR_MOVEMENT);
     // Emplacement vérifié avant de créer le moindre vin (400 aux messages de la spec).
     if (input.location) normalizeLocation(input.location);
+    await this.assertKeyNotUsedByMove(input.idempotencyKey);
 
     const { wine, created: wineCreated } = await this.matching.matchOrCreate(caveId, input.wine);
     const locationId = input.location ? (await this.locations.resolve(caveId, input.location)).id : null;
@@ -211,8 +222,10 @@ export class MovementsService {
       const movement = await this.prisma.$transaction(async (tx) => {
         await lockWine(tx, caveId, original.wineId);
         const reversals = [];
-        // La moitié qui rend des bouteilles d'abord : le total du vin ne passe jamais sous zéro.
-        for (const half of [...halves].sort((a, b) => b.delta - a.delta)) {
+        // La moitié qui rend des bouteilles d'abord (annulation du −N) : le total du vin ne passe
+        // jamais sous zéro en cours de route, et un manque est signalé par emplacement (409) plutôt
+        // que par le déclencheur du total.
+        for (const half of [...halves].sort((a, b) => a.delta - b.delta)) {
           reversals.push(
             await tx.movement.create({
               data: {
@@ -321,6 +334,7 @@ export class MovementsService {
       }
       return { replay: await this.asReplay(byKey) };
     }
+    await this.assertKeyNotUsedByMove(input.idempotencyKey);
     if (!input.photoId) return { photoId: null };
     const photo = await this.prisma.photo.findFirst({ where: { id: input.photoId, caveId }, select: { purpose: true } });
     // Une photo d'une autre cave est traitée comme une photo inconnue.
@@ -380,6 +394,7 @@ export class MovementsService {
       return { movement: already, stock: await this.stockOf(wineId), delta: already.delta, created: false };
     }
 
+    await this.assertKeyNotUsedByMove(input.idempotencyKey);
     if (input.locationId) await this.locations.findOwn(caveId, input.locationId);
 
     return this.prisma.$transaction(async (tx) => {
@@ -418,6 +433,8 @@ export class MovementsService {
     };
     const already = await replay();
     if (already) return already;
+    // La clé de la demande elle-même déjà prise par une entrée, une sortie ou un inventaire.
+    if (await this.prisma.movement.findUnique({ where: { idempotencyKey: key }, select: { id: true } })) throw new ConflictException(KEY_REUSED);
     if (input.from) await this.locations.findOwn(caveId, input.from);
     normalizeLocation(input.to);
 

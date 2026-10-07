@@ -107,10 +107,11 @@ export class LocationsService {
    * en a encore. id = emplacement, null = « Sans emplacement », undefined = le
    * vin n'a plus de stock. Si aucun endroit récent n'a de stock (stock venu d'un
    * inventaire), « Sans emplacement » s'il en a, sinon le premier emplacement.
+   * `known` : endroits déjà lus par l'appelant (fiche), pour ne pas les relire.
    */
-  async exitDefault(caveId: string, wineId: string, db: Db = this.prisma): Promise<string | null | undefined> {
+  async exitDefault(caveId: string, wineId: string, db: Db = this.prisma, known?: Place[]): Promise<string | null | undefined> {
     const [places, received] = await Promise.all([
-      this.stockByLocation(caveId, wineId, db),
+      known ?? this.stockByLocation(caveId, wineId, db),
       db.$queryRaw<{ locationId: string | null }[]>`
         SELECT m.location_id AS "locationId"
         FROM movement m

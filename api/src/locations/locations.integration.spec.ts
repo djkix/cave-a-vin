@@ -199,6 +199,79 @@ describeIfDb('emplacements (base réelle)', () => {
     });
   });
 
+  describe('correctifs de revue', () => {
+    it('annuler un déplacement dont les bouteilles ont été bues : 409 par emplacement, pas le message du total', async () => {
+      const w = await newWine();
+      await entry(3);
+      await movements.move(caveId, w.id, { from: null, to: { zone: 'Bues' }, quantity: 3 });
+      const bues = await idOf('Bues');
+      await out(w.id, 2, bues);
+      const half = await prisma.movement.findFirstOrThrow({ where: { wineId: w.id, type: 'MOVE', delta: 3 } });
+      const count = await prisma.movement.count({ where: { wineId: w.id } });
+      await expect(movements.cancel(caveId, half.id, randomUUID())).rejects.toThrow(new ConflictException('Pas assez de bouteilles à cet emplacement'));
+      expect(await prisma.movement.count({ where: { wineId: w.id } })).toBe(count);
+    });
+
+    it('rejouer l’annulation d’un déplacement rend la même annulation, sans troisième mouvement', async () => {
+      const w = await newWine();
+      await entry(2);
+      await movements.move(caveId, w.id, { from: null, to: { zone: 'Rejeu' }, quantity: 2 });
+      const half = await prisma.movement.findFirstOrThrow({ where: { wineId: w.id, type: 'MOVE', delta: -2 } });
+      const key = randomUUID();
+      const first = await movements.cancel(caveId, half.id, key);
+      const again = await movements.cancel(caveId, half.id, key);
+      expect(again.created).toBe(false);
+      expect(again.movement.id).toBe(first.movement.id);
+      expect(await prisma.movement.count({ where: { wineId: w.id, reversesId: { not: null } } })).toBe(2);
+    });
+
+    it('une clé déjà utilisée ne sert ni à un déplacement, ni (après un déplacement) à une entrée, une sortie ou un inventaire', async () => {
+      const w = await newWine();
+      const used = (await entry(3)).movement.idempotencyKey;
+      const reused = new ConflictException('Clé d’idempotence déjà utilisée pour un autre mouvement');
+      await expect(movements.move(caveId, w.id, { idempotencyKey: used, from: null, to: { zone: 'Clé' }, quantity: 1 })).rejects.toThrow(reused);
+      const k = randomUUID();
+      await movements.move(caveId, w.id, { idempotencyKey: k, from: null, to: { zone: 'Clé' }, quantity: 1 });
+      const count = await prisma.movement.count({ where: { wineId: w.id } });
+      await expect(movements.createIn(caveId, { idempotencyKey: k, wine: draft, quantity: 1 })).rejects.toThrow(reused);
+      await expect(movements.createOut(caveId, { idempotencyKey: k, wineId: w.id, quantity: 1 })).rejects.toThrow(reused);
+      await expect(movements.adjustTo(caveId, w.id, { idempotencyKey: k, counted: 1 })).rejects.toThrow(reused);
+      expect(await prisma.movement.count({ where: { wineId: w.id } })).toBe(count);
+    });
+
+    it('deux sorties simultanées de la dernière bouteille d’un emplacement : une réussit, l’autre 409', async () => {
+      const w = await newWine();
+      await entry(1, { zone: 'Course sortie' });
+      await entry(5);
+      const loc = await idOf('Course sortie');
+      const results = await Promise.allSettled([out(w.id, 1, loc), out(w.id, 1, loc)]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')!;
+      expect(rejected.reason).toEqual(new ConflictException('Pas assez de bouteilles à cet emplacement'));
+      expect(await places(w.id)).toEqual([{ id: null, label: 'Sans emplacement', quantity: 5 }]);
+      expect(await movements.stockOf(w.id)).toBe(5);
+    });
+
+    it('une sortie et un déplacement simultanés de la dernière bouteille d’un emplacement : un seul passe', async () => {
+      const w = await newWine();
+      await entry(1, { zone: 'Course départ' });
+      await entry(5);
+      const loc = await idOf('Course départ');
+      const results = await Promise.allSettled([
+        out(w.id, 1, loc),
+        movements.move(caveId, w.id, { from: loc, to: { zone: 'Course arrivée' }, quantity: 1 }),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect((results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason).toEqual(
+        new ConflictException('Pas assez de bouteilles à cet emplacement'),
+      );
+      const after = await places(w.id);
+      expect(after.find((p) => p.id === loc)).toBeUndefined();
+      expect(after.reduce((s, p) => s + p.quantity, 0)).toBe(await movements.stockOf(w.id));
+      expect(await movements.stockOf(w.id)).toBe(results[0].status === 'fulfilled' ? 5 : 6);
+    });
+  });
+
   describe('pré-sélections', () => {
     it('exitDefault : le dernier endroit qui a reçu ce vin et en a encore', async () => {
       const w = await newWine();

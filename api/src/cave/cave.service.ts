@@ -144,7 +144,8 @@ export class CaveService {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
-    const [movements, profile, locations, exitDefault, lastLocation] = await Promise.all([
+    const locations = await this.locations.stockByLocation(caveId, id);
+    const [movements, profile, exitDefault, lastLocation] = await Promise.all([
       this.prisma.movement.findMany({
         where: { wineId: id },
         orderBy: { occurredAt: 'desc' },
@@ -157,8 +158,7 @@ export class CaveService {
       // Un descriptif par domaine, partagé par tous ses vins : lien par la clé normalisée.
       producerKey ? this.prisma.producerProfile.findUnique({ where: { producerKey }, include: PRODUCER_PROFILE_INCLUDE }) : null,
       // Emplacements : visibles du membre comme du propriétaire (ce ne sont pas des prix).
-      this.locations.stockByLocation(caveId, id),
-      this.locations.exitDefault(caveId, id),
+      this.locations.exitDefault(caveId, id, undefined, locations),
       this.locations.lastInLocation(caveId),
     ]);
     return {

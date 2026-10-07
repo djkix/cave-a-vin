@@ -150,7 +150,9 @@ describe('MovementsService', () => {
     let createCalls = 0;
     const prisma = {
       movement: {
-        findUnique: async () => {
+        findUnique: async ({ where }: any) => {
+          // Recherche d'un déplacement sous cette clé (`k1:from`) : aucun.
+          if (where.idempotencyKey.endsWith(':from')) return null;
           findUniqueCalls += 1;
           if (findUniqueCalls === 1) return null;
           return { ...racedMovement, wine };
