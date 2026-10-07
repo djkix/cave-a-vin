@@ -125,6 +125,12 @@ function v6Blocked(ip: string): boolean {
     return v4Blocked(embeddedV4());
   }
   if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) return v4Blocked(embeddedV4());
+  // 6to4 (2002::/16) : l'IPv4 est dans les groupes 2 et 3.
+  if (g[0] === 0x2002) return v4Blocked(`${g[1] >> 8}.${g[1] & 0xff}.${g[2] >> 8}.${g[2] & 0xff}`);
+  if (g[0] === 0x2001 && g[1] === 0) return true; // Teredo 2001::/32 (IPv4 masquée, invérifiable)
+  if (g[0] === 0x2001 && g[1] === 0xdb8) return true; // documentation 2001:db8::/32
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1) return true; // NAT64 à usage local 64:ff9b:1::/48
+  if (g[0] === 0x100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true; // discard 100::/64
   if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7, adresses locales uniques
   if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10, link-local
   if ((g[0] & 0xffc0) === 0xfec0) return true; // fec0::/10, site-local (obsolète)

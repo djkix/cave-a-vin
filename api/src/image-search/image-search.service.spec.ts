@@ -84,6 +84,25 @@ describe('ImageSearchService.search', () => {
     expect(r.candidates.map((c) => c.source)).toEqual(['tempier.fr']);
   });
 
+  it('télécharge et décode les images une à une, jamais cinq à la fois', async () => {
+    const off = { products: Array.from({ length: 5 }, (_, i) => ({ code: String(i), categories_tags: ['en:wines'], image_front_url: `https://images.openfoodfacts.org/${i}.jpg` })) };
+    const { service, fetcher } = setup({ off });
+    const base = fetcher.getMockImplementation()!;
+    let inFlight = 0;
+    let maxInFlight = 0;
+    fetcher.mockImplementation(async (url: string) => {
+      if (!url.includes('images.openfoodfacts.org')) return base(url);
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return base(url);
+    });
+    const r = await service.search('w1');
+    expect(r.candidates).toHaveLength(5);
+    expect(maxInFlight).toBe(1);
+  });
+
   it('rend une liste vide quand Gemini ne connaît pas de site', async () => {
     const { service, prisma } = setup({ site: null });
     expect(await service.search('w1')).toEqual({ candidates: [] });

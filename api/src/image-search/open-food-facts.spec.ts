@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { OFF_SOURCE, searchOpenFoodFacts, USER_AGENT } from './open-food-facts';
 
 const wine = { producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol' };
@@ -24,9 +22,9 @@ describe('searchOpenFoodFacts', () => {
     expect(options.headers['User-Agent']).toBe(USER_AGENT);
   });
 
-  it('le User-Agent porte la version du package.json de l’api et l’adresse du dépôt', () => {
-    const { version } = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'));
-    expect(USER_AGENT).toBe(`CaveEtTerroir/${version} (+https://github.com/djkix/cave-a-vin)`);
+  it('le User-Agent nomme l’application et l’adresse du dépôt, sans fausse version', () => {
+    // api/package.json reste à 0.0.0 (la version vit dans le manifeste racine) : ne pas l'annoncer.
+    expect(USER_AGENT).toBe('CaveEtTerroir (+https://github.com/djkix/cave-a-vin)');
   });
 
   it('omet la cuvée absente', async () => {

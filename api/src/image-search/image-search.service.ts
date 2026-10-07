@@ -77,17 +77,22 @@ export class ImageSearchService {
     await this.store.cleanup();
     const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw };
 
-    let candidates = await this.download(await searchOpenFoodFacts(query, this.fetcher));
-    if (candidates.length === 0) candidates = await this.download(await this.officialSiteImages(wine));
+    let candidates = await this.download(await searchOpenFoodFacts(query, this.fetcher), wine.id);
+    if (candidates.length === 0) candidates = await this.download(await this.officialSiteImages(wine), wine.id);
 
     return {
       candidates: candidates.map((c) => ({ id: c.id, source: c.source, sourceUrl: c.sourceUrl, imageUrl: `/api/image-candidates/${c.id}` })),
     };
   }
 
-  private async download(images: RemoteImage[]): Promise<CandidateMeta[]> {
-    const kept = await Promise.all(images.map((image) => this.store.add(image)));
-    return kept.filter((c): c is CandidateMeta => c !== null);
+  /** Une image à la fois : cinq décodages sharp simultanés pèseraient trop sur la mémoire du serveur domestique. */
+  private async download(images: RemoteImage[], wineId: string): Promise<CandidateMeta[]> {
+    const kept: CandidateMeta[] = [];
+    for (const image of images) {
+      const candidate = await this.store.add(image, wineId);
+      if (candidate) kept.push(candidate);
+    }
+    return kept;
   }
 
   /** Gemini avec la recherche Google, dans la part du plafond réservée aux accords ; sa dépense est comptée. */
@@ -128,7 +133,7 @@ export class ImageSearchService {
     await this.findWine(wineId);
     let meta: CandidateMeta;
     try {
-      meta = await this.store.get(candidateId);
+      meta = await this.store.get(candidateId, wineId);
     } catch (e) {
       if (e instanceof CandidateExpiredError) throw new GoneException(e.message);
       throw e;
@@ -137,7 +142,7 @@ export class ImageSearchService {
     const photoId = randomUUID();
     const storagePath = join('normalized', `${photoId}.jpg`);
     try {
-      await this.store.take(candidateId, join(this.dir, storagePath));
+      await this.store.take(candidateId, join(this.dir, storagePath), wineId);
     } catch (e) {
       if (e instanceof CandidateExpiredError) throw new GoneException(e.message);
       throw e;
@@ -181,7 +186,11 @@ export class ImageSearchService {
     return view;
   }
 
-  /** « Revenir à ma photo » : rétablit la vignette d'avant et oublie l'image du web. Sans image du web, ne change rien. */
+  /**
+   * « Revenir à ma photo » : rétablit la vignette d'avant et oublie l'image du web.
+   * Sans vignette d'avant, reprend la photo d'entrée la plus récente qui a servi à
+   * une entrée de ce vin (s'il y en a une). Sans image du web, ne change rien.
+   */
   async revertReference(wineId: string): Promise<ReferenceImageView> {
     await this.findWine(wineId);
     let removed: string | null = null;
@@ -191,9 +200,19 @@ export class ImageSearchService {
         ? await tx.photo.findUnique({ where: { id: wine.referencePhotoId }, select: { id: true, purpose: true } })
         : null;
       if (current?.purpose !== 'REFERENCE') return viewOf(wine);
+      const restored =
+        wine.referencePhotoPreviousId ??
+        (
+          await tx.photo.findFirst({
+            where: { purpose: 'ENTRY', movements: { some: { wineId } } },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true },
+          })
+        )?.id ??
+        null;
       const updated = await tx.wine.update({
         where: { id: wineId },
-        data: { referencePhotoId: wine.referencePhotoPreviousId, referencePhotoPreviousId: null, referencePhotoSource: null, referencePhotoSourceUrl: null },
+        data: { referencePhotoId: restored, referencePhotoPreviousId: null, referencePhotoSource: null, referencePhotoSourceUrl: null },
         select: WINE_SELECT,
       });
       await tx.photo.delete({ where: { id: current.id } });

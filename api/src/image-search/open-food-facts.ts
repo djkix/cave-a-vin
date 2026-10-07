@@ -1,6 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { safeFetch } from './safe-fetch';
 import { Fetcher, ImageSearchWine, isHttpUrl, MAX_IMAGES_PER_SOURCE, RemoteImage } from './types';
 
@@ -8,17 +6,12 @@ export const OFF_SOURCE = 'Open Food Facts (CC BY-SA)';
 const OFF_ORIGIN = 'https://world.openfoodfacts.org';
 const OFF_MAX_BYTES = 2 * 1024 * 1024;
 
-/** Version de l'api : `api/package.json`, au même endroit relatif depuis `src/` et `dist/`. */
-function apiVersion(): string {
-  try {
-    return JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
-
-/** Open Food Facts demande un User-Agent qui identifie l'application et un contact. */
-export const USER_AGENT = `CaveEtTerroir/${apiVersion()} (+https://github.com/djkix/cave-a-vin)`;
+/**
+ * Open Food Facts demande un User-Agent qui identifie l'application et un contact.
+ * Sans numéro de version : `api/package.json` reste à 0.0.0 (la version vit dans le
+ * manifeste racine), mieux vaut ne rien annoncer qu'une fausse version.
+ */
+export const USER_AGENT = 'CaveEtTerroir (+https://github.com/djkix/cave-a-vin)';
 
 const logger = new Logger('OpenFoodFacts');
 

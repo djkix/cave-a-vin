@@ -17,6 +17,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   const dir = mkdtempSync(join(tmpdir(), 'cave-reference-'));
   const wineIds: string[] = [];
   const photoIds: string[] = [];
+  const movementIds: string[] = [];
   let jpeg: Buffer;
   const fetcher = jest.fn(async (url: string) => ({ buffer: jpeg, contentType: 'image/jpeg', finalUrl: url }));
   const store = new CandidateStore(dir, fetcher);
@@ -28,6 +29,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
 
   afterAll(async () => {
     const wines = await prisma.wine.findMany({ where: { id: { in: wineIds } }, select: { referencePhotoId: true } });
+    await prisma.movement.deleteMany({ where: { id: { in: movementIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
     await prisma.photo.deleteMany({ where: { id: { in: [...photoIds, ...wines.map((w) => w.referencePhotoId!).filter(Boolean)] } } });
     await prisma.$disconnect();
@@ -47,14 +49,14 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     return p;
   }
 
-  async function candidate(source = 'Open Food Facts (CC BY-SA)', sourceUrl = 'https://world.openfoodfacts.org/product/1') {
-    return (await store.add({ imageUrl: 'https://images.exemple/x.jpg', source, sourceUrl }))!;
+  async function candidate(wineId: string, source = 'Open Food Facts (CC BY-SA)', sourceUrl = 'https://world.openfoodfacts.org/product/1') {
+    return (await store.add({ imageUrl: 'https://images.exemple/x.jpg', source, sourceUrl }, wineId))!;
   }
 
   it('la candidate devient une photo REFERENCE DONE et la vignette ; l’ancienne vignette est mémorisée', async () => {
     const own = await entryPhoto();
     const w = await wine(own.id);
-    const c = await candidate();
+    const c = await candidate(w.id);
     const view = await service.chooseReference(w.id, c.id);
     expect(view).toEqual({
       referencePhotoId: expect.any(String),
@@ -73,8 +75,8 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   it('choisir une seconde image du web garde la photo de l’utilisateur comme vignette d’avant, et efface la première image', async () => {
     const own = await entryPhoto();
     const w = await wine(own.id);
-    const first = await service.chooseReference(w.id, (await candidate()).id);
-    const second = await service.chooseReference(w.id, (await candidate('tempier.fr', 'https://tempier.fr/')).id);
+    const first = await service.chooseReference(w.id, (await candidate(w.id)).id);
+    const second = await service.chooseReference(w.id, (await candidate(w.id, 'tempier.fr', 'https://tempier.fr/')).id);
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
     expect(after).toMatchObject({
       referencePhotoId: second.referencePhotoId, referencePhotoPreviousId: own.id,
@@ -87,7 +89,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   it('« Revenir à ma photo » rétablit la vignette d’avant, efface la source et l’image du web', async () => {
     const own = await entryPhoto();
     const w = await wine(own.id);
-    const chosen = await service.chooseReference(w.id, (await candidate()).id);
+    const chosen = await service.chooseReference(w.id, (await candidate(w.id)).id);
     const view = await service.revertReference(w.id);
     expect(view).toEqual({ referencePhotoId: own.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
@@ -99,8 +101,35 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
 
   it('un vin sans vignette y revient (vignette vide)', async () => {
     const w = await wine(null);
-    await service.chooseReference(w.id, (await candidate()).id);
+    await service.chooseReference(w.id, (await candidate(w.id)).id);
     await expect(service.revertReference(w.id)).resolves.toEqual({ referencePhotoId: null, referencePhotoSource: null, referencePhotoSourceUrl: null });
+  });
+
+  it('une candidate cherchée pour un vin ne peut pas devenir la vignette d’un autre (410)', async () => {
+    const a = await wine(null);
+    const b = await wine(null);
+    const c = await candidate(a.id);
+    const e = await service.chooseReference(b.id, c.id).catch((x) => x);
+    expect(e).toBeInstanceOf(GoneException);
+    expect(e.message).toBe('Proposition expirée, relancez la recherche');
+    expect((await prisma.wine.findUniqueOrThrow({ where: { id: b.id } })).referencePhotoId).toBeNull();
+    // Toujours utilisable pour le vin cherché.
+    await expect(service.chooseReference(a.id, c.id)).resolves.toMatchObject({ referencePhotoSource: 'Open Food Facts (CC BY-SA)' });
+  });
+
+  it('sans vignette d’avant, « Revenir à ma photo » reprend la photo d’entrée la plus récente de ce vin', async () => {
+    const w = await wine(null);
+    const older = await entryPhoto();
+    const newer = await entryPhoto();
+    const other = await entryPhoto(); // photo d'un autre vin : jamais reprise
+    const otherWine = await wine(null);
+    for (const [photoId, wineId, at] of [[older.id, w.id, 1], [newer.id, w.id, 2], [other.id, otherWine.id, 3]] as const) {
+      await prisma.photo.update({ where: { id: photoId }, data: { createdAt: new Date(Date.UTC(2026, 0, at)) } });
+      const m = await prisma.movement.create({ data: { wineId, delta: 1, type: 'IN', photoId, idempotencyKey: key('ref-in') } });
+      movementIds.push(m.id);
+    }
+    await service.chooseReference(w.id, (await candidate(w.id)).id);
+    await expect(service.revertReference(w.id)).resolves.toEqual({ referencePhotoId: newer.id, referencePhotoSource: null, referencePhotoSourceUrl: null });
   });
 
   it('une photo REFERENCE n’apparaît jamais dans « À confirmer » ni dans la revue groupée', async () => {

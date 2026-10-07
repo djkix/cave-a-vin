@@ -11,6 +11,7 @@ const CANDIDATE_MAX_BYTES = 5 * 1024 * 1024;
 const CANDIDATE_MAX_SIDE = 1200;
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ACCEPTED_FORMATS = new Set(['jpeg', 'png', 'webp']);
+const MAX_INPUT_PIXELS = 25_000_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class CandidateExpiredError extends Error {
@@ -21,6 +22,8 @@ export class CandidateExpiredError extends Error {
 
 export interface CandidateMeta {
   id: string;
+  /** Vin pour lequel la recherche a été faite : la candidate ne sert qu'à lui. */
+  wineId: string;
   source: string;
   sourceUrl: string;
   createdAt: string;
@@ -58,14 +61,14 @@ export class CandidateStore {
     return { image: join(this.dir, `${id}.jpg`), meta: join(this.dir, `${id}.json`) };
   }
 
-  /** Télécharge et garde une image ; null si elle est inaccessible, trop lourde ou d'un type refusé. */
-  async add(remote: RemoteImage): Promise<CandidateMeta | null> {
+  /** Télécharge et garde une image pour ce vin ; null si elle est inaccessible, trop lourde ou d'un type refusé. */
+  async add(remote: RemoteImage, wineId: string): Promise<CandidateMeta | null> {
     let jpeg: Buffer;
     try {
       const res = await this.fetcher(remote.imageUrl, { maxBytes: CANDIDATE_MAX_BYTES, headers: { Accept: 'image/jpeg,image/png,image/webp' } });
       const type = res.contentType?.split(';')[0].trim().toLowerCase() ?? '';
       if (!ACCEPTED_TYPES.has(type)) throw new Error(`type ${type || 'inconnu'} refusé`);
-      const image = sharp(res.buffer, { limitInputPixels: 50_000_000 });
+      const image = sharp(res.buffer, { limitInputPixels: MAX_INPUT_PIXELS });
       const { format } = await image.metadata();
       if (!format || !ACCEPTED_FORMATS.has(format)) throw new Error(`contenu ${format ?? 'illisible'} refusé`);
       jpeg = await image
@@ -78,7 +81,7 @@ export class CandidateStore {
       this.logger.warn(`Image proposée écartée (${remote.imageUrl}) : ${(e as Error).message}`);
       return null;
     }
-    const meta: CandidateMeta = { id: randomUUID(), source: remote.source, sourceUrl: remote.sourceUrl, createdAt: new Date(this.now()).toISOString() };
+    const meta: CandidateMeta = { id: randomUUID(), wineId, source: remote.source, sourceUrl: remote.sourceUrl, createdAt: new Date(this.now()).toISOString() };
     const { image, meta: metaPath } = this.paths(meta.id);
     await mkdir(this.dir, { recursive: true });
     await writeFile(image, jpeg);
@@ -86,8 +89,11 @@ export class CandidateStore {
     return meta;
   }
 
-  /** Métadonnées d'une candidate encore valable ; sinon (inconnue, périmée, identifiant forgé) `CandidateExpiredError`. */
-  async get(id: string): Promise<CandidateMeta> {
+  /**
+   * Métadonnées d'une candidate encore valable ; sinon (inconnue, périmée,
+   * identifiant forgé, ou cherchée pour un autre vin que `wineId`) `CandidateExpiredError`.
+   */
+  async get(id: string, wineId?: string): Promise<CandidateMeta> {
     if (!UUID.test(id)) throw new CandidateExpiredError();
     let meta: CandidateMeta;
     try {
@@ -96,6 +102,7 @@ export class CandidateStore {
       throw new CandidateExpiredError();
     }
     if (this.isExpired(meta)) throw new CandidateExpiredError();
+    if (wineId !== undefined && meta.wineId !== wineId) throw new CandidateExpiredError();
     return meta;
   }
 
@@ -109,8 +116,8 @@ export class CandidateStore {
   }
 
   /** Déplace l'image d'une candidate vers `destination` (photo définitive) et l'oublie. */
-  async take(id: string, destination: string): Promise<CandidateMeta> {
-    const meta = await this.get(id);
+  async take(id: string, destination: string, wineId: string): Promise<CandidateMeta> {
+    const meta = await this.get(id, wineId);
     await mkdir(dirname(destination), { recursive: true });
     try {
       await rename(this.paths(id).image, destination);
