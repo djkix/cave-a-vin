@@ -567,8 +567,57 @@ describe('EntryBatchProcessor.tick — pannes', () => {
     expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
     all.forEach((r) => {
       expect(r.status).toBe('PENDING');
-      expect(r.attempts).toBe(1);
+      expect(r.attempts).toBe(0); // un report pour budget ne consomme pas de tentative
+      expect(r.nextAttemptAt).toEqual(at(30_000));
       expect(r.errorMessage).toContain('Plafond mensuel');
+    });
+  });
+
+  describe('un report pour budget ne fait jamais perdre une photo', () => {
+    const cases: Array<[string, () => Error, 'cap' | 'share', string]> = [
+      ['plafond global', () => new VisionBudgetExceededError(), 'cap', 'Plafond mensuel de dépense vision atteint'],
+      ['part de la cave', () => new CaveBudgetShareExceededError(), 'share', 'Part mensuelle de cette cave atteinte — reprise le mois prochain'],
+    ];
+
+    it.each(cases)('%s : 50 reports de suite, tentatives inchangées, toujours en attente', async (_label, error, kind, reason) => {
+      const h = harness();
+      const p = h.add({ createdAt: at(-600_000), attempts: 2 });
+      const check = kind === 'cap' ? h.budget.assertUnderCap : h.budget.assertCaveUnderShare;
+      check.mockRejectedValue(error());
+      let now = NOW;
+      for (let i = 0; i < 50; i++) {
+        await h.processor.tick(now);
+        expect(p.status).toBe('PENDING');
+        expect(p.attempts).toBe(2);
+        // Attente habituelle, calculée sur les vraies tentatives (2 → 1 min ; 3e : 2 min).
+        expect(p.nextAttemptAt).toEqual(new Date(now.getTime() + 120_000));
+        expect(p.errorMessage).toContain(reason);
+        now = new Date(p.nextAttemptAt!.getTime() + 1);
+      }
+      expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+      expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)('%s : une photo à sa dernière tentative reste en attente, jamais FAILED', async (_label, error, kind) => {
+      const h = harness();
+      const p = h.add({ createdAt: at(-600_000), attempts: 999, nextAttemptAt: at(-1) });
+      const check = kind === 'cap' ? h.budget.assertUnderCap : h.budget.assertCaveUnderShare;
+      check.mockRejectedValueOnce(error());
+      await h.processor.tick(NOW);
+      expect(p.status).toBe('PENDING');
+      expect(p.attempts).toBe(999);
+      expect(p.nextAttemptAt).not.toBeNull();
+      expect(p.errorMessage).not.toContain('abandon');
+    });
+
+    it('budget de nouveau disponible : la photo repart à l’échéance suivante et est lue', async () => {
+      const h = harness();
+      const p = h.add({ createdAt: at(-600_000) });
+      h.budget.assertUnderCap.mockRejectedValueOnce(new VisionBudgetExceededError());
+      await h.processor.tick(NOW);
+      await h.processor.tick(new Date(p.nextAttemptAt!.getTime() + 1));
+      expect(p.status).toBe('DONE');
+      expect(p.attempts).toBe(0);
     });
   });
 
@@ -629,7 +678,7 @@ describe('EntryBatchProcessor.tick — une seule cave par lot', () => {
     await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 16 });
     a.forEach((r) => {
       expect(r.status).toBe('PENDING');
-      expect(r.attempts).toBe(1);
+      expect(r.attempts).toBe(0);
       expect(r.nextAttemptAt).toEqual(at(30_000));
       expect(r.errorMessage).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
     });

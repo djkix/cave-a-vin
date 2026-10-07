@@ -197,7 +197,7 @@ describeIfDb('analyse par lot — réservation (base réelle)', () => {
     const s = await prisma.photo.findMany({ where: { id: { in: starving } } });
     s.forEach((p) => {
       expect(p.status).toBe('PENDING');
-      expect(p.attempts).toBe(1);
+      expect(p.attempts).toBe(0);
       expect(p.nextAttemptAt!.getTime()).toBeGreaterThan(now.getTime());
       expect(p.errorMessage).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
     });

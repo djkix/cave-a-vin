@@ -7,7 +7,7 @@ import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.inter
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
 import { EXTRACTION_ATTEMPTS, extractionBackoffDelay } from './extraction.queue';
 import { CONFIGURATION_DEFERRAL_REASON, deferralReason, isConfigurationError, isTransientVisionFailure } from './transient-failure';
-import { CaveBudgetShareExceededError, VisionBudgetService } from './vision-budget.service';
+import { CaveBudgetShareExceededError, VisionBudgetExceededError, VisionBudgetService } from './vision-budget.service';
 
 interface Reserved {
   id: string;
@@ -312,9 +312,11 @@ export class EntryBatchProcessor {
   }
 
   /**
-   * Panne passagère (plafond compris) ou erreur de configuration (clé Gemini) :
-   * les photos repartent en attente avec une attente croissante, puis échouent
-   * après `EXTRACTION_ATTEMPTS` tentatives. Autre erreur définitive : échec
+   * Panne passagère ou erreur de configuration (clé Gemini) : les photos
+   * repartent en attente avec une attente croissante, puis échouent après
+   * `EXTRACTION_ATTEMPTS` tentatives. Un report pour budget (plafond global ou
+   * part de la cave) garde l'attente mais ne compte pas de tentative : il ne
+   * mène jamais à l'échec. Autre erreur définitive : échec
    * immédiat, la saisie manuelle est proposée. Le texte brut de l'erreur ne va
    * que dans les logs ; la photo ne porte qu'un message en français.
    */
@@ -327,8 +329,25 @@ export class EntryBatchProcessor {
         await this.fail(photo, UNREADABLE, settled);
         continue;
       }
-      const attempts = photo.attempts + 1;
       const reason = isConfigurationError(error) ? CONFIGURATION_DEFERRAL_REASON : deferralReason(error);
+      if (error instanceof VisionBudgetExceededError) {
+        // Plafond global ou part de la cave : aucun appel n'a eu lieu. La photo
+        // ne consomme pas de tentative et ne passe jamais en échec ; elle est
+        // reprise avec l'attente habituelle, dès que le budget le permet
+        // (plafond ou part relevés, ou mois suivant).
+        await this.prisma.photo.update({
+          where: { id: photo.id },
+          data: {
+            status: 'PENDING',
+            nextAttemptAt: new Date(now.getTime() + extractionBackoffDelay(photo.attempts + 1)),
+            errorMessage: reason,
+            ...costData(photo),
+          },
+        });
+        settled.add(photo.id);
+        continue;
+      }
+      const attempts = photo.attempts + 1;
       const exhausted = attempts >= EXTRACTION_ATTEMPTS;
       await this.prisma.photo.update({
         where: { id: photo.id },
