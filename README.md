@@ -661,11 +661,19 @@ Google :
 cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT c.name, u.email FROM cave c LEFT JOIN app_user u ON u.id = c.owner_id;"'
 ```
 
-**Retour arrière** : restaurer la sauvegarde prise juste avant la mise à jour
-(`backups/cave-avant-2.0.0.sql.gz`, voir *Sauvegarde et restauration*), puis
-remettre `IMAGE_TAG=1.9.0` dans le `.env` et relancer `docker compose up -d`.
-Le schéma de la 1.9.0 ne sait pas lire la base migrée : remettre la 1.9.0
-sans restaurer la sauvegarde ne fonctionne pas.
+**Retour arrière** : le schéma de la 1.9.0 ne sait pas lire la base migrée,
+il faut donc restaurer la sauvegarde prise juste avant la mise à jour. Les
+tables propres à la 2.0.0 (`cave`, `cave_member`, `app_setting`) ne figurent
+pas dans cette sauvegarde et bloqueraient sa restauration : on vide d'abord le
+schéma. Arrêter l'api et le worker, vider le schéma, restaurer, remettre
+`IMAGE_TAG=1.9.0` dans le `.env`, puis relancer :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose stop api worker
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
+gunzip -c backups/cave-avant-2.0.0.sql.gz | docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+docker compose up -d
+```
 
 ## Sauvegarde et restauration
 
