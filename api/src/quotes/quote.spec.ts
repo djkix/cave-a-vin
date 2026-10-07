@@ -112,11 +112,11 @@ describe('cote courante et vue', () => {
     expect([...byWine].map(([w, x]) => [w, x.id])).toEqual([['w1', 'b'], ['w2', 'c']]);
   });
 
-  it('valeur de cession : cote moins 16 %, arrondie au centime', () => {
-    expect(cessionCents(8500)).toBe(7140);
+  it('valeur de cession : cote hors frais acheteur d’environ 16 % (cote / 1,16), arrondie au centime', () => {
+    expect(cessionCents(8500)).toBe(7328); // 85 € → 73 €, l'exemple de la spec
     expect(cessionCents(1)).toBe(1);
-    expect(cessionCents(333)).toBe(280); // 279,72
-    expect(cessionCents(10_000_000)).toBe(8_400_000);
+    expect(cessionCents(333)).toBe(287); // 287,07
+    expect(cessionCents(10_000_000)).toBe(8_620_690);
   });
 
   it('vue : date AAAA-MM-JJ, auteur par son nom sinon son e-mail, valeur de cession', () => {
@@ -124,7 +124,7 @@ describe('cote courante et vue', () => {
       coteCents: 8500, nTransactions: 12, quotedOn: new Date('2026-03-03T00:00:00Z'), sourceUrl: null,
       enteredBy: { displayName: null, email: 'franck@example.com' },
     };
-    expect(quoteView(row)).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: null, enteredBy: 'franck@example.com', cessionCents: 7140 });
+    expect(quoteView(row)).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: null, enteredBy: 'franck@example.com', cessionCents: 7328 });
     expect(quoteView({ ...row, enteredBy: { displayName: 'Franck', email: 'f@x' } }).enteredBy).toBe('Franck');
     expect(quoteView({ ...row, enteredBy: null }).enteredBy).toBeNull();
   });

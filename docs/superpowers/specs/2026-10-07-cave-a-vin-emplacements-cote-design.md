@@ -113,7 +113,7 @@ assistée**.
     `source_url` existe, sinon la recherche iDealwine sur « producteur cuvée
     millésime ») + **« Saisir la cote »** ;
   - avec cote : « 85 € — 12 transactions — cote du 3 mars 2026, il y a 7 mois »,
-    « Valeur de cession estimée : 73 € (cote moins 16 % de frais acheteur) »,
+    « Valeur de cession estimée : 73 € (cote hors frais acheteur d'environ 16 %) »,
     un avertissement « Peu de transactions : ordre de grandeur » sous 5
     transactions, « Cote de plus d'un an » au-delà de 12 mois ; boutons « Voir
     sur iDealwine » et « Mettre à jour » ;

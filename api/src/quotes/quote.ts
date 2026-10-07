@@ -12,8 +12,8 @@ export const URL_INVALID = 'Le lien doit être une page www.idealwine.com';
 
 export const MAX_COTE_CENTS = 10_000_000;
 export const MIN_QUOTED_ON = '1990-01-01';
-/** Valeur de cession estimée : cote moins 16 % de frais acheteur. */
-export const CESSION_RATE = 0.84;
+/** La cote inclut les frais acheteur d'environ 16 % : valeur de cession estimée = cote / 1,16. */
+export const BUYER_FEES_FACTOR = 1.16;
 export const IDEALWINE_HOST = 'www.idealwine.com';
 const QUOTE_TIME_ZONE = 'Europe/Paris';
 
@@ -110,7 +110,7 @@ export function currentQuoteByWine<T extends Dated & { wineId: string }>(quotes:
 }
 
 export function cessionCents(coteCents: number): number {
-  return Math.round(coteCents * CESSION_RATE);
+  return Math.round(coteCents / BUYER_FEES_FACTOR);
 }
 
 /** Lecture Prisma d'une cote, avec ce qu'il faut pour la vue. */

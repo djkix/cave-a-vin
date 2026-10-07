@@ -64,7 +64,7 @@ describe('computeStats — valeur à la cote', () => {
     const quotes = [{ wineId: 'w1', coteCents: 8500 }, { wineId: 'w3', coteCents: 99999 }, { wineId: 'w4', coteCents: 333 }];
     const s = computeStats({ wines, movements: [], quotes }, NOW);
     expect(s).toMatchObject({ quotedValueCents: 6 * 8500 + 333, quotedReferences: 2, quotableReferences: 3 });
-    expect(s.cessionValueCents).toBe(Math.round((6 * 8500 + 333) * 0.84));
+    expect(s.cessionValueCents).toBe(Math.round((6 * 8500 + 333) / 1.16));
   });
 
   it("sans cote : aucune valeur, 0 référence cotée", () => {

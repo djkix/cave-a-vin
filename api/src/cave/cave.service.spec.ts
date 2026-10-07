@@ -78,7 +78,7 @@ describe('CaveService.detail', () => {
     it('propriétaire sans cote : quote null et lien de recherche', async () => {
       const s = service(null);
       const r = await s.detail('c1', 'w19', 'OWNER');
-      expect(r).toMatchObject({ quote: null, idealwineUrl: search });
+      expect(r).toMatchObject({ quote: null, idealwineUrl: search, savedUrl: null });
       expect(s.mockPrisma.priceQuote.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { wineId: 'w19' } }));
     });
 
@@ -88,10 +88,12 @@ describe('CaveService.detail', () => {
         quote(9000, '2025-01-01', '2026-01-01T00:00:00Z', 'https://www.idealwine.com/fr/ancienne.jsp'),
         quote(8500, '2026-03-03', '2026-03-04T00:00:00Z', page),
       ]).detail('c1', 'w19', 'OWNER');
-      expect(r.quote).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: page, enteredBy: 'franck@example.com', cessionCents: 7140 });
+      expect(r.quote).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: page, enteredBy: 'franck@example.com', cessionCents: 7328 });
       expect(r.idealwineUrl).toBe(page);
+      expect(r.savedUrl).toBe(page);
       const noUrl = await service(null, [tempier19], undefined, null, [quote(8500, '2026-03-03', '2026-03-04T00:00:00Z')]).detail('c1', 'w19', 'OWNER');
       expect(noUrl.idealwineUrl).toBe(search);
+      expect(noUrl.savedUrl).toBeNull();
     });
 
     it('lien gardé : sans lien sur la cote courante, la plus récente cote qui en a un, sinon la recherche', async () => {
@@ -106,6 +108,7 @@ describe('CaveService.detail', () => {
       ]).detail('c1', 'w19', 'OWNER');
       expect(r.quote).toMatchObject({ coteCents: 8500, sourceUrl: null });
       expect(r.idealwineUrl).toBe(saved);
+      expect(r.savedUrl).toBe(saved);
     });
 
     it('membre : ni quote ni idealwineUrl (clés absentes), cotes non lues', async () => {
@@ -113,7 +116,8 @@ describe('CaveService.detail', () => {
       const r = await s.detail('c1', 'w19', 'VIEWER');
       expect(r).not.toHaveProperty('quote');
       expect(r).not.toHaveProperty('idealwineUrl');
-      expect(JSON.stringify(r)).not.toMatch(/quote|cote|idealwine|cession/i);
+      expect(r).not.toHaveProperty('savedUrl');
+      expect(JSON.stringify(r)).not.toMatch(/quote|cote|idealwine|cession|savedurl/i);
       expect(s.mockPrisma.priceQuote.findMany).not.toHaveBeenCalled();
       expect(await s.detail('c1', 'w19')).not.toHaveProperty('quote');
     });

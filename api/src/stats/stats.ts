@@ -51,7 +51,7 @@ export interface Stats {
   purchaseValueCents: number | null;
   /** Somme cote × stock des vins en stock cotés ; null si aucun n'est coté. */
   quotedValueCents: number | null;
-  /** Valeur à la cote moins 16 % de frais acheteur ; null si aucun vin n'est coté. */
+  /** Valeur à la cote hors frais acheteur d'environ 16 % (÷ 1,16) ; null si aucun vin n'est coté. */
   cessionValueCents: number | null;
   /** Vins en stock ayant une cote. */
   quotedReferences: number;

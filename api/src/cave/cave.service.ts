@@ -170,10 +170,11 @@ export class CaveService {
       // Cote : un prix, jamais lue pour un membre.
       role === 'OWNER' && withQuote ? this.prisma.priceQuote.findMany({ where: { wineId: id }, select: QUOTE_SELECT }) : null,
     ]);
-    let cote: { quote: QuoteView | null; idealwineUrl: string } | undefined;
+    let cote: { quote: QuoteView | null; idealwineUrl: string; savedUrl: string | null } | undefined;
     if (quotes) {
       const current = currentQuote(quotes);
-      cote = { quote: current && quoteView(current), idealwineUrl: savedSourceUrl(quotes) ?? idealwineSearchUrl(row) };
+      const savedUrl = savedSourceUrl(quotes);
+      cote = { quote: current && quoteView(current), idealwineUrl: savedUrl ?? idealwineSearchUrl(row), savedUrl };
     }
     return {
       wine: {
@@ -196,7 +197,9 @@ export class CaveService {
       /**
        * Propriétaire seulement : cote iDealwine courante (null sans cote) et lien
        * « Voir sur iDealwine » (page enregistrée de la cote courante, sinon de la
-       * plus récente cote qui en a une, sinon la recherche). Pour un membre, les deux clés sont absentes, pas nulles.
+       * plus récente cote qui en a une, sinon la recherche) ; `savedUrl` : ce lien
+       * enregistré seul (null sans lien), pour pré-remplir le formulaire. Pour un
+       * membre, les trois clés sont absentes, pas nulles.
        */
       ...cote,
     };

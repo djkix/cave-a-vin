@@ -109,7 +109,7 @@ describeIfInfra('cote iDealwine (HTTP)', () => {
     it('propriétaire : 201, la cote créée, saisie par lui', async () => {
       const res = await ownerA.post(`/api/wines/${wineA}/quotes`).send({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: page });
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: page, enteredBy: 'Franck', cessionCents: 7140 });
+      expect(res.body).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: page, enteredBy: 'Franck', cessionCents: 7328 });
       const row = await prisma.priceQuote.findFirstOrThrow({ where: { wineId: wineA } });
       expect(row).toMatchObject({ source: 'IDEALWINE', enteredById: userIds[0] });
     });
@@ -163,13 +163,13 @@ describeIfInfra('cote iDealwine (HTTP)', () => {
       // Clés seulement : le nom du vin (« Château Côté ») contient lui-même « cote ».
       const keysOf = (v: unknown): string[] =>
         Array.isArray(v) ? v.flatMap(keysOf) : v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => [k, ...keysOf(x)]) : [];
-      expect(keysOf(res.body).filter((k) => /quote|cote|idealwine|cession/i.test(k))).toEqual([]);
+      expect(keysOf(res.body).filter((k) => /quote|cote|idealwine|cession|savedurl/i.test(k))).toEqual([]);
     });
 
     it('statistiques : valeur à la cote pour le propriétaire, absente pour le membre', async () => {
       const owner = await ownerA.get('/api/stats');
       expect(owner.status).toBe(200);
-      expect(owner.body).toMatchObject({ quotedValueCents: 6 * 8500, cessionValueCents: Math.round(6 * 8500 * 0.84), quotedReferences: 1, quotableReferences: 2 });
+      expect(owner.body).toMatchObject({ quotedValueCents: 6 * 8500, cessionValueCents: Math.round((6 * 8500) / 1.16), quotedReferences: 1, quotableReferences: 2 });
       const viewer = await viewerA.get('/api/stats');
       expect(viewer.status).toBe(200);
       for (const k of ['quotedValueCents', 'cessionValueCents', 'quotedReferences', 'quotableReferences']) expect(viewer.body).not.toHaveProperty(k);

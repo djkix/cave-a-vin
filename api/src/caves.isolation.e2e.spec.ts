@@ -102,7 +102,7 @@ const ROUTES: Route[] = [
   {
     method: 'POST', path: '/api/wines/:id/quotes', kind: 'cave-owner',
     req: (i) => ({ url: `/api/wines/${i.wineA}/quotes`, body: { coteCents: 4200, quotedOn: '2026-01-15' } }), foreign: NOT_FOUND_WINE,
-    happy: { status: 201, check: (res) => expect(res.body).toMatchObject({ coteCents: 4200, quotedOn: '2026-01-15', cessionCents: 3528 }) },
+    happy: { status: 201, check: (res) => expect(res.body).toMatchObject({ coteCents: 4200, quotedOn: '2026-01-15', cessionCents: 3621 }) },
   },
   { method: 'PUT', path: '/api/wines/:id/apogee', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/apogee`, body: { min: 2030, max: 2035 } }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
   { method: 'DELETE', path: '/api/wines/:id/apogee', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/apogee` }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
@@ -219,7 +219,7 @@ const ROUTES: Route[] = [
 ];
 
 /** Clés de prix d'achat et de cote iDealwine (stats.ts, mouvements, fiche) et tout nom qui en évoque un. */
-const PRICE_KEY = new RegExp(['price', 'purchase', 'expensive', 'cost', 'cote', 'quote', 'idealwine', 'cession', ...PRICE_KEYS].join('|'), 'i');
+const PRICE_KEY = new RegExp(['price', 'purchase', 'expensive', 'cost', 'cote', 'quote', 'idealwine', 'cession', 'savedurl', ...PRICE_KEYS].join('|'), 'i');
 function keysOf(value: unknown, out: string[] = []): string[] {
   if (Array.isArray(value)) value.forEach((v) => keysOf(v, out));
   else if (value && typeof value === 'object') {
@@ -547,10 +547,11 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
       const res = await agents.ownerA.get(`/api/wines/${ids.wineA}`);
       expect(res.status).toBe(200);
       expect(res.body.quote).toEqual(expect.objectContaining({ coteCents: expect.any(Number), cessionCents: expect.any(Number) }));
-      expect(priceKeys(res.body)).toEqual(expect.arrayContaining(['quote', 'idealwineUrl', 'coteCents', 'quotedOn', 'cessionCents']));
+      expect(priceKeys(res.body)).toEqual(expect.arrayContaining(['quote', 'idealwineUrl', 'savedUrl', 'coteCents', 'quotedOn', 'cessionCents']));
       const viewer = await agents.viewerA.get(`/api/wines/${ids.wineA}`);
       expect(viewer.body).not.toHaveProperty('quote');
       expect(viewer.body).not.toHaveProperty('idealwineUrl');
+      expect(viewer.body).not.toHaveProperty('savedUrl');
     });
   });
 
