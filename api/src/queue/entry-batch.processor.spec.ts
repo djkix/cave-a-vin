@@ -568,7 +568,7 @@ describe('EntryBatchProcessor.tick — pannes', () => {
     all.forEach((r) => {
       expect(r.status).toBe('PENDING');
       expect(r.attempts).toBe(0); // un report pour budget ne consomme pas de tentative
-      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.nextAttemptAt).toEqual(at(15 * 60_000)); // attente fixe : l'attente maximale
       expect(r.errorMessage).toContain('Plafond mensuel');
     });
   });
@@ -589,8 +589,8 @@ describe('EntryBatchProcessor.tick — pannes', () => {
         await h.processor.tick(now);
         expect(p.status).toBe('PENDING');
         expect(p.attempts).toBe(2);
-        // Attente habituelle, calculée sur les vraies tentatives (2 → 1 min ; 3e : 2 min).
-        expect(p.nextAttemptAt).toEqual(new Date(now.getTime() + 120_000));
+        // Attente fixe, l'attente maximale (15 min), quelles que soient les tentatives.
+        expect(p.nextAttemptAt).toEqual(new Date(now.getTime() + 15 * 60_000));
         expect(p.errorMessage).toContain(reason);
         now = new Date(p.nextAttemptAt!.getTime() + 1);
       }
@@ -606,7 +606,7 @@ describe('EntryBatchProcessor.tick — pannes', () => {
       await h.processor.tick(NOW);
       expect(p.status).toBe('PENDING');
       expect(p.attempts).toBe(999);
-      expect(p.nextAttemptAt).not.toBeNull();
+      expect(p.nextAttemptAt).toEqual(new Date(NOW.getTime() + 15 * 60_000));
       expect(p.errorMessage).not.toContain('abandon');
     });
 
@@ -679,7 +679,7 @@ describe('EntryBatchProcessor.tick — une seule cave par lot', () => {
     a.forEach((r) => {
       expect(r.status).toBe('PENDING');
       expect(r.attempts).toBe(0);
-      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.nextAttemptAt).toEqual(at(15 * 60_000));
       expect(r.errorMessage).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
     });
     b.forEach((r) => expect(r.status).toBe('DONE'));

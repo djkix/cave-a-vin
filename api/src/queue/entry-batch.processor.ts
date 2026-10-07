@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
-import { EXTRACTION_ATTEMPTS, extractionBackoffDelay } from './extraction.queue';
+import { EXTRACTION_ATTEMPTS, MAX_DELAY_MS, extractionBackoffDelay } from './extraction.queue';
 import { CONFIGURATION_DEFERRAL_REASON, deferralReason, isConfigurationError, isTransientVisionFailure } from './transient-failure';
 import { CaveBudgetShareExceededError, VisionBudgetExceededError, VisionBudgetService } from './vision-budget.service';
 
@@ -315,8 +315,8 @@ export class EntryBatchProcessor {
    * Panne passagère ou erreur de configuration (clé Gemini) : les photos
    * repartent en attente avec une attente croissante, puis échouent après
    * `EXTRACTION_ATTEMPTS` tentatives. Un report pour budget (plafond global ou
-   * part de la cave) garde l'attente mais ne compte pas de tentative : il ne
-   * mène jamais à l'échec. Autre erreur définitive : échec
+   * part de la cave) attend toujours l'attente maximale (15 min) et ne compte
+   * pas de tentative : il est repris sans limite et ne mène jamais à l'échec. Autre erreur définitive : échec
    * immédiat, la saisie manuelle est proposée. Le texte brut de l'erreur ne va
    * que dans les logs ; la photo ne porte qu'un message en français.
    */
@@ -333,13 +333,13 @@ export class EntryBatchProcessor {
       if (error instanceof VisionBudgetExceededError) {
         // Plafond global ou part de la cave : aucun appel n'a eu lieu. La photo
         // ne consomme pas de tentative et ne passe jamais en échec ; elle est
-        // reprise avec l'attente habituelle, dès que le budget le permet
+        // reprise après l'attente maximale, fixe, dès que le budget le permet
         // (plafond ou part relevés, ou mois suivant).
         await this.prisma.photo.update({
           where: { id: photo.id },
           data: {
             status: 'PENDING',
-            nextAttemptAt: new Date(now.getTime() + extractionBackoffDelay(photo.attempts + 1)),
+            nextAttemptAt: new Date(now.getTime() + MAX_DELAY_MS),
             errorMessage: reason,
             ...costData(photo),
           },
