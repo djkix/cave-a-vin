@@ -9,6 +9,14 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.1.0](https://github.com/djkix/cave-a-vin/compare/v2.0.1...v2.1.0) (2026-10-07)
+
+
+### Fonctionnalités
+
+* **budget:** part maximale pour l'ensemble des caves invitées ([60c44d1](https://github.com/djkix/cave-a-vin/commit/60c44d1a0531949d99d8c222806ed38f98798523))
+* **caves:** le compte de secours écrit dans la cave principale ([4276f1e](https://github.com/djkix/cave-a-vin/commit/4276f1eca8748de82415b6d0be3e0b8174758b52))
+
 ## [2.0.1](https://github.com/djkix/cave-a-vin/compare/v2.0.0...v2.0.1) (2026-10-07)
 
 ### Résumé
