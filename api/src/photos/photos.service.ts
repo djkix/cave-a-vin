@@ -134,6 +134,12 @@ export class PhotosService {
     }
   }
 
+  /**
+   * Photo par identifiant, **sans filtre de cave**. L'appelant doit vérifier
+   * l'accès du compte à `photo.caveId` (`CaveContextService.findAccess`) avant
+   * de rendre quoi que ce soit, et répondre 404 sans accès. Dans une route de
+   * cave, préférer `findInCave`.
+   */
   async findById(id: string): Promise<Photo> {
     const photo = await this.prisma.photo.findUnique({ where: { id } });
     if (!photo) throw new NotFoundException('Photo introuvable');

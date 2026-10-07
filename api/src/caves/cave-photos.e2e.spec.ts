@@ -36,8 +36,9 @@ describeIfInfra('photos, recherche d’image, accords et descriptifs par cave (H
   let switcher: supertest.Agent;
   let jpeg: Buffer;
 
-  const expectStatus = (res: supertest.Response, status: number, message?: string) => {
-    expect({ status: res.status, message: res.body?.message }).toEqual({ status, message: message ?? res.body?.message });
+  // Le message est obligatoire : sans lui, la vérification passerait à vide.
+  const expectStatus = (res: supertest.Response, status: number, message: string) => {
+    expect({ status: res.status, message: res.body?.message }).toEqual({ status, message });
   };
 
   beforeAll(async () => {
