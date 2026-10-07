@@ -1,10 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Movement, Prisma, Wine } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { labelOf, normalizeLocation, Place, SAME_LOCATION } from '../locations/location';
+import { Db, LocationsService } from '../locations/locations.service';
 import { PairingScheduler } from '../pairing/pairing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProducerScheduler } from '../producers/producers.service';
 import { WineMatchingService } from '../wines/wine-matching.service';
-import { CreateMovementInput, CreateOutInput, InventoryInput } from './dto';
+import { CreateMovementInput, CreateOutInput, InventoryInput, MoveInput } from './dto';
 
 export interface MovementResult {
   movement: Movement;
@@ -41,6 +44,32 @@ function ownReplay<T extends { wine: Wine }>(found: T | null, caveId: string): T
   return found;
 }
 
+/**
+ * Lien entre les deux moitiés d'un déplacement : elles partagent la clé
+ * d'idempotence de la demande, suffixée `:from` (−N à l'origine) et `:to` (+N à
+ * la destination). Les clés des clients sont des UUID : aucun suffixe ne peut
+ * entrer en collision avec elles. Annuler une moitié retrouve l'autre par ce
+ * suffixe ; l'annulation de l'autre prend la clé d'annulation suffixée `:paire`.
+ */
+const MOVE_FROM = ':from';
+const MOVE_TO = ':to';
+export function movePartnerKey(key: string): string | null {
+  if (key.endsWith(MOVE_FROM)) return key.slice(0, -MOVE_FROM.length) + MOVE_TO;
+  if (key.endsWith(MOVE_TO)) return key.slice(0, -MOVE_TO.length) + MOVE_FROM;
+  return null;
+}
+
+/** Verrou sur la ligne du vin (même verrou que l'inventaire et le déclencheur de stock) ; vin d'une autre cave : 404. */
+async function lockWine(tx: Db, caveId: string, wineId: string): Promise<void> {
+  const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM wine WHERE id = ${wineId} AND cave_id = ${caveId} FOR UPDATE`;
+  if (locked.length === 0) throw new NotFoundException('Vin introuvable');
+}
+
+export interface MoveResult { locations: Place[] }
+
+/** Mouvement du journal avec le libellé de son emplacement (null = « Sans emplacement »). */
+export type JournalMovement = Movement & { wine: Wine; locationLabel: string | null };
+
 @Injectable()
 export class MovementsService {
   private readonly logger = new Logger(MovementsService.name);
@@ -48,6 +77,7 @@ export class MovementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly matching: WineMatchingService,
+    private readonly locations: LocationsService,
     @Optional() private readonly pairings?: PairingScheduler,
     @Optional() private readonly producers?: ProducerScheduler,
   ) {}
@@ -79,8 +109,11 @@ export class MovementsService {
     if (input.photoId && !photo) throw new NotFoundException('Photo introuvable');
     // Une image du web choisie comme vignette n'est pas la photo d'une bouteille entrée.
     if (photo?.purpose === 'REFERENCE') throw new BadRequestException(WEB_IMAGE_FOR_MOVEMENT);
+    // Emplacement vérifié avant de créer le moindre vin (400 aux messages de la spec).
+    if (input.location) normalizeLocation(input.location);
 
     const { wine, created: wineCreated } = await this.matching.matchOrCreate(caveId, input.wine);
+    const locationId = input.location ? (await this.locations.resolve(caveId, input.location)).id : null;
     // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
     // la mesure « zéro saisie » la comparera à un formulaire vide.
     const readingShown = photo?.status === 'DONE';
@@ -94,6 +127,7 @@ export class MovementsService {
           priceUnitCents: input.priceUnitCents ?? null,
           note: input.note ?? null,
           idempotencyKey: input.idempotencyKey,
+          locationId,
           // La fiche telle que confirmée, comparée plus tard à la lecture de la
           // photo pour mesurer la part de saisie manuelle (mesure « zéro saisie »).
           ...(input.photoId ? { confirmedWine: { ...input.wine, readingShown } } : {}),
@@ -166,19 +200,37 @@ export class MovementsService {
     const original = await this.prisma.movement.findFirst({ where: { id: movementId, wine: { caveId } }, include: { wine: true } });
     if (!original) throw new NotFoundException('Mouvement introuvable');
     if (original.reversesId) throw new ConflictException('Une annulation ne peut pas être annulée');
-    const reversal = await this.prisma.movement.findFirst({ where: { reversesId: movementId } });
+    // Un déplacement s'annule par paire : l'autre moitié est retrouvée par sa clé (voir movePartnerKey).
+    const partnerKey = original.type === 'MOVE' ? movePartnerKey(original.idempotencyKey) : null;
+    const partner = partnerKey ? await this.prisma.movement.findFirst({ where: { idempotencyKey: partnerKey, wineId: original.wineId, type: 'MOVE' } }) : null;
+    const halves = partner ? [original, partner] : [original];
+    const reversal = await this.prisma.movement.findFirst({ where: { reversesId: { in: halves.map((h) => h.id) } } });
     if (reversal) throw new ConflictException('Ce mouvement a déjà été annulé');
 
     try {
-      const movement = await this.prisma.movement.create({
-        data: {
-          wineId: original.wineId,
-          delta: -original.delta,
-          type: 'ADJUST',
-          note: `Annulation du mouvement ${original.id}`,
-          idempotencyKey,
-          reversesId: original.id,
-        },
+      const movement = await this.prisma.$transaction(async (tx) => {
+        await lockWine(tx, caveId, original.wineId);
+        const reversals = [];
+        // La moitié qui rend des bouteilles d'abord : le total du vin ne passe jamais sous zéro.
+        for (const half of [...halves].sort((a, b) => b.delta - a.delta)) {
+          reversals.push(
+            await tx.movement.create({
+              data: {
+                wineId: original.wineId,
+                delta: -half.delta,
+                type: 'ADJUST',
+                note: `Annulation du mouvement ${half.id}`,
+                idempotencyKey: half.id === original.id ? idempotencyKey : `${idempotencyKey}:paire`,
+                reversesId: half.id,
+                // La bouteille revient (ou repart) à l'emplacement du mouvement annulé.
+                locationId: half.locationId,
+              },
+            }),
+          );
+        }
+        const emptied = halves.filter((h) => h.delta > 0).map((h) => h.locationId);
+        await this.locations.assertEnoughAt(caveId, original.wineId, emptied, tx);
+        return reversals.find((r) => r.reversesId === original.id)!;
       });
       return { movement, wine: original.wine, stock: await this.stockOf(original.wineId), created: true };
     } catch (e) {
@@ -210,16 +262,25 @@ export class MovementsService {
 
     const plan = await this.planOut(caveId, input);
     if ('replay' in plan) return plan.replay;
+    if (input.locationId) await this.locations.findOwn(caveId, input.locationId);
 
     try {
-      const movement = await this.prisma.movement.create({
-        data: {
-          wineId: wine.id,
-          delta: -input.quantity,
-          type: 'OUT',
-          photoId: plan.photoId,
-          idempotencyKey: input.idempotencyKey,
-        },
+      // Sous le verrou du vin : l'endroit choisi est relu et contrôlé après écriture.
+      const movement = await this.prisma.$transaction(async (tx) => {
+        await lockWine(tx, caveId, wine.id);
+        const locationId = input.locationId !== undefined ? input.locationId : await this.legacyExitPlace(caveId, wine.id, input.quantity, tx);
+        const created = await tx.movement.create({
+          data: {
+            wineId: wine.id,
+            delta: -input.quantity,
+            type: 'OUT',
+            photoId: plan.photoId,
+            idempotencyKey: input.idempotencyKey,
+            locationId,
+          },
+        });
+        await this.locations.assertEnoughAt(caveId, wine.id, [locationId], tx);
+        return created;
       });
       return { movement, wine, stock: await this.stockOf(wine.id), created: true };
     } catch (e) {
@@ -277,6 +338,22 @@ export class MovementsService {
     return { replay: await this.asReplay(byPhoto) };
   }
 
+  /**
+   * Endroit d'une sortie ou d'une baisse d'inventaire envoyée sans `locationId`
+   * (ancien client) : « Sans emplacement » s'il en a assez, sinon la
+   * pré-sélection (exitDefault) si elle en a assez, sinon le premier endroit
+   * qui en a assez. Aucun endroit n'en a assez : « Sans emplacement », et le
+   * contrôle après écriture répond 409 (ou le déclencheur, si le total manque).
+   */
+  private async legacyExitPlace(caveId: string, wineId: string, quantity: number, tx: Db): Promise<string | null> {
+    const places = await this.locations.stockByLocation(caveId, wineId, tx);
+    const enough = (id: string | null | undefined) => places.some((p) => p.id === id && p.quantity >= quantity);
+    if (enough(null)) return null;
+    const preferred = await this.locations.exitDefault(caveId, wineId, tx);
+    if (preferred !== undefined && enough(preferred)) return preferred;
+    return places.find((p) => p.quantity >= quantity)?.id ?? null;
+  }
+
   private async asReplay(found: Movement & { wine: Wine }): Promise<MovementResult> {
     const { wine, ...movement } = found;
     return { movement, wine, stock: await this.stockOf(found.wineId), created: false };
@@ -303,22 +380,73 @@ export class MovementsService {
       return { movement: already, stock: await this.stockOf(wineId), delta: already.delta, created: false };
     }
 
+    if (input.locationId) await this.locations.findOwn(caveId, input.locationId);
+
     return this.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM wine WHERE id = ${wineId} AND cave_id = ${caveId} FOR UPDATE`;
-      if (locked.length === 0) throw new NotFoundException('Vin introuvable');
+      await lockWine(tx, caveId, wineId);
       const [{ quantity }] = await tx.$queryRaw<{ quantity: number }[]>`
         SELECT COALESCE(SUM(delta), 0)::INTEGER AS quantity FROM movement WHERE wine_id = ${wineId}`;
       const delta = input.counted - quantity;
       if (delta === 0) return { movement: null, stock: quantity, delta: 0, created: false };
+      // Une hausse va à l'endroit choisi (par défaut « Sans emplacement ») ; une baisse s'y applique.
+      const locationId =
+        input.locationId !== undefined ? input.locationId : delta > 0 ? null : await this.legacyExitPlace(caveId, wineId, -delta, tx);
       const movement = await tx.movement.create({
-        data: { wineId, delta, type: 'ADJUST', note: `Inventaire : ${input.counted} comptées`, idempotencyKey: input.idempotencyKey },
+        data: { wineId, delta, type: 'ADJUST', note: `Inventaire : ${input.counted} comptées`, idempotencyKey: input.idempotencyKey, locationId },
       });
+      if (delta < 0) await this.locations.assertEnoughAt(caveId, wineId, [locationId], tx);
       return { movement, stock: input.counted, delta, created: true };
     });
   }
 
+  /**
+   * Range ou déplace `quantity` bouteilles d'un endroit (null = « Sans
+   * emplacement ») vers un emplacement saisi, créé à la volée. Deux mouvements
+   * MOVE de même date (+N à la destination, −N à l'origine), liés par leur clé
+   * (voir movePartnerKey) : le stock total ne change pas.
+   */
+  async move(caveId: string, wineId: string, input: MoveInput): Promise<MoveResult> {
+    if (!(await this.prisma.wine.findFirst({ where: { id: wineId, caveId }, select: { id: true } }))) {
+      throw new NotFoundException('Vin introuvable');
+    }
+    const key = input.idempotencyKey ?? randomUUID();
+    const replay = async () => {
+      const done = await this.prisma.movement.findUnique({ where: { idempotencyKey: key + MOVE_FROM }, include: { wine: true } });
+      if (!done) return null;
+      if (done.wine.caveId !== caveId || done.wineId !== wineId || done.type !== 'MOVE') throw new ConflictException(KEY_REUSED);
+      return { locations: await this.locations.stockByLocation(caveId, wineId) };
+    };
+    const already = await replay();
+    if (already) return already;
+    if (input.from) await this.locations.findOwn(caveId, input.from);
+    normalizeLocation(input.to);
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await lockWine(tx, caveId, wineId);
+        const to = await this.locations.resolve(caveId, input.to, tx);
+        if (to.id === input.from) throw new BadRequestException(SAME_LOCATION);
+        const occurredAt = new Date();
+        // L'arrivée d'abord : le total du vin ne baisse jamais en cours de route.
+        await tx.movement.create({ data: { wineId, delta: input.quantity, type: 'MOVE', occurredAt, idempotencyKey: key + MOVE_TO, locationId: to.id } });
+        await tx.movement.create({ data: { wineId, delta: -input.quantity, type: 'MOVE', occurredAt, idempotencyKey: key + MOVE_FROM, locationId: input.from } });
+        await this.locations.assertEnoughAt(caveId, wineId, [input.from], tx);
+      });
+    } catch (e) {
+      if (isUniqueViolation(e, 'idempotency')) {
+        const raced = await replay();
+        if (raced) return raced;
+      }
+      throw e;
+    }
+    return { locations: await this.locations.stockByLocation(caveId, wineId) };
+  }
+
   /** Journal de la cave : ses derniers mouvements, tous vins confondus. */
-  recent(caveId: string, limit = 20): Promise<Array<Movement & { wine: Wine }>> {
-    return this.prisma.movement.findMany({ where: { wine: { caveId } }, take: limit, orderBy: { occurredAt: 'desc' }, include: { wine: true } });
+  async recent(caveId: string, limit = 20): Promise<JournalMovement[]> {
+    const rows = await this.prisma.movement.findMany({
+      where: { wine: { caveId } }, take: limit, orderBy: { occurredAt: 'desc' }, include: { wine: true, location: true },
+    });
+    return rows.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf(location) : null }));
   }
 }

@@ -168,4 +168,25 @@ describe('ExportService.buildWorkbook', () => {
     expect([9, 15].map((c) => stock.getRow(1).getCell(c).value)).toEqual(['Note /20', 'Accords']);
     expect([9, 15].map((c) => stock.getRow(2).getCell(c).value)).toEqual([16.5, 'agneau de sept heures ; daube provençale']);
   });
+
+  it('ajoute la colonne « Emplacements » : « Cave 2 / B / 3 × 4 ; Sans emplacement × 2 »', async () => {
+    const prisma = fakePrisma();
+    const wine = {
+      id: 'w1', producer: 'Domaine Tempier', cuvee: null, appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75,
+      appellationId: 'a-bandol', apogeeMin: null, apogeeMax: null, apogeeSource: null, appellation: { region: 'Provence', guardMinYears: 5, guardMaxYears: 20 },
+    };
+    const b3 = { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3' };
+    prisma.wine.findMany = async () => [wine] as any;
+    prisma.$queryRaw = async () => [{ wine_id: 'w1', quantity: 6 }];
+    const at = (id: string, delta: number, type: string, location: typeof b3 | null) =>
+      ({ id, wineId: 'w1', delta, type, occurredAt: new Date('2026-09-01'), priceUnitCents: null, note: null, reversesId: null, wine, locationId: location?.id ?? null, location });
+    prisma.movement.findMany = async () => [at('m1', 6, 'IN', null), at('m2', -4, 'MOVE', null), at('m3', 4, 'MOVE', b3)].reverse() as any;
+    const { buffer } = await new ExportService(prisma as any, noRules as any).buildWorkbook('c1', {}, 'u1');
+    const wb = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- voir le premier test
+    await wb.xlsx.load(buffer as any);
+    const stock = wb.getWorksheet('Stock')!;
+    expect(stock.getRow(1).getCell(16).value).toBe('Emplacements');
+    expect(stock.getRow(2).getCell(16).value).toBe('Cave 2 / B / 3 × 4 ; Sans emplacement × 2');
+  });
 });

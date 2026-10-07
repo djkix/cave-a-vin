@@ -126,6 +126,22 @@ describe('computeStats — mouvements sur 12 mois', () => {
   });
 });
 
+describe('computeStats — déplacements', () => {
+  it('un déplacement (MOVE) n’est ni une entrée ni une sortie : flux, rythme, durée et « les plus bus »', () => {
+    const wines = [wine('w1', { quantity: 4 })];
+    const movements = [
+      mv('w1', 'IN', 4, '2026-09-01T10:00:00Z'),
+      mv('w1', 'MOVE', -3, '2026-09-05T10:00:00Z'),
+      mv('w1', 'MOVE', 3, '2026-09-05T10:00:00Z'),
+    ];
+    const s = computeStats({ wines, movements }, NOW);
+    expect(s.months.find((f) => f.month === '2026-09')).toEqual({ month: '2026-09', in: 4, out: 0 });
+    expect(s.drinkRate).toBe(0);
+    expect(s.yearsLeft).toBeNull();
+    expect(s.mostDrunk).toEqual([]);
+  });
+});
+
 describe('computeStats — classements', () => {
   it('les plus bus sur 12 mois, y compris un vin épuisé, départagés par producteur, limités à 5', () => {
     const wines = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => wine(id, { producer: `Domaine ${id.toUpperCase()}`, quantity: id === 'a' ? 0 : 1 }));

@@ -22,6 +22,8 @@ export interface CaveFilter {
   noApogee?: boolean;
   /** Plat à accompagner ; appliqué après le calcul de l'apogée. */
   dish?: string;
+  /** Emplacement (id) ou « none » pour « Sans emplacement » : vins avec du stock à cet endroit. */
+  location?: string;
 }
 
 /** Tous les mots cherchés doivent apparaître, sans accents ni casse, dans producteur, cuvée ou appellation. */

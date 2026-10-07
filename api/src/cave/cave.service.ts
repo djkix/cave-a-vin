@@ -3,6 +3,8 @@ import { CaveRole, Prisma } from '@prisma/client';
 import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { ManualApogeeInput } from '../apogee/dto';
+import { labelOf } from '../locations/location';
+import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { producerKeyOf } from '../producers/producer-key';
 import { PRODUCER_PROFILE_INCLUDE, producerProfileOf } from '../producers/producer-profile.view';
@@ -76,6 +78,7 @@ export class CaveService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rules: ApogeeRulesService,
+    private readonly locations: LocationsService,
   ) {}
 
   /**
@@ -109,9 +112,15 @@ export class CaveService {
   }
 
   async list(caveId: string, filter: CaveFilter, role: CaveRole = 'VIEWER'): Promise<CaveItem[]> {
-    const [rows, rules] = await Promise.all([this.allWithStock(caveId, role), this.rules.load()]);
+    // Un emplacement d'une autre cave est « introuvable », comme un identifiant inconnu.
+    if (filter.location && filter.location !== 'none') await this.locations.findOwn(caveId, filter.location);
+    const [rows, rules, atPlace] = await Promise.all([
+      this.allWithStock(caveId, role),
+      this.rules.load(),
+      filter.location ? this.locations.wineIdsAt(caveId, filter.location) : null,
+    ]);
     const year = new Date().getFullYear();
-    const kept = filterCave(rows, filter);
+    const kept = filterCave(atPlace ? rows.filter((r) => atPlace.has(r.id)) : rows, filter);
     let items = kept.map((r) => toItem(r, rules, year));
     if (filter.drinkSoon) items = sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
     else if (filter.noApogee) items = items.filter((i) => i.apogee.max == null);
@@ -135,15 +144,22 @@ export class CaveService {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
-    const [movements, profile] = await Promise.all([
+    const [movements, profile, locations, exitDefault, lastLocation] = await Promise.all([
       this.prisma.movement.findMany({
         where: { wineId: id },
         orderBy: { occurredAt: 'desc' },
         take: 10,
-        select: { id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true },
+        select: {
+          id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true, locationId: true,
+          location: { select: { zone: true, casier: true, position: true } },
+        },
       }),
       // Un descriptif par domaine, partagé par tous ses vins : lien par la clé normalisée.
       producerKey ? this.prisma.producerProfile.findUnique({ where: { producerKey }, include: PRODUCER_PROFILE_INCLUDE }) : null,
+      // Emplacements : visibles du membre comme du propriétaire (ce ne sont pas des prix).
+      this.locations.stockByLocation(caveId, id),
+      this.locations.exitDefault(caveId, id),
+      this.locations.lastInLocation(caveId),
     ]);
     return {
       wine: {
@@ -156,7 +172,13 @@ export class CaveService {
         producerKey: producerKey || null,
         producerProfile: producerProfileOf(profile, role),
       },
-      movements,
+      movements: movements.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf(location) : null })),
+      /** Endroits du vin et leur quantité (> 0) ; « Sans emplacement » : id null, en dernier. */
+      locations,
+      /** Endroit pré-sélectionné à la sortie : id, null = « Sans emplacement », absent = plus de stock. */
+      exitDefault,
+      /** Dernier emplacement utilisé à l'entrée dans la cave, pour pré-remplir l'entrée ; null si aucun. */
+      lastLocation,
     };
   }
 

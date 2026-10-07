@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { compileApogeeRules } from '../apogee/apogee';
 import { CaveRow } from './cave-filter';
+import { LocationsService } from '../locations/locations.service';
 import { CaveService } from './cave.service';
 
 const tempier19: CaveRow = {
@@ -22,7 +23,7 @@ function service(photo: any, rows: any[] = [tempier19], rules = compileApogeeRul
     movement: { findMany: jest.fn(async () => []) },
     wine: { updateMany: jest.fn(async ({ where }: any) => ({ count: rows.some((r) => r.id === where.id && where.caveId === 'c1') ? 1 : 0 })) },
   };
-  return Object.assign(new CaveService(prisma as any, { load: async () => rules } as any), { mockPrisma: prisma });
+  return Object.assign(new CaveService(prisma as any, { load: async () => rules } as any, new LocationsService(prisma as any)), { mockPrisma: prisma });
 }
 
 describe('CaveService.exitCandidates', () => {
@@ -129,7 +130,7 @@ describe('CaveService — apogée', () => {
       $queryRaw: jest.fn(async () => [cdp]), movement: { findMany: jest.fn(async () => []) },
       producerProfile: { findUnique: jest.fn(async () => null) },
     };
-    const s = new CaveService(prisma as any, { load: async () => loads.shift()! } as any);
+    const s = new CaveService(prisma as any, { load: async () => loads.shift()! } as any, new LocationsService(prisma as any));
     expect((await s.detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2024, max: 2036 });
     expect((await s.detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2026, max: 2040, confidence: 'MOYENNE' });
   });

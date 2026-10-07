@@ -1,4 +1,5 @@
 import { PrismaClient, WineColor } from '@prisma/client';
+import { LocationsService } from '../locations/locations.service';
 import { MovementsService } from './movements.service';
 import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
@@ -13,7 +14,7 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
   beforeAll(async () => {
     caveId = (await createTestCave(prisma)).id;
   });
-  const service = new MovementsService(prisma as never, {} as never);
+  const service = new MovementsService(prisma as never, {} as never, new LocationsService(prisma as never));
   const wineIds: string[] = [];
 
   async function wineWithStock(quantity: number) {

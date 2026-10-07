@@ -3,8 +3,8 @@ import { Apogee } from '../apogee/apogee';
 /**
  * Statistiques de la cave, calculées à la lecture. Fonction pure : le service
  * lui passe les vins (stock, région, apogée déjà estimée) et le journal.
- * Un mouvement annulé et tout ajustement (annulation, inventaire) ne sont ni
- * des entrées ni des sorties.
+ * Un mouvement annulé, tout ajustement (annulation, inventaire) et tout
+ * déplacement entre emplacements (MOVE) ne sont ni des entrées ni des sorties.
  */
 export const STATS_TIME_ZONE = 'Europe/Paris';
 export const STATS_MONTHS = 12;
@@ -29,7 +29,7 @@ export interface StatsMovement {
   id: string;
   wineId: string;
   delta: number;
-  type: 'IN' | 'OUT' | 'ADJUST';
+  type: 'IN' | 'OUT' | 'ADJUST' | 'MOVE';
   occurredAt: Date;
   priceUnitCents: number | null;
   reversesId: string | null;
@@ -113,7 +113,8 @@ const decadeOrder = (a: Share, b: Share) =>
 
 export function computeStats(input: { wines: StatsWine[]; movements: StatsMovement[] }, now: Date): Stats {
   const cancelled = new Set(input.movements.filter((m) => m.reversesId).map((m) => m.reversesId as string));
-  const counted = input.movements.filter((m) => m.type !== 'ADJUST' && !cancelled.has(m.id));
+  // Seules les entrées et sorties comptent : ni ajustement, ni déplacement (MOVE), ni mouvement annulé.
+  const counted = input.movements.filter((m) => (m.type === 'IN' || m.type === 'OUT') && !cancelled.has(m.id));
 
   const lastPrice = new Map<string, number>();
   for (const m of [...counted].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())) {
