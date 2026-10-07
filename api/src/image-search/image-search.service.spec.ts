@@ -15,13 +15,13 @@ beforeAll(async () => {
   jpeg = await sharp({ create: { width: 400, height: 600, channels: 3, background: '#802030' } }).jpeg().toBuffer();
 });
 
-const OFF_HIT = { products: [{ code: '123', categories_tags: ['en:wines'], image_front_url: 'https://images.openfoodfacts.org/123/front.jpg' }] };
+const OFF_HIT = { hits: [{ code: '123', product_name: 'Domaine Tempier Bandol', categories_tags: ['en:wines'], image_front_url: 'https://images.openfoodfacts.org/123/front.jpg' }] };
 const SITE_HTML = '<html><head><meta property="og:image" content="https://tempier.fr/og.jpg"></head><body></body></html>';
 
 /** Réseau simulé : Open Food Facts, le site officiel et les images. */
-function network(off: unknown = { products: [] }) {
+function network(off: unknown = { hits: [] }) {
   return jest.fn(async (url: string) => {
-    if (url.startsWith('https://world.openfoodfacts.org/cgi/search.pl')) {
+    if (url.startsWith('https://search.openfoodfacts.org/search')) {
       return { buffer: Buffer.from(JSON.stringify(off)), contentType: 'application/json', finalUrl: url };
     }
     if (url === 'https://tempier.fr/') return { buffer: Buffer.from(SITE_HTML), contentType: 'text/html', finalUrl: url };
@@ -85,7 +85,7 @@ describe('ImageSearchService.search', () => {
   });
 
   it('télécharge et décode les images une à une, jamais cinq à la fois', async () => {
-    const off = { products: Array.from({ length: 5 }, (_, i) => ({ code: String(i), categories_tags: ['en:wines'], image_front_url: `https://images.openfoodfacts.org/${i}.jpg` })) };
+    const off = { hits: Array.from({ length: 5 }, (_, i) => ({ code: String(i), product_name: 'Domaine Tempier', categories_tags: ['en:wines'], image_front_url: `https://images.openfoodfacts.org/${i}.jpg` })) };
     const { service, fetcher } = setup({ off });
     const base = fetcher.getMockImplementation()!;
     let inFlight = 0;

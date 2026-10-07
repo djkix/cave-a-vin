@@ -76,7 +76,7 @@ export class ImageSearchService {
   async search(wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
     const wine = await this.findWine(wineId);
     await this.store.cleanup();
-    const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw };
+    const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage };
 
     let candidates = await this.download(await searchOpenFoodFacts(query, this.fetcher), wine.id);
     if (candidates.length === 0) candidates = await this.download(await this.officialSiteImages(wine), wine.id);
