@@ -18,10 +18,12 @@ utilisée depuis un téléphone (PWA installable).
   statistiques de la cave, note de dégustation, accords mets-vins et descriptif
   du domaine, photos retouchées, image d'étiquette trouvée sur le web, icône,
   et, depuis la 2.0.0, une cave par compte : inscription validée par un
-  administrateur, membres invités en lecture seule, sélecteur de cave.
-- **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
-  (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
-  liste « à boire en priorité » se consulte dans l'application. Voir
+  administrateur, membres invités en lecture seule, sélecteur de cave. Lot 3a
+  également livré : emplacements dans la cave (zone / casier / position,
+  déplacement, filtre) et cote iDealwine saisie à la main (le relevé
+  automatique prévu au cahier des charges a été abandonné, voir *Limites*).
+- **Reporté** : aucune alerte hors de l'application (notification ou e-mail) :
+  la liste « à boire en priorité » se consulte dans l'application. Voir
   `cahier-des-charges.md`.
 
 ## Sommaire
@@ -55,12 +57,15 @@ et une cave à laquelle le compte n'a pas accès répond « Cave introuvable ».
 adresse est déjà membre » si elle l'est déjà), retire un membre (jamais le
 propriétaire) et renomme la cave (1 à 80 caractères). Un membre voit la cave
 qui l'a invité : la liste et ses filtres, la recherche par plat, la fiche vin
-(apogée, note, accords, descriptif du domaine) et les statistiques. Il ne voit
-**aucun prix d'achat** — les champs sont absents des réponses de l'API, pas
-seulement masqués : ni valeur au prix d'achat ni classement « les plus
-chères » dans les statistiques —, ni le journal, ni l'export Excel, ni « À
-confirmer », et il **n'écrit rien** : pas d'entrée, de sortie, d'inventaire,
-de photo, de note, d'apogée manuelle, de recherche d'image ni de régénération
+(apogée, note, accords, descriptif du domaine, **emplacements**) et les
+statistiques. Il voit les emplacements (section de la fiche, filtre de la
+cave), mais pas la cote : il ne voit **aucun prix d'achat ni aucune cote
+iDealwine** — les champs sont absents des réponses de l'API, pas seulement
+masqués : ni valeur au prix d'achat ou à la cote, ni classement « les plus
+chères » ou « valeur à la cote » dans les statistiques —, ni le journal, ni
+l'export Excel, ni « À confirmer », et il **n'écrit rien** : pas d'entrée, de
+sortie, d'inventaire, de photo, de note, d'apogée manuelle, de recherche
+d'image, de déplacement d'emplacement, de saisie de cote ni de régénération
 des accords (l'API répond 403 « Lecture seule »). Son application n'affiche
 que les onglets *Cave* et *Stats*, sans boutons d'action sur la fiche. Les
 images des photos lui sont servies pour toutes les caves dont il est membre.
@@ -140,6 +145,29 @@ explicite. Les photos de sortie ne sont **jamais reportées** : deux tentatives
 à 3 s d'intervalle puis abandon (l'utilisateur sort par la liste) ; elles
 n'apparaissent ni dans « À confirmer » ni dans le bandeau « en attente
 d'analyse », et ne sont pas remises en file au démarrage du worker.
+
+**Emplacements dans la cave.** Chaque bouteille peut être rangée à un endroit
+décrit librement par une zone, un casier et une position (un seul champ
+suffit ; tous vides vaut « Sans emplacement »), propre à la cave courante. Le
+bloc, replié par défaut, est proposé à l'entrée (unitaire et « À confirmer »),
+pré-rempli avec le dernier emplacement d'entrée de la cave ; les champs
+suggèrent, par une liste déroulante, les valeurs déjà utilisées dans la cave.
+La fiche vin affiche la répartition du stock par emplacement (« Cave 2 / B / 3
+× 4 ; Sans emplacement × 2 ») et propose au propriétaire *Ranger / déplacer*
+pour transférer tout ou partie du stock d'un endroit vers un autre ; la
+sortie et l'inventaire en baisse demandent d'où sortent les bouteilles dès
+que le vin est réparti sur plus d'un endroit, avec l'emplacement le plus
+récemment utilisé déjà coché. L'onglet *Cave* gagne un filtre par
+emplacement (y compris « Sans emplacement ») et le journal affiche
+« Déplacé » pour un transfert, qui ne compte ni comme entrée ni comme sortie
+dans les statistiques. Comme pour les mouvements, rien n'est jamais déplacé
+sans confirmation, et annuler un mouvement rend ses bouteilles à leur
+emplacement d'origine (annuler un déplacement annule les deux moitiés de la
+paire). Un membre (lecture seule) voit la section et le filtre, sans aucun
+bouton. API : `GET /api/locations`, `POST /api/wines/:id/move`, et un champ
+d'emplacement facultatif sur l'entrée (`POST /api/movements`,
+`/api/movements/bulk`), la sortie (`POST /api/movements/out`) et l'inventaire
+(`POST /api/wines/:id/inventory`).
 
 **Analyse différée, jamais bloquante.** L'analyse ne dépend pas de la
 disponibilité de l'API de vision. Dès qu'une photo est reçue, elle est stockée
@@ -278,7 +306,29 @@ consommation et la durée de cave qu'il donne ; et quatre **classements** : les
 vins les plus bus sur 12 mois, les producteurs les plus présents, les
 bouteilles les plus chères au prix d'achat (propriétaire seulement) et les
 mieux notés. Pour un membre, la valeur au prix d'achat et « les plus chères »
-sont absentes : la page n'affiche que le reste.
+sont absentes : la page n'affiche que le reste. Pour le propriétaire
+seulement s'ajoute la **valeur à la cote** (stock × cote iDealwine courante
+des vins en stock cotés) : « Valeur à la cote : X € sur N références cotées
+(sur M) », avec la valeur de cession estimée juste en dessous ; « — » et
+« Pas encore de cote » quand aucun vin en stock n'est coté.
+
+**Cote iDealwine, saisie à la main.** Sur la fiche d'un vin, le bloc *Cote
+iDealwine* (propriétaire seulement) propose un lien *Voir sur iDealwine* qui
+ouvre, dans un nouvel onglet, la page de recherche du vin sur
+`www.idealwine.com` (ou, si une cote a déjà été saisie avec un lien, la page
+qui a servi) — **l'application ne contacte jamais iDealwine elle-même** (voir
+*Limites*). Le propriétaire reporte alors à la main la cote lue sur cette
+page : montant en euros, nombre de transactions (facultatif), date du relevé
+et, facultatif, le lien exact de la page consultée. La fiche affiche ensuite
+la cote, son âge (« cote du 3 mars 2026, il y a 7 mois »), un avertissement si
+le nombre de transactions est faible (moins de 5) ou si la cote a plus d'un
+an, et la **valeur de cession estimée** (`cote / 1,16`, arrondie à l'euro, «
+cote hors frais acheteur d'environ 16 % »). Chaque saisie remplace la
+précédente comme valeur courante ; l'historique est conservé en base,
+jamais écrasé. Un membre ne voit ce bloc à aucun moment : les clés de cote
+sont absentes de la fiche qu'il reçoit. API : `POST /api/wines/:id/quotes`
+(propriétaire seulement) ; `GET /api/wines/:id` ajoute, pour le propriétaire,
+`quote`, `idealwineUrl` et `savedUrl`.
 
 **Note de dégustation.** Sur la fiche d'un vin, le bloc *Ma note* permet au
 propriétaire de la cave de noter le vin **sur 20, par demi-point** (« 16,5 » ou
@@ -335,9 +385,14 @@ fois-là.
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
 optionnel par couleur et la case *Seulement les vins à boire en priorité*
 (même règle et même ordre que l'onglet Cave ; `GET /api/export.xlsx?drinkSoon=true`). La feuille `Stock` ajoute *Apogée min*, *Apogée max* et
-*Confiance* après *Millésime*, puis *Note /20* après *Confiance* et *Accords*
-en dernière colonne ; une ligne dont l'apogée est déjà passée est
-mise en évidence par une teinte d'alerte.
+*Confiance* après *Millésime*, puis *Note /20* après *Confiance* et *Accords*,
+puis *Emplacements* (répartition par emplacement, par exemple « Cave 2 / B /
+3 × 4 ; Sans emplacement × 2 », vide s'il n'y a pas de stock), et enfin *Cote
+iDealwine (€)*, *Date de la cote* et *Valeur à la cote (€)* (= cote ×
+quantité ; les trois cellules sont vides quand le vin n'a pas de cote) en
+dernières colonnes ; une ligne dont l'apogée est déjà passée est
+mise en évidence par une teinte d'alerte. La feuille `Mouvements` affiche
+`MOVE` dans la colonne *Type* pour un déplacement d'emplacement.
 
 **Garde-fous.** Stock jamais négatif (contrainte en base), **même sous
 concurrence** : le déclencheur verrouille désormais la ligne du vin avant de
@@ -760,9 +815,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   n'ont pas gardé leur fiche confirmée et ne comptent pas. Une entrée confirmée
   avant la fin de l'analyse est comparée à un formulaire vide : la lecture
   arrivée ensuite n'a pas été montrée.
-- **Statistiques au prix d'achat seulement** : la valeur au prix du marché et
-  l'écart achat / marché attendent la cote iDealwine (lot 2c, reporté). La
-  fenêtre des mouvements est fixe (12 mois).
+- **La cote iDealwine est saisie à la main, jamais relevée automatiquement** :
+  l'application ne contacte iDealwine à aucun moment, elle se contente d'un
+  lien vers la page à consulter. Les [conditions générales d'iDealwine](https://www.idealwine.com/en/corporate/conditions_generales)
+  interdisent de copier leur base, cotes courantes et historiques comprises,
+  sans autorisation préalable ; un relevé automatique (session authentifiée,
+  lecture par sélecteurs CSS) aurait exigé cette autorisation, qui n'a pas été
+  demandée. La cote n'est donc jamais à jour toute seule : elle vaut ce que le
+  propriétaire y reporte, à la date qu'il indique, et seulement pour les vins
+  qu'il prend la peine de coter. L'écart achat / marché par vin, prévu au
+  cahier des charges, n'est pas affiché (seule la valeur à la cote l'est, dans
+  les statistiques). La fenêtre des mouvements est fixe (12 mois).
 - **Accords suggérés, jamais saisis** : les plats viennent de Gemini et ne se
   corrigent pas un à un (seulement *Régénérer*) ; aucun accord « vécu » n'est
   enregistré. Une régénération remplace le coût de la précédente dans le
@@ -811,8 +874,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Pas d'estimation d'apogée pour les vins non millésimés** : la fiche
   l'indique et ne propose que la saisie manuelle.
 - **Pas d'alerte hors de l'application** : la liste « à boire en priorité » se
-  consulte, elle ne prévient pas (choix assumé). **Emplacements dans la cave**
-  et **cote iDealwine** : reportés, chacun dans un lot séparé.
+  consulte, elle ne prévient pas (choix assumé).
+- **Emplacements libres, sans quantité propre** : zone, casier et position
+  sont du texte libre (40 caractères chacun), sans plan de cave ni capacité ;
+  aucune quantité n'est stockée par emplacement, c'est toujours le journal des
+  mouvements qui fait foi, le détail par emplacement est recalculé à la
+  lecture. Un emplacement est strictement **par cave** : deux caves peuvent
+  avoir chacune un « Garage », ce sont deux emplacements distincts, et un
+  identifiant d'emplacement d'une autre cave répond 404. Un inventaire en
+  baisse qu'aucun emplacement seul ne couvre (par exemple compter 0 alors que
+  les bouteilles sont réparties à deux endroits) est refusé (409) : il n'y a
+  pas d'inventaire réparti sur plusieurs emplacements en un seul geste.
 - **Après « Annuler »**, le panneau de sortie de la fiche vin reste sur
   « Sortie annulée » jusqu'à ce qu'on quitte la page (pas de retour
   automatique à l'écran de sortie).

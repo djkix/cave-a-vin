@@ -36,6 +36,12 @@ L'application est auto-hébergée en Docker sur le homelab existant, exposée en
 | Valorisation du stock, statistiques | 4 | Prix d'achat saisi à l'entrée |
 | Notes de dégustation, accords mets-vins | 4 |  |
 
+*Révision (2026-10-08) : « Relevé de cote iDealwine » et « Emplacements » sont
+livrés (lot 3a). Le relevé n'est pas automatique : il est saisi à la main par
+le propriétaire depuis la page iDealwine, dont seul un lien est affiché ;
+voir la section *Source retenue : la cote iDealwine* plus bas pour le
+changement de conception et son motif.*
+
 **Hors périmètre.** Pas de gestion de commandes ou de fournisseurs, pas de cave à vin connectée (sondes de température), pas de partage public de la cave, pas de multi-foyer. L'application est mono-cave et mono-foyer, avec comptes locaux.
 
 *Révision (2026-10-07) : l'application est désormais multi-caves. Chaque compte a sa propre cave, l'inscription d'une adresse Google inconnue attend la validation d'un administrateur, et un propriétaire peut inviter des membres en lecture seule (sans prix d'achat, sans journal ni export, sans écriture). Le référentiel des appellations, les règles d'apogée et les descriptifs de domaine restent communs. Voir `docs/superpowers/specs/2026-10-07-cave-a-vin-multi-caves-design.md`.*
@@ -222,6 +228,20 @@ Quatre contraintes à assumer :
 - **Échec propre.** Si la structure de la page change, le parseur doit renvoyer « prix indisponible » et alerter — jamais un prix mal lu. Un prix faux est bien pire qu'un prix absent.
 - **Conditions d'utilisation.** L'usage est strictement personnel et non redistribué. À vérifier dans les CGU avant de coder, et à garder derrière l'interface `PriceProvider` : si la voie se ferme, on bascule d'adaptateur sans toucher au reste.
 
+*Révision (2026-10-08) : ce scraper (session authentifiée, identifiants en
+secret Docker, lecture par sélecteurs CSS, « zéro token consommé ») n'a pas
+été construit. La vérification promise par la dernière puce ci-dessus
+(« à vérifier dans les CGU avant de coder ») a été faite, et elle a tranché
+dans l'autre sens : les [conditions générales d'iDealwine](https://www.idealwine.com/en/corporate/conditions_generales)
+interdisent de copier leur base de données, cotes courantes et historiques
+comprises, sans autorisation préalable — une autorisation qui n'a pas été
+demandée. L'application ne contacte donc jamais iDealwine ; elle affiche
+seulement un lien vers la page de recherche (ou vers la page déjà consultée),
+que le propriétaire ouvre lui-même dans un nouvel onglet. La cote qu'il y lit
+est saisie à la main sur la fiche du vin (montant, nombre de transactions
+facultatif, date, lien facultatif de la page). L'interface `PriceProvider`
+n'a donc pas été nécessaire : il n'y a qu'une seule source, humaine.*
+
 ### Déclenchement à la demande
 
 | Déclencheur | Portée | Requêtes |
@@ -237,6 +257,15 @@ Trois règles encadrent la consommation :
 - **Plafond mensuel configurable**, bloquant, avec un compteur visible dans l'écran de paramètres.
 - **Âge toujours affiché.** « Cote de mars 2026, il y a six mois » — une cote sans date n'a aucune valeur d'information.
 
+*Révision (2026-10-08) : il n'y a ni bouton *Mettre à jour les prix* sur une
+sélection, ni cache de douze mois, ni plafond mensuel ni compteur pour la
+cote — ces mécanismes supposaient un relevé automatique, abandonné (voir plus
+haut). Le seul déclencheur est la saisie manuelle, fiche par fiche, sans
+limite de fréquence autre que la discipline du propriétaire ; rien n'empêche
+de ressaisir la même cote le lendemain. L'âge reste affiché comme prévu
+(« cote du 3 mars 2026, il y a 7 mois »), avec un avertissement en plus si le
+nombre de transactions est faible ou si la cote a plus d'un an.*
+
 ### Ce qui est stocké et affiché
 
 Chaque relevé conserve le prix moyen, la fourchette min-max, la devise, la date et **l'URL des offres ayant servi au calcul**. Sans ces liens, un prix affiché n'est pas vérifiable et devient invérifiable dès qu'il paraît surprenant.
@@ -246,6 +275,16 @@ Trois garde-fous :
 - **Aucun prix inventé.** Un vin non trouvé reste sans prix. Un `null` explicite vaut mieux qu'une estimation par appellation, qui donnerait une valorisation fausse avec l'apparence du sérieux.
 - **Le format compte.** Les prix de référence portent sur la bouteille de 75 cl. Magnums et demi-bouteilles ne sont pas convertis automatiquement : le relevé est simplement marqué non applicable.
 - **Affichage arrondi et daté.** « ~42 € (relevé du 12/06/2026) », jamais « 41,87 € ». La fausse précision est le meilleur moyen de faire perdre confiance dans le chiffre.
+
+*Révision (2026-10-08) : un relevé saisi à la main porte une seule cote (pas
+de fourchette min-max ni de devise distincte, toujours l'euro), un nombre de
+transactions facultatif et une seule URL facultative (la page consultée, pas
+« les offres ayant servi au calcul », puisqu'il n'y a plus de calcul
+automatique). La valeur de cession estimée, affichée à côté, vaut
+`cote / 1,16` (« cote hors frais acheteur d'environ 16 % »), conformément à
+la première puce de la section *Source retenue*. Le format (75 cl) n'est pas
+contrôlé à la saisie : la cote porte sur le vin tel quel, pas sur un format
+précis.*
 
 ### Valorisation de la cave
 
@@ -288,6 +327,19 @@ Ce choix coûte une vue matérialisée et apporte trois choses que le compteur n
 
 *Révision (2026-10-07) : deux tables `cave` (nom, propriétaire) et `cave_member` (compte ou adresse invitée, rôle `OWNER` ou `VIEWER`) rattachent chaque cave à ses comptes ; `wine`, `photo`, `export_log` et `image_search_cost` portent un `cave_id`, et `wine.match_key` n'est plus unique que dans sa cave. `allowed_email` n'est plus consultée : l'accès passe par la validation de l'inscription et par les invitations.*
 
+*Révision (2026-10-08) : `location` (lot 3a, livrée) porte en réalité
+`cave_id`, `zone`, `casier`, `position` (texte libre, 40 caractères chacun),
+et une clé d'unicité par cave sur leur combinaison normalisée — pas de
+colonnes `rangée` / `colonne` séparées. `movement` gagne un `location_id`
+facultatif et un type `MOVE` (déplacement, qui ne compte ni comme entrée ni
+comme sortie), en plus de IN/OUT/ADJUST. Aucune quantité n'est stockée par
+emplacement : la répartition se recalcule à la lecture depuis le journal,
+comme `stock_courant` pour le total. `price_quote`, telle qu'elle a été
+livrée, ne porte que `wine_id`, `cote_cents`, `n_transactions` (facultatif),
+`quoted_on`, `source_url` (facultatif) et son auteur — pas de `last_hammer`,
+`trend` ni `currency` séparée (toujours l'euro) : voir la révision de
+*Ce qui est stocké et affiché* ci-dessus pour le motif.*
+
 ### Règles d'intégrité
 
 - `movement.delta` ne peut pas être nul ; un `OUT` est toujours négatif, un `IN` toujours positif.
@@ -325,6 +377,13 @@ flowchart TD
 | `storage` | Volume local ou MinIO | Photos originales et normalisées |
 
 La stack TypeScript/NestJS reprend le choix déjà arrêté pour le projet d'inventaire alimentaire : deux applications qui partagent la même structure, les mêmes outils et les mêmes réflexes de déploiement, ce qui divise le coût de maintenance.
+
+*Révision (2026-10-08) : le flux `W --> IDW[Cote iDealwine]` du diagramme et
+la ligne « relevés de cote à la demande » du `worker` ne se sont pas
+construits : il n'y a pas de dépendance sortante vers iDealwine, ni dans le
+worker ni ailleurs (voir la révision de *Source retenue : la cote iDealwine*).
+La cote est écrite directement par l'API, dans la même requête que sa
+saisie ; elle ne passe par aucune file de travaux.*
 
 ### Front : PWA installable, Android et iOS
 
@@ -546,6 +605,15 @@ Le seul coût variable est l'API de vision : de l'ordre de 0,5 à 2 centimes par
 | 2 | Sortie par photo, recherche dans la cave, apogée estimée, cote à la demande | Une bouteille est sortie en moins de 20 s, sans faux débit |
 | 3 | Emplacements, vue « à boire », alertes, hors ligne robuste | Une session complète en sous-sol sans réseau se rejoue sans perte |
 | 4 | Valorisation au prix de marché, statistiques, notes de dégustation |  |
+
+*Révision (2026-10-08) : le lot 3 a été scindé. Les **emplacements** (lot 3a)
+sont livrés : zone / casier / position par cave, déplacement, filtre,
+répartition sur la fiche et dans l'export — voir la révision du *Périmètre
+fonctionnel* plus haut. La **vue « à boire »** existe déjà, sous la forme de
+la case *À boire en priorité* de l'onglet Cave et de la page Stats (lots 2b
+et 4a). Les **alertes** hors de l'application (notification ou e-mail)
+restent hors périmètre, choix assumé. Le **hors ligne** des photos d'entrée
+est livré depuis le lot 1 (file locale, envoi au retour du réseau).*
 
 ### Exigences non fonctionnelles
 
