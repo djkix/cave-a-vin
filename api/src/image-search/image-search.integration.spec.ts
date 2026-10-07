@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { ImageNormalizationService } from '../photos/image-normalization.service';
 import { PhotosService } from '../photos/photos.service';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 import { CandidateStore } from './candidates';
 import { ImageSearchService } from './image-search.service';
 
@@ -19,12 +20,14 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   const photoIds: string[] = [];
   const movementIds: string[] = [];
   let jpeg: Buffer;
+  let caveId: string;
   const fetcher = jest.fn(async (url: string) => ({ buffer: jpeg, contentType: 'image/jpeg', finalUrl: url }));
   const store = new CandidateStore(dir, fetcher);
   const service = new ImageSearchService(prisma as never, store, {} as never, {} as never, dir, fetcher);
 
   beforeAll(async () => {
     jpeg = await sharp({ create: { width: 300, height: 450, channels: 3, background: '#5b1a26' } }).jpeg().toBuffer();
+    caveId = (await createTestCave(prisma)).id;
   });
 
   afterAll(async () => {
@@ -32,19 +35,20 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     await prisma.movement.deleteMany({ where: { id: { in: movementIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
     await prisma.photo.deleteMany({ where: { id: { in: [...photoIds, ...wines.map((w) => w.referencePhotoId!).filter(Boolean)] } } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 
   async function wine(referencePhotoId: string | null = null) {
     const w = await prisma.wine.create({
-      data: { matchKey: key('ref'), producer: 'Domaine Tempier', appellationRaw: 'Bandol', color: 'ROUGE', referencePhotoId },
+      data: { caveId, matchKey: key('ref'), producer: 'Domaine Tempier', appellationRaw: 'Bandol', color: 'ROUGE', referencePhotoId },
     });
     wineIds.push(w.id);
     return w;
   }
 
   async function entryPhoto() {
-    const p = await prisma.photo.create({ data: { contentHash: key('own'), storagePath: 'normalized/own.jpg', status: 'DONE', purpose: 'ENTRY' } });
+    const p = await prisma.photo.create({ data: { caveId, contentHash: key('own'), storagePath: 'normalized/own.jpg', status: 'DONE', purpose: 'ENTRY' } });
     photoIds.push(p.id);
     return p;
   }
@@ -64,7 +68,8 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
       referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1',
     });
     const photo = await prisma.photo.findUniqueOrThrow({ where: { id: view.referencePhotoId! } });
-    expect(photo).toMatchObject({ purpose: 'REFERENCE', status: 'DONE', storagePath: `normalized/${photo.id}.jpg`, mimeType: 'image/jpeg' });
+    // L'image choisie appartient à la cave du vin.
+    expect(photo).toMatchObject({ caveId, purpose: 'REFERENCE', status: 'DONE', storagePath: `normalized/${photo.id}.jpg`, mimeType: 'image/jpeg' });
     expect(existsSync(join(dir, 'normalized', `${photo.id}.jpg`))).toBe(true);
     const after = await prisma.wine.findUniqueOrThrow({ where: { id: w.id } });
     expect(after.referencePhotoPreviousId).toBe(own.id);
@@ -142,7 +147,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     const created: string[] = [];
     for (const status of ['PENDING', 'PROCESSING', 'DONE', 'FAILED'] as const) {
       const p = await prisma.photo.create({
-        data: { contentHash: key('ref-list'), storagePath: 'normalized/r.jpg', status, purpose: 'REFERENCE', createdAt: new Date(Date.UTC(2000, 0, 1)) },
+        data: { caveId, contentHash: key('ref-list'), storagePath: 'normalized/r.jpg', status, purpose: 'REFERENCE', createdAt: new Date(Date.UTC(2000, 0, 1)) },
       });
       photoIds.push(p.id);
       created.push(p.id);

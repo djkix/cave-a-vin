@@ -33,6 +33,7 @@ function harness() {
       updateMany: wine.updateMany,
     },
     photo: { findUnique: async () => ({ status: 'DONE' }) },
+    cave: { findFirst: async () => ({ id: 'c1' }) },
     $transaction: async (fn: any) => fn(prisma),
     $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) =>
       strings.join('?').includes('FOR UPDATE') ? (values[0] === wine.id ? [{ id: wine.id }] : []) : [{ quantity: stock() }],
@@ -40,6 +41,15 @@ function harness() {
   const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
   return { movements, wine, prisma, service: new MovementsService(prisma as any, matching as any) };
 }
+
+describe('MovementsService — cave de l’entrée (transition multi-caves)', () => {
+  it('rapproche le vin dans la cave de l’ancien fonctionnement', async () => {
+    const h = harness();
+    const matchOrCreate = jest.fn(async () => ({ wine: h.wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }));
+    await new MovementsService(h.prisma, { matchOrCreate } as any).createIn(input);
+    expect(matchOrCreate).toHaveBeenCalledWith('c1', input.wine);
+  });
+});
 
 const input = {
   idempotencyKey: 'k1',
@@ -124,6 +134,7 @@ describe('MovementsService', () => {
           });
         },
       },
+      cave: { findFirst: async () => ({ id: 'c1' }) },
       $queryRaw: async () => [{ quantity: 6 }],
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
@@ -172,6 +183,7 @@ describe('MovementsService', () => {
           });
         },
       },
+      cave: { findFirst: async () => ({ id: 'c1' }) },
       $queryRaw: async () => [{ quantity: 6 }],
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
@@ -302,6 +314,7 @@ describe('MovementsService', () => {
           });
         },
       },
+      cave: { findFirst: async () => ({ id: 'c1' }) },
       $queryRaw: async () => [{ quantity: 6 }],
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };

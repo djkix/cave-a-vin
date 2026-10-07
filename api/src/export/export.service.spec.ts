@@ -28,6 +28,7 @@ function fakePrisma() {
     movement: { findMany: async () => [...movements].reverse() },
     appellation: { findMany: async () => [{ canonicalName: 'Bandol', region: 'Provence', allowedColors: ['ROUGE', 'ROSE'], guardMinYears: 5, guardMaxYears: 20 }] },
     exportLog: { create: jest.fn(async ({ data }: any) => data) },
+    cave: { findFirst: async () => ({ id: 'c1' }) },
   };
 }
 
@@ -48,7 +49,7 @@ describe('ExportService.buildWorkbook', () => {
     expect(stock.getRow(2).getCell(14).value).toBe(576); // 12 × 48 €
     expect(rowCount).toBe(1);
     expect(wb.getWorksheet('Mouvements')!.rowCount).toBe(4);
-    expect(prisma.exportLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'u1', rowCount: 1 }) }));
+    expect(prisma.exportLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: 'u1', rowCount: 1, caveId: 'c1' }) }));
     expect(stock.autoFilter).toBeTruthy();
     expect(wb.getWorksheet('Mouvements')!.autoFilter).toBeTruthy();
     expect(wb.getWorksheet('Référence')!.autoFilter).toBeTruthy();

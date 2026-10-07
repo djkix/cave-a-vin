@@ -45,8 +45,17 @@ enum VintageQualityLevel {
 }
 
 enum AccountStatus {
+  /// Inscription Google en attente de validation par un administrateur.
+  PENDING
   ACTIVE
   BLOCKED
+}
+
+/// Rôle d'un compte dans une cave : propriétaire (un seul, index partiel en
+/// migration) ou membre en lecture seule.
+enum CaveRole {
+  OWNER
+  VIEWER
 }
 
 enum PairingStatus {
@@ -77,7 +86,9 @@ model Appellation {
 
 model Wine {
   id                       String       @id @default(uuid())
-  matchKey                 String       @unique @map("match_key")
+  caveId                   String       @map("cave_id")
+  cave                     Cave         @relation(fields: [caveId], references: [id])
+  matchKey                 String       @map("match_key")
   producer                 String
   cuvee                    String?
   appellationId            String?      @map("appellation_id")
@@ -104,6 +115,9 @@ model Wine {
   pairing                  Pairing?
   movements                Movement[]
 
+  /// Rapprochement par cave : le même vin peut exister dans deux caves.
+  /// L'index commence par cave_id et sert aussi de filtre par cave.
+  @@unique([caveId, matchKey])
   @@map("wine")
 }
 
@@ -128,7 +142,9 @@ model Movement {
 
 model Photo {
   id            String       @id @default(uuid())
-  contentHash   String       @unique @map("content_hash")
+  caveId        String       @map("cave_id")
+  cave          Cave         @relation(fields: [caveId], references: [id])
+  contentHash   String       @map("content_hash")
   storagePath   String       @map("storage_path")
   mimeType      String       @default("image/jpeg") @map("mime_type")
   status        PhotoStatus  @default(PENDING)
@@ -144,6 +160,8 @@ model Photo {
   dismissedAt   DateTime?    @map("dismissed_at")
   movements     Movement[]
 
+  /// Doublon détecté par cave : deux caves peuvent envoyer la même image.
+  @@unique([caveId, contentHash])
   @@index([purpose, status, nextAttemptAt])
   @@map("photo")
 }
@@ -161,8 +179,56 @@ model AppUser {
   createdAt        DateTime          @default(now()) @map("created_at")
   ratedWines       Wine[]
   producerProfiles ProducerProfile[]
+  ownedCaves       Cave[]            @relation("CaveOwner")
+  caveMemberships  CaveMember[]
 
   @@map("app_user")
+}
+
+/// Une cave : ses vins, photos, exports et recherches d'image. Sans
+/// propriétaire seulement si elle a été migrée sur une base sans aucun compte.
+model Cave {
+  id               String            @id @default(uuid())
+  name             String
+  ownerId          String?           @map("owner_id")
+  owner            AppUser?          @relation("CaveOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  members          CaveMember[]
+  wines            Wine[]
+  photos           Photo[]
+  exportLogs       ExportLog[]
+  imageSearchCosts ImageSearchCost[]
+
+  @@index([ownerId])
+  @@map("cave")
+}
+
+/// Accès d'un compte (ou d'une adresse invitée, en attendant sa première
+/// connexion) à une cave. Le propriétaire a aussi sa ligne OWNER ; un seul
+/// OWNER par cave (index partiel cave_member_one_owner_idx en migration).
+model CaveMember {
+  id           String   @id @default(uuid())
+  caveId       String   @map("cave_id")
+  cave         Cave     @relation(fields: [caveId], references: [id], onDelete: Cascade)
+  userId       String?  @map("user_id")
+  user         AppUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitedEmail String?  @map("invited_email")
+  role         CaveRole
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([caveId, userId])
+  @@unique([caveId, invitedEmail])
+  @@index([userId])
+  @@index([invitedEmail])
+  @@map("cave_member")
+}
+
+/// Réglages d'administration (clé, valeur texte), par ex. cave_budget_share = 0.2.
+model AppSetting {
+  key   String @id
+  value String
+
+  @@map("app_setting")
 }
 
 model AllowedEmail {
@@ -175,11 +241,14 @@ model AllowedEmail {
 
 model ExportLog {
   id          String   @id @default(uuid())
+  caveId      String   @map("cave_id")
+  cave        Cave     @relation(fields: [caveId], references: [id])
   userId      String   @map("user_id")
   generatedAt DateTime @default(now()) @map("generated_at")
   filter      Json?
   rowCount    Int      @map("row_count")
 
+  @@index([caveId])
   @@map("export_log")
 }
 
@@ -247,11 +316,15 @@ model ProducerProfile {
 /// Dépense Gemini d'une recherche d'image (site officiel), comptée dans le plafond mensuel.
 model ImageSearchCost {
   id        String   @id @default(uuid())
+  caveId    String   @map("cave_id")
+  cave      Cave     @relation(fields: [caveId], references: [id])
   wineId    String?  @map("wine_id")
   model     String?
   costCents Int      @map("cost_cents")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])
+  /// Dépense du mois par cave (part de budget par cave).
+  @@index([caveId, createdAt])
   @@map("image_search_cost")
 }

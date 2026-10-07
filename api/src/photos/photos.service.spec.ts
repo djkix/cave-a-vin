@@ -11,8 +11,14 @@ function fakePrisma() {
   const photos: any[] = [];
   return {
     photos,
+    cave: { findFirst: async () => ({ id: 'c1' }) },
     photo: {
-      findUnique: async ({ where }: any) => photos.find((p) => p.contentHash === where.contentHash || p.id === where.id) ?? null,
+      findUnique: async ({ where }: any) =>
+        photos.find((p) =>
+          where.caveId_contentHash
+            ? p.caveId === where.caveId_contentHash.caveId && p.contentHash === where.caveId_contentHash.contentHash
+            : p.id === where.id,
+        ) ?? null,
       create: async ({ data }: any) => {
         const p = { id: data.id ?? `p${photos.length + 1}`, status: 'PENDING', purpose: 'ENTRY', createdAt: new Date(), ...data };
         photos.push(p);
@@ -45,6 +51,8 @@ describe('PhotosService.ingest', () => {
     const { photo, duplicate } = await service.ingest(img, 'image/jpeg');
     expect(duplicate).toBe(false);
     expect(photo.status).toBe('PENDING');
+    // TODO(multi-caves) : la cave de l'ancien fonctionnement, en attendant la cave courante.
+    expect(photo.caveId).toBe('c1');
     expect(existsSync(join(dir, 'original', `${photo.id}.jpg`))).toBe(true);
     expect(existsSync(join(dir, 'normalized', `${photo.id}.jpg`))).toBe(true);
     // L'analyse d'entrée se fait désormais par lot depuis la base : aucun travail
@@ -102,6 +110,7 @@ describe('PhotosService.ingest', () => {
     let findUniqueCalls = 0;
     let createCalls = 0;
     const prisma = {
+      cave: { findFirst: async () => ({ id: 'c1' }) },
       photo: {
         findUnique: async () => {
           findUniqueCalls += 1;

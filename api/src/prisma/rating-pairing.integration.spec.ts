@@ -1,20 +1,25 @@
 import { PrismaClient, WineColor } from '@prisma/client';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 describeIfDb('note et accords (base réelle)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
   let wineId: string;
 
   beforeAll(async () => {
+
+    caveId = (await createTestCave(prisma)).id;
     const wine = await prisma.wine.create({
-      data: { matchKey: `rating-${Date.now()}`, producer: 'Domaine Note', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      data: { caveId, matchKey: `rating-${Date.now()}`, producer: 'Domaine Note', appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
     wineId = wine.id;
   });
 
   afterAll(async () => {
     await prisma.wine.deleteMany({ where: { id: wineId } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 
@@ -33,7 +38,7 @@ describeIfDb('note et accords (base réelle)', () => {
 
   it('garde un seul jeu d’accords par vin et le supprime avec le vin', async () => {
     const other = await prisma.wine.create({
-      data: { matchKey: `pairing-${Date.now()}`, producer: 'Domaine Accords', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      data: { caveId, matchKey: `pairing-${Date.now()}`, producer: 'Domaine Accords', appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
     await prisma.pairing.create({ data: { wineId: other.id } });
     await expect(prisma.pairing.create({ data: { wineId: other.id } })).rejects.toThrow();

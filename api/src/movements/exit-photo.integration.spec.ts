@@ -1,19 +1,25 @@
 import { ConflictException } from '@nestjs/common';
 import { PrismaClient, WineColor } from '@prisma/client';
 import { MovementsService } from './movements.service';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 const key = (p: string) => `${p}-${Date.now()}-${Math.random()}`;
 
 describeIfDb('sortie par photo réutilisée (base réelle)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
+
+  beforeAll(async () => {
+    caveId = (await createTestCave(prisma)).id;
+  });
   const service = new MovementsService(prisma as never, {} as never);
   const wineIds: string[] = [];
   const photoIds: string[] = [];
 
   async function wineWithStock(quantity: number) {
     const wine = await prisma.wine.create({
-      data: { matchKey: key('photo-out'), producer: 'Domaine Photo', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      data: { caveId, matchKey: key('photo-out'), producer: 'Domaine Photo', appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
     wineIds.push(wine.id);
     await prisma.movement.create({ data: { wineId: wine.id, delta: quantity, type: 'IN', idempotencyKey: key('in') } });
@@ -21,7 +27,7 @@ describeIfDb('sortie par photo réutilisée (base réelle)', () => {
   }
 
   async function exitPhoto() {
-    const p = await prisma.photo.create({ data: { contentHash: key('hash'), storagePath: 'normalized/x.jpg', purpose: 'EXIT' } });
+    const p = await prisma.photo.create({ data: { caveId, contentHash: key('hash'), storagePath: 'normalized/x.jpg', purpose: 'EXIT' } });
     photoIds.push(p.id);
     return p;
   }
@@ -31,6 +37,7 @@ describeIfDb('sortie par photo réutilisée (base réelle)', () => {
     await prisma.movement.deleteMany({ where: { wineId: { in: wineIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
     await prisma.photo.deleteMany({ where: { id: { in: photoIds } } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 

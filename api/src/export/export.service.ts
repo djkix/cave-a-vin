@@ -3,6 +3,7 @@ import { Prisma, WineColor } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { ApogeeConfidence, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
+import { resolveLegacyCaveId } from '../caves/legacy-cave';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ExportFilter {
@@ -141,7 +142,9 @@ export class ExportService {
     ref.getRow(1).font = { bold: true };
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-    await this.prisma.exportLog.create({ data: { userId, filter: filter as Prisma.InputJsonValue, rowCount: inStock.length } });
+    // TODO(multi-caves): remplacer par la cave courante (tâche 3/4)
+    const caveId = await resolveLegacyCaveId(this.prisma);
+    await this.prisma.exportLog.create({ data: { caveId, userId, filter: filter as Prisma.InputJsonValue, rowCount: inStock.length } });
     return { buffer, rowCount: inStock.length };
   }
 }

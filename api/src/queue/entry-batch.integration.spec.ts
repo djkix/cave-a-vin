@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { EntryBatchProcessor } from './entry-batch.processor';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 const key = (p: string) => `${p}-${Date.now()}-${Math.random()}`;
@@ -12,6 +13,11 @@ const key = (p: string) => `${p}-${Date.now()}-${Math.random()}`;
  */
 describeIfDb('analyse par lot — réservation (base réelle)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
+
+  beforeAll(async () => {
+    caveId = (await createTestCave(prisma)).id;
+  });
   const photoIds: string[] = [];
   const reads: string[] = [];
   const photos = {
@@ -41,7 +47,7 @@ describeIfDb('analyse par lot — réservation (base réelle)', () => {
   const processor = new EntryBatchProcessor(prisma as never, photos as never, vision as never, budget as never);
 
   async function photo(data: { createdAt: Date; nextAttemptAt?: Date | null; dismissedAt?: Date | null; status?: 'PENDING' | 'PROCESSING' }) {
-    const p = await prisma.photo.create({ data: { contentHash: key('lot'), storagePath: 'normalized/x.jpg', purpose: 'ENTRY', ...data } });
+    const p = await prisma.photo.create({ data: { caveId, contentHash: key('lot'), storagePath: 'normalized/x.jpg', purpose: 'ENTRY', ...data } });
     photoIds.push(p.id);
     return p;
   }
@@ -56,6 +62,7 @@ describeIfDb('analyse par lot — réservation (base réelle)', () => {
   });
 
   afterAll(async () => {
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 

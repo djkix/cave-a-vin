@@ -8,7 +8,7 @@ import { CandidateStore } from './candidates';
 import { ImageSearchService } from './image-search.service';
 import { OFF_SOURCE } from './open-food-facts';
 
-const WINE = { id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Migoua', appellationRaw: 'Bandol', vintage: 2019 };
+const WINE = { id: 'w1', caveId: 'c1', producer: 'Domaine Tempier', cuvee: 'La Migoua', appellationRaw: 'Bandol', vintage: 2019 };
 
 let jpeg: Buffer;
 beforeAll(async () => {
@@ -68,7 +68,7 @@ describe('ImageSearchService.search', () => {
     const r = await service.search('w1');
     expect(budget.assertUnderShare).toHaveBeenCalledWith(0.8);
     expect(provider.findOfficialSite).toHaveBeenCalledWith({ producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol', vintage: 2019 }, expect.any(AbortSignal));
-    expect(prisma.imageSearchCost.create).toHaveBeenCalledWith({ data: { wineId: 'w1', model: 'gemini-test', costCents: 1 } });
+    expect(prisma.imageSearchCost.create).toHaveBeenCalledWith({ data: { caveId: 'c1', wineId: 'w1', model: 'gemini-test', costCents: 1 } });
     expect(r.candidates).toEqual([expect.objectContaining({ source: 'tempier.fr', sourceUrl: 'https://tempier.fr/' })]);
   });
 

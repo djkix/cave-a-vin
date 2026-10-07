@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Movement, Prisma, Wine } from '@prisma/client';
+import { resolveLegacyCaveId } from '../caves/legacy-cave';
 import { PairingScheduler } from '../pairing/pairing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProducerScheduler } from '../producers/producers.service';
@@ -60,7 +61,9 @@ export class MovementsService {
     // Une image du web choisie comme vignette n'est pas la photo d'une bouteille entrée.
     if (photo?.purpose === 'REFERENCE') throw new BadRequestException('Photo invalide pour une entrée');
 
-    const { wine, created: wineCreated } = await this.matching.matchOrCreate(input.wine);
+    // TODO(multi-caves): remplacer par la cave courante (tâche 3/4)
+    const caveId = await resolveLegacyCaveId(this.prisma);
+    const { wine, created: wineCreated } = await this.matching.matchOrCreate(caveId, input.wine);
     // Une fiche confirmée avant la fin de l'analyse n'a montré aucune lecture :
     // la mesure « zéro saisie » la comparera à un formulaire vide.
     const readingShown = photo?.status === 'DONE';

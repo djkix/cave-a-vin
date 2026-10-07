@@ -1,5 +1,6 @@
 import { PrismaClient, WineColor } from '@prisma/client';
 import { MovementsService } from './movements.service';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -7,12 +8,17 @@ const key = (p: string) => `${p}-${Date.now()}-${Math.random()}`;
 
 describeIfDb('inventaire sous concurrence (base réelle)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
+
+  beforeAll(async () => {
+    caveId = (await createTestCave(prisma)).id;
+  });
   const service = new MovementsService(prisma as never, {} as never);
   const wineIds: string[] = [];
 
   async function wineWithStock(quantity: number) {
     const wine = await prisma.wine.create({
-      data: { matchKey: key('inv'), producer: 'Domaine Inventaire', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      data: { caveId, matchKey: key('inv'), producer: 'Domaine Inventaire', appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
     wineIds.push(wine.id);
     if (quantity > 0) await prisma.movement.create({ data: { wineId: wine.id, delta: quantity, type: 'IN', idempotencyKey: key('inv-in') } });
@@ -22,6 +28,7 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
   afterAll(async () => {
     await prisma.movement.deleteMany({ where: { wineId: { in: wineIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 

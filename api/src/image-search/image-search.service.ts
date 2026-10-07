@@ -62,7 +62,7 @@ export interface ReferenceImageView {
 }
 
 const WINE_SELECT = {
-  id: true, producer: true, cuvee: true, appellationRaw: true, vintage: true,
+  id: true, caveId: true, producer: true, cuvee: true, appellationRaw: true, vintage: true,
   referencePhotoId: true, referencePhotoPreviousId: true, referencePhotoSource: true, referencePhotoSourceUrl: true,
 } satisfies Prisma.WineSelect;
 
@@ -165,7 +165,7 @@ export class ImageSearchService {
    * global : 503 (on n'arrive ici que sans image d'Open Food Facts).
    */
   private async officialSiteImages(
-    wine: { id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null },
+    wine: { id: string; caveId: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null },
     signal: AbortSignal,
   ): Promise<RemoteImage[]> {
     try {
@@ -185,7 +185,8 @@ export class ImageSearchService {
       this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
       throw new ServiceUnavailableException(UNAVAILABLE);
     }
-    await this.prisma.imageSearchCost.create({ data: { wineId: wine.id, model: result.model, costCents: result.costCents } });
+    // La dépense est portée par la cave du vin (part de budget par cave).
+    await this.prisma.imageSearchCost.create({ data: { caveId: wine.caveId, wineId: wine.id, model: result.model, costCents: result.costCents } });
     if (!result.site) return [];
     try {
       return await beforeDeadline(readOfficialSiteImages(result.site, wine, this.fetcher, signal), signal);
@@ -240,7 +241,8 @@ export class ImageSearchService {
         await tx.photo.create({
           // Empreinte propre à la photo : une image du web ne doit jamais être prise
           // pour une photo d'entrée qui aurait les mêmes octets (et inversement).
-          data: { id: photoId, contentHash: `reference:${photoId}`, storagePath, mimeType: 'image/jpeg', status: 'DONE', purpose: 'REFERENCE' },
+          // L'image choisie appartient à la cave du vin.
+          data: { id: photoId, caveId: wine.caveId, contentHash: `reference:${photoId}`, storagePath, mimeType: 'image/jpeg', status: 'DONE', purpose: 'REFERENCE' },
         });
         const updated = await tx.wine.update({
           where: { id: wineId },

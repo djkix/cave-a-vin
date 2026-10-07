@@ -6,6 +6,7 @@ import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { resolveLegacyCaveId } from '../caves/legacy-cave';
 import { PrismaService } from '../prisma/prisma.service';
 import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
 import { parseExtraction, safeParseExtraction } from '../vision/extraction-schema';
@@ -38,7 +39,10 @@ export class PhotosService {
 
   async ingest(input: Buffer, mimeType: string, purpose: PhotoPurpose = 'ENTRY'): Promise<{ photo: Photo; duplicate: boolean }> {
     const contentHash = createHash('sha256').update(input).digest('hex');
-    const existing = await this.prisma.photo.findUnique({ where: { contentHash } });
+    // TODO(multi-caves): remplacer par la cave courante (tâche 3/4)
+    const caveId = await resolveLegacyCaveId(this.prisma);
+    // Doublon cherché dans la cave : deux caves peuvent envoyer la même image.
+    const existing = await this.prisma.photo.findUnique({ where: { caveId_contentHash: { caveId, contentHash } } });
     if (existing) return { photo: await this.reclaimForEntry(existing, purpose), duplicate: true };
 
     let buffer: Buffer;
@@ -61,13 +65,13 @@ export class PhotosService {
     let photo: Photo;
     try {
       photo = await this.prisma.photo.create({
-        data: { id, contentHash, storagePath: normalizedPath, mimeType: 'image/jpeg', purpose },
+        data: { id, caveId, contentHash, storagePath: normalizedPath, mimeType: 'image/jpeg', purpose },
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         await unlinkIgnoringMissing(originalAbsolutePath);
         await unlinkIgnoringMissing(normalizedAbsolutePath);
-        const existingAfterRace = await this.prisma.photo.findUnique({ where: { contentHash } });
+        const existingAfterRace = await this.prisma.photo.findUnique({ where: { caveId_contentHash: { caveId, contentHash } } });
         if (existingAfterRace) return { photo: await this.reclaimForEntry(existingAfterRace, purpose), duplicate: true };
       }
       throw e;
