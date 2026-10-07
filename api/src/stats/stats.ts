@@ -1,4 +1,5 @@
 import { Apogee } from '../apogee/apogee';
+import { cessionCents } from '../quotes/quote';
 
 /**
  * Statistiques de la cave, calculées à la lecture. Fonction pure : le service
@@ -35,6 +36,9 @@ export interface StatsMovement {
   reversesId: string | null;
 }
 
+/** Cote iDealwine courante d'un vin (saisie à la main). */
+export interface StatsQuote { wineId: string; coteCents: number }
+
 export interface Share { key: string; bottles: number; share: number }
 export interface MonthFlow { month: string; in: number; out: number }
 export interface RankedWine { id: string; producer: string; cuvee: string | null; vintage: number | null; value: number }
@@ -45,6 +49,14 @@ export interface Stats {
   references: number;
   pricedReferences: number;
   purchaseValueCents: number | null;
+  /** Somme cote × stock des vins en stock cotés ; null si aucun n'est coté. */
+  quotedValueCents: number | null;
+  /** Valeur à la cote moins 16 % de frais acheteur ; null si aucun vin n'est coté. */
+  cessionValueCents: number | null;
+  /** Vins en stock ayant une cote. */
+  quotedReferences: number;
+  /** Vins en stock (cotés ou non). */
+  quotableReferences: number;
   byColor: Share[];
   byRegion: Share[];
   byDecade: Share[];
@@ -58,8 +70,11 @@ export interface Stats {
   bestRated: RankedWine[];
 }
 
-/** Champs tirés des prix d'achat : absents de la réponse pour un membre en lecture seule. */
-export const PRICE_KEYS = ['pricedReferences', 'purchaseValueCents', 'mostExpensive'] as const;
+/** Champs tirés des prix d'achat et de la cote : absents de la réponse pour un membre en lecture seule. */
+export const PRICE_KEYS = [
+  'pricedReferences', 'purchaseValueCents', 'mostExpensive',
+  'quotedValueCents', 'cessionValueCents', 'quotedReferences', 'quotableReferences',
+] as const;
 export type ViewerStats = Omit<Stats, (typeof PRICE_KEYS)[number]>;
 
 /**
@@ -111,7 +126,7 @@ const biggestFirst = (a: Share, b: Share) => b.bottles - a.bottles || byFr(a.key
 const decadeOrder = (a: Share, b: Share) =>
   a.key === NO_VINTAGE ? 1 : b.key === NO_VINTAGE ? -1 : Number(a.key) - Number(b.key);
 
-export function computeStats(input: { wines: StatsWine[]; movements: StatsMovement[] }, now: Date): Stats {
+export function computeStats(input: { wines: StatsWine[]; movements: StatsMovement[]; quotes?: StatsQuote[] }, now: Date): Stats {
   const cancelled = new Set(input.movements.filter((m) => m.reversesId).map((m) => m.reversesId as string));
   // Seules les entrées et sorties comptent : ni ajustement, ni déplacement (MOVE), ni mouvement annulé.
   const counted = input.movements.filter((m) => (m.type === 'IN' || m.type === 'OUT') && !cancelled.has(m.id));
@@ -125,6 +140,9 @@ export function computeStats(input: { wines: StatsWine[]; movements: StatsMoveme
   const qty = (w: StatsWine) => w.quantity;
   const bottles = inStock.reduce((s, w) => s + w.quantity, 0);
   const priced = inStock.filter((w) => lastPrice.has(w.id));
+  const cote = new Map((input.quotes ?? []).map((q) => [q.wineId, q.coteCents]));
+  const quoted = inStock.filter((w) => cote.has(w.id));
+  const quotedValueCents = quoted.length ? quoted.reduce((s, w) => s + w.quantity * cote.get(w.id)!, 0) : null;
 
   const apogeeGroups = group(inStock, (w) => w.apogee.status ?? 'SANS_ESTIMATION', qty);
 
@@ -152,6 +170,10 @@ export function computeStats(input: { wines: StatsWine[]; movements: StatsMoveme
     references: inStock.length,
     pricedReferences: priced.length,
     purchaseValueCents: priced.length ? priced.reduce((s, w) => s + w.quantity * lastPrice.get(w.id)!, 0) : null,
+    quotedValueCents,
+    cessionValueCents: quotedValueCents == null ? null : cessionCents(quotedValueCents),
+    quotedReferences: quoted.length,
+    quotableReferences: inStock.length,
     byColor: shares(group(inStock, (w) => w.color, qty), bottles, biggestFirst),
     byRegion: shares(group(inStock, (w) => w.region ?? NO_REGION, qty), bottles, biggestFirst),
     byDecade: shares(

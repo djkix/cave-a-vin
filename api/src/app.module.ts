@@ -15,6 +15,7 @@ import { PhotosModule } from './photos/photos.module';
 import { ProducersModule } from './producers/producers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
+import { QuotesModule } from './quotes/quotes.module';
 import { ReadingQualityModule } from './reading-quality/reading-quality.module';
 import { StatsModule } from './stats/stats.module';
 import { WinesModule } from './wines/wines.module';
@@ -36,6 +37,7 @@ import { WinesModule } from './wines/wines.module';
     PhotosModule,
     QueueModule,
     LocationsModule,
+    QuotesModule,
     MovementsModule,
     PairingModule,
     ProducersModule,

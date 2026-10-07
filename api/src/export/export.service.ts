@@ -5,6 +5,7 @@ import { ApogeeConfidence, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { formatPlaces, LocationParts, placesOf } from '../locations/location';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentQuoteByWine } from '../quotes/quote';
 
 export interface ExportFilter {
   color?: WineColor;
@@ -27,14 +28,17 @@ export class ExportService {
 
   /** Classeur de la cave `caveId` (stock, journal, référentiel commun), journalisé dans cette cave. */
   async buildWorkbook(caveId: string, filter: ExportFilter, userId: string): Promise<{ buffer: Buffer; rowCount: number }> {
-    const [stockRows, wines, movements, appellations] = await Promise.all([
+    const [stockRows, wines, movements, appellations, quotes] = await Promise.all([
       // stock_courant n'a pas de cave : jointe par le vin.
       this.prisma.$queryRaw<{ wine_id: string; quantity: number }[]>`
         SELECT s.wine_id, s.quantity FROM stock_courant s JOIN wine w ON w.id = s.wine_id WHERE w.cave_id = ${caveId}`,
       this.prisma.wine.findMany({ where: { caveId }, include: { appellation: true, pairing: true }, orderBy: [{ producer: 'asc' }, { vintage: 'asc' }] }),
       this.prisma.movement.findMany({ where: { wine: { caveId } }, include: { wine: true, location: true }, orderBy: { occurredAt: 'desc' } }),
       this.prisma.appellation.findMany({ orderBy: { canonicalName: 'asc' } }),
+      // Cote iDealwine : l'export est réservé au propriétaire, qui voit les prix.
+      this.prisma.priceQuote.findMany({ where: { wine: { caveId } }, select: { wineId: true, coteCents: true, quotedOn: true, createdAt: true } }),
     ]);
+    const quoteByWine = currentQuoteByWine(quotes);
     const stockByWine = new Map(stockRows.map((r) => [r.wine_id, Number(r.quantity)]));
     // Même règle que les statistiques : une entrée annulée (reprise par un ADJUST qui la référence) ne fixe pas le prix.
     const cancelled = new Set(movements.filter((m) => m.reversesId).map((m) => m.reversesId as string));
@@ -98,10 +102,14 @@ export class ExportService {
       { header: "Valeur d'achat (€)", key: 'value', width: 16 },
       { header: 'Accords', key: 'pairings', width: 48 },
       { header: 'Emplacements', key: 'locations', width: 40 },
+      { header: 'Cote iDealwine (€)', key: 'cote', width: 17 },
+      { header: 'Date de la cote', key: 'quotedOn', width: 14, style: { numFmt: 'dd/mm/yyyy' } },
+      { header: 'Valeur à la cote (€)', key: 'quotedValue', width: 18 },
     ];
     for (const { w, apogee } of inStock) {
       const q = stockByWine.get(w.id) ?? 0;
       const price = lastPrice.has(w.id) ? lastPrice.get(w.id)! / 100 : null;
+      const quote = quoteByWine.get(w.id);
       const row = stock.addRow({
         producer: w.producer, cuvee: w.cuvee ?? '', appellation: w.appellationRaw, region: w.appellation?.region ?? '',
         vintage: w.vintage ?? 'NV', apogeeMin: apogee.min, apogeeMax: apogee.max,
@@ -111,6 +119,9 @@ export class ExportService {
         price, value: price == null ? null : Math.round(price * q * 100) / 100,
         pairings: w.pairing?.status === 'DONE' ? w.pairing.dishes.join(' ; ') : '',
         locations: placesText(w.id),
+        cote: quote ? quote.coteCents / 100 : null,
+        quotedOn: quote?.quotedOn ?? null,
+        quotedValue: quote ? (quote.coteCents * q) / 100 : null,
       });
       if (apogee.status === 'PASSEE') {
         row.eachCell({ includeEmpty: true }, (cell) => {
@@ -118,7 +129,7 @@ export class ExportService {
         });
       }
     }
-    stock.autoFilter = { from: 'A1', to: 'P1' };
+    stock.autoFilter = { from: 'A1', to: 'S1' };
     stock.getRow(1).font = { bold: true };
 
     const mv = wb.addWorksheet('Mouvements', { views: [{ state: 'frozen', ySplit: 1 }] });

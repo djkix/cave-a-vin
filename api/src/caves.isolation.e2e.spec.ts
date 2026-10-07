@@ -99,6 +99,11 @@ const ROUTES: Route[] = [
     happy: { status: 201, check: (res) => expect(res.body.locations).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Iso / B', quantity: 1 })])) },
   },
   { method: 'GET', path: '/api/photos/:id/exit-candidates', kind: 'cave-owner', req: (i) => ({ url: `/api/photos/${i.photoA}/exit-candidates` }), foreign: NOT_FOUND_PHOTO, happy: { status: 200 } },
+  {
+    method: 'POST', path: '/api/wines/:id/quotes', kind: 'cave-owner',
+    req: (i) => ({ url: `/api/wines/${i.wineA}/quotes`, body: { coteCents: 4200, quotedOn: '2026-01-15' } }), foreign: NOT_FOUND_WINE,
+    happy: { status: 201, check: (res) => expect(res.body).toMatchObject({ coteCents: 4200, quotedOn: '2026-01-15', cessionCents: 3528 }) },
+  },
   { method: 'PUT', path: '/api/wines/:id/apogee', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/apogee`, body: { min: 2030, max: 2035 } }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
   { method: 'DELETE', path: '/api/wines/:id/apogee', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/apogee` }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
   { method: 'PUT', path: '/api/wines/:id/rating', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/rating`, body: { rating: 15 } }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
@@ -213,8 +218,8 @@ const ROUTES: Route[] = [
   { method: 'GET', path: '/api/health', kind: 'auth-public' },
 ];
 
-/** Clés de prix d'achat (stats.ts, mouvements) et tout nom qui en évoque un. */
-const PRICE_KEY = new RegExp(['price', 'purchase', 'expensive', 'cost', ...PRICE_KEYS].join('|'), 'i');
+/** Clés de prix d'achat et de cote iDealwine (stats.ts, mouvements, fiche) et tout nom qui en évoque un. */
+const PRICE_KEY = new RegExp(['price', 'purchase', 'expensive', 'cost', 'cote', 'quote', 'idealwine', 'cession', ...PRICE_KEYS].join('|'), 'i');
 function keysOf(value: unknown, out: string[] = []): string[] {
   if (Array.isArray(value)) value.forEach((v) => keysOf(v, out));
   else if (value && typeof value === 'object') {
@@ -298,6 +303,8 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     ids.movementCancelA = (await prisma.movement.create({ data: { wineId: ids.wineA2, delta: 1, type: 'IN', priceUnitCents: 900, idempotencyKey: `iso-${run}-in-a2` } })).id;
     await prisma.movement.create({ data: { wineId: wineB, delta: 3, type: 'IN', priceUnitCents: 900, idempotencyKey: `iso-${run}-in-b` } });
     ids.wineB = wineB;
+    // Cote de A : la fiche du propriétaire en porte une, celle du membre aucune clé.
+    await prisma.priceQuote.create({ data: { wineId: ids.wineA, coteCents: 5000, quotedOn: new Date('2026-02-01'), sourceUrl: 'https://www.idealwine.com/fr/iso.jsp' } });
     ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zone: 'Cave A', casier: 'Iso', labelKey: 'cave a|iso|' } })).id;
 
     // Photo d'entrée lue, sans mouvement : « À confirmer » de A, avec son image sur disque.
@@ -357,7 +364,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
   /** Ce qu'une requête refusée ne doit jamais changer : la cave A et les comptes de la suite. */
   async function snapshot(): Promise<string> {
     const inA = { caveId: ids.caveA };
-    const [cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations] = await Promise.all([
+    const [cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes] = await Promise.all([
       prisma.cave.findUnique({ where: { id: ids.caveA } }),
       prisma.caveMember.findMany({ where: inA, orderBy: { id: 'asc' } }),
       prisma.wine.findMany({ where: inA, orderBy: { id: 'asc' } }),
@@ -370,8 +377,9 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
       prisma.cave.count({ where: { ownerId: { in: userIds } } }),
       prisma.producerProfile.findUnique({ where: { producerKey: ids.producerKeyA } }),
       prisma.location.findMany({ where: inA, orderBy: { id: 'asc' } }),
+      prisma.priceQuote.findMany({ where: { wine: inA }, orderBy: { id: 'asc' } }),
     ]);
-    return JSON.stringify({ cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations });
+    return JSON.stringify({ cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes });
   }
 
   /** La requête, et la preuve qu'elle n'a rien changé à A. */
@@ -516,6 +524,16 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
       const res = await agents.ownerA.get('/api/stats');
       expect(res.status).toBe(200);
       expect(priceKeys(res.body)).toEqual(expect.arrayContaining([...PRICE_KEYS]));
+    });
+
+    it('fiche du propriétaire de A : cote courante et lien iDealwine (absents pour le membre, contrôlé plus haut)', async () => {
+      const res = await agents.ownerA.get(`/api/wines/${ids.wineA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.quote).toEqual(expect.objectContaining({ coteCents: expect.any(Number), cessionCents: expect.any(Number) }));
+      expect(priceKeys(res.body)).toEqual(expect.arrayContaining(['quote', 'idealwineUrl', 'coteCents', 'quotedOn', 'cessionCents']));
+      const viewer = await agents.viewerA.get(`/api/wines/${ids.wineA}`);
+      expect(viewer.body).not.toHaveProperty('quote');
+      expect(viewer.body).not.toHaveProperty('idealwineUrl');
     });
   });
 

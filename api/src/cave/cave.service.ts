@@ -6,6 +6,7 @@ import { ManualApogeeInput } from '../apogee/dto';
 import { labelOf } from '../locations/location';
 import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentQuote, idealwineSearchUrl, QUOTE_SELECT, QuoteView, quoteView } from '../quotes/quote';
 import { producerKeyOf } from '../producers/producer-key';
 import { PRODUCER_PROFILE_INCLUDE, producerProfileOf } from '../producers/producer-profile.view';
 import { parseExtraction } from '../vision/extraction-schema';
@@ -145,7 +146,7 @@ export class CaveService {
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
     const locations = await this.locations.stockByLocation(caveId, id);
-    const [movements, profile, exitDefault, lastLocation] = await Promise.all([
+    const [movements, profile, exitDefault, lastLocation, quotes] = await Promise.all([
       this.prisma.movement.findMany({
         where: { wineId: id },
         orderBy: { occurredAt: 'desc' },
@@ -160,7 +161,14 @@ export class CaveService {
       // Emplacements : visibles du membre comme du propriétaire (ce ne sont pas des prix).
       this.locations.exitDefault(caveId, id, undefined, locations),
       this.locations.lastInLocation(caveId),
+      // Cote : un prix, jamais lue pour un membre.
+      role === 'OWNER' ? this.prisma.priceQuote.findMany({ where: { wineId: id }, select: QUOTE_SELECT }) : null,
     ]);
+    let cote: { quote: QuoteView | null; idealwineUrl: string } | undefined;
+    if (quotes) {
+      const current = currentQuote(quotes);
+      cote = { quote: current && quoteView(current), idealwineUrl: current?.sourceUrl ?? idealwineSearchUrl(row) };
+    }
     return {
       wine: {
         ...toItem(row, rules, new Date().getFullYear()),
@@ -179,6 +187,12 @@ export class CaveService {
       exitDefault,
       /** Dernier emplacement utilisé à l'entrée dans la cave, pour pré-remplir l'entrée ; null si aucun. */
       lastLocation,
+      /**
+       * Propriétaire seulement : cote iDealwine courante (null sans cote) et lien
+       * « Voir sur iDealwine » (page enregistrée de la cote courante, sinon la
+       * recherche). Pour un membre, les deux clés sont absentes, pas nulles.
+       */
+      ...cote,
     };
   }
 
