@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.1.1](https://github.com/djkix/cave-a-vin/compare/v2.1.0...v2.1.1) (2026-10-07)
+
+
+### Corrections
+
+* **image:** compter l'appel Gemini abandonné au délai, message clair pour une image du web ([a6c57d4](https://github.com/djkix/cave-a-vin/commit/a6c57d4afcccd7265df0a6fd2a96fd45a3d0b21f))
+
 ## [2.1.0](https://github.com/djkix/cave-a-vin/compare/v2.0.1...v2.1.0) (2026-10-07)
 
 ### Résumé
