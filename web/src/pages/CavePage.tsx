@@ -6,6 +6,7 @@ import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
 import { CaveFilter, getCave, WineColor } from '../lib/api-client';
 import { apogeeShortLabel } from '../lib/apogee';
+import { NO_LOCATION, useLocations } from '../lib/locations';
 import { formatRatingShort } from '../lib/rating';
 
 const COLORS: Array<{ value: WineColor | ''; label: string }> = [
@@ -22,9 +23,12 @@ export function CavePage() {
   const [color, setColor] = useState<WineColor | ''>('');
   const [includeEmpty, setIncludeEmpty] = useState(false);
   const [dish, setDish] = useState('');
+  // Id d'emplacement, `none` pour « Sans emplacement », vide pour tous.
+  const [location, setLocation] = useState('');
+  const locations = useLocations();
   // Un seul filtre d'apogée à la fois : « à boire en priorité » exclut par définition les vins sans estimation.
   const [apogeeFilter, setApogeeFilter] = useState<'' | 'drinkSoon' | 'noApogee'>(FILTER_FROM_URL[params.get('filtre') ?? ''] ?? '');
-  const base: CaveFilter = { q, color: color || undefined, includeEmpty, ...(dish.trim() ? { dish: dish.trim() } : {}) };
+  const base: CaveFilter = { q, color: color || undefined, includeEmpty, ...(dish.trim() ? { dish: dish.trim() } : {}), ...(location ? { location } : {}) };
   const filter: CaveFilter = apogeeFilter ? { ...base, [apogeeFilter]: true } : base;
   const cave = useQuery({ queryKey: ['cave', filter], queryFn: () => getCave(filter) });
   // Avec « à boire en priorité », les vins sans estimation ne sont pas oubliés : on les compte à part.
@@ -49,6 +53,12 @@ export function CavePage() {
           <label htmlFor="cave-color" className="field__label">Couleur</label>
           <select id="cave-color" value={color} onChange={(e) => setColor(e.target.value as WineColor | '')}>
             {COLORS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+          <label htmlFor="cave-location" className="field__label">Emplacement</label>
+          <select id="cave-location" value={location} onChange={(e) => setLocation(e.target.value)} style={{ maxWidth: '100%' }}>
+            <option value="">Tous</option>
+            {locations.data?.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+            <option value="none">{NO_LOCATION}</option>
           </select>
           <label className="field__label">
             <input type="checkbox" checked={includeEmpty} onChange={(e) => setIncludeEmpty(e.target.checked)} aria-label="Afficher les vins épuisés" />

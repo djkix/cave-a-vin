@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
 import { TopBar } from '../components/TopBar';
 import { cancelMovement, exportUrl, getRecentMovements, MovementWithWine, WineColor } from '../lib/api-client';
+import { NO_LOCATION } from '../lib/locations';
 
 const fmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -16,10 +17,12 @@ export function MovementRow({ m, onCancel, cancelling }: { m: MovementWithWine; 
       <div style={{ flex: 1, minWidth: 0 }}>
         <span className={`list__delta ${isIn ? 'list__delta--in' : 'list__delta--out'} num`}>{isIn ? `+${m.delta}` : m.delta}</span>
         <span className="list__meta"> · {fmt.format(new Date(m.occurredAt))}</span>
+        {/* Une moitié de déplacement : l'emplacement d'origine (−) ou de destination (+). */}
+        {m.type === 'MOVE' && <span className="list__meta">{` · Déplacé · ${m.locationLabel ?? NO_LOCATION}`}</span>}
         <p className="list__title" style={{ margin: 0 }}>
           {m.wine.producer}{m.wine.cuvee ? ` — ${m.wine.cuvee}` : ''} {m.wine.vintage ?? ''}
         </p>
-        <span className="list__meta">{m.wine.appellationRaw}{m.note ? ` · ${m.note}` : ''}</span>
+        <span className="list__meta">{m.wine.appellationRaw}{m.type !== 'MOVE' && m.locationLabel ? ` · ${m.locationLabel}` : ''}{m.note ? ` · ${m.note}` : ''}</span>
       </div>
       {onCancel && !m.reversesId && (
         <Button variant="outline" onClick={() => onCancel(m.id)} disabled={cancelling}>Annuler</Button>

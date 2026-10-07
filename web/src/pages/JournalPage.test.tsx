@@ -9,8 +9,8 @@ const wine = { id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appe
 
 it('lists movements, cancels with an inverse movement and never shows Annuler on a reversal', async () => {
   vi.spyOn(api, 'getRecentMovements').mockResolvedValue([
-    { id: 'm2', delta: -6, type: 'ADJUST', occurredAt: '2026-09-20T10:00:00Z', note: 'Annulation du mouvement m0', reversesId: 'm0', wine },
-    { id: 'm1', delta: 12, type: 'IN', occurredAt: '2026-09-19T10:00:00Z', note: null, reversesId: null, wine },
+    { id: 'm2', delta: -6, type: 'ADJUST', occurredAt: '2026-09-20T10:00:00Z', note: 'Annulation du mouvement m0', reversesId: 'm0', locationId: null, locationLabel: null, wine },
+    { id: 'm1', delta: 12, type: 'IN', occurredAt: '2026-09-19T10:00:00Z', note: null, reversesId: null, locationId: null, locationLabel: null, wine },
   ]);
   const cancel = vi.spyOn(api, 'cancelMovement').mockResolvedValue({ movement: { id: 'm3', delta: -12, type: 'ADJUST', occurredAt: '' }, wine: { ...wine, color: 'ROUGE', formatCl: 75 }, stock: 0, created: true });
   render(
@@ -35,4 +35,21 @@ it('exporte seulement les vins à boire en priorité sur demande', async () => {
   await userEvent.selectOptions(screen.getByLabelText('Filtre couleur'), 'ROUGE');
   await userEvent.click(screen.getByLabelText('Seulement les vins à boire en priorité'));
   expect(screen.getByRole('link', { name: /Exporter le classeur/ })).toHaveAttribute('href', '/api/export.xlsx?color=ROUGE&drinkSoon=true');
+});
+
+it('libelle « Déplacé » un déplacement, avec l’emplacement de chaque moitié', async () => {
+  vi.spyOn(api, 'getRecentMovements').mockResolvedValue([
+    { id: 'mv2', delta: 2, type: 'MOVE', occurredAt: '2026-10-02T10:00:00Z', note: null, reversesId: null, locationId: 'l1', locationLabel: 'Cave 2 / B / 3', wine },
+    { id: 'mv1', delta: -2, type: 'MOVE', occurredAt: '2026-10-02T10:00:00Z', note: null, reversesId: null, locationId: null, locationLabel: null, wine },
+    { id: 'm1', delta: 1, type: 'IN', occurredAt: '2026-09-19T10:00:00Z', note: null, reversesId: null, locationId: 'l1', locationLabel: 'Cave 2 / B / 3', wine },
+  ]);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter><JournalPage /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText(/Déplacé · Cave 2 \/ B \/ 3/)).toBeInTheDocument();
+  expect(screen.getByText(/Déplacé · Sans emplacement/)).toBeInTheDocument();
+  expect(screen.getAllByText(/Déplacé/)).toHaveLength(2);
+  expect(screen.getByText(/Bandol · Cave 2 \/ B \/ 3/)).toBeInTheDocument();
 });

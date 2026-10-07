@@ -100,7 +100,16 @@ export interface WineExtraction {
 }
 export interface PhotoDto { id: string; status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED'; rawExtraction?: unknown; extraction?: WineExtraction | null; errorMessage?: string | null; createdAt: string }
 export interface WineDraft { producer: string; cuvee?: string | null; appellationRaw: string; vintage?: number | null; color: WineColor; formatCl: number }
-export interface CreateMovementInput { idempotencyKey: string; photoId?: string | null; wine: WineDraft; quantity: number; priceUnitCents?: number | null; note?: string | null }
+/** Trois champs facultatifs d'un emplacement (au moins un renseigné côté api). */
+export interface LocationParts { zone: string | null; casier: string | null; position: string | null }
+/** Emplacement de la cave (`GET /locations`), trié par libellé. */
+export interface Location extends LocationParts { id: string; label: string }
+/** Un endroit où se trouve un vin : un emplacement, ou « Sans emplacement » (id null). */
+export interface Place { id: string | null; label: string; quantity: number }
+export const getLocations = () => apiFetch<Location[]>('/locations');
+
+/** `location` absent ou null : « Sans emplacement » ; sinon créé à la volée s'il n'existe pas. */
+export interface CreateMovementInput { idempotencyKey: string; photoId?: string | null; wine: WineDraft; quantity: number; priceUnitCents?: number | null; note?: string | null; location?: LocationParts | null }
 export interface MovementResult { movement: { id: string; delta: number; type: string; occurredAt: string }; wine: WineDraft & { id: string }; stock: number; created: boolean }
 export interface PhotoEvent { status: PhotoDto['status']; extraction?: WineExtraction; errorMessage?: string | null }
 
@@ -130,8 +139,12 @@ export type BulkResult = Array<{ ok: true; idempotencyKey: string; result: Movem
 export const createMovementsBulk = (items: CreateMovementInput[]) =>
   apiFetch<BulkResult>('/movements/bulk', { method: 'POST', body: JSON.stringify(items) });
 
+/** `MOVE` : une moitié d'un déplacement (−N à l'origine, +N à la destination), affichée « Déplacé ». */
+export type MovementType = 'IN' | 'OUT' | 'ADJUST' | 'MOVE';
 export interface MovementWithWine {
-  id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null;
+  id: string; delta: number; type: MovementType; occurredAt: string; note: string | null; reversesId: string | null;
+  /** Emplacement du mouvement ; null = « Sans emplacement ». */
+  locationId: string | null; locationLabel: string | null;
   wine: { id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null };
 }
 export const getRecentMovements = (limit = 20) => apiFetch<MovementWithWine[]>(`/movements/recent?limit=${limit}`);
@@ -173,7 +186,8 @@ export interface CaveRow {
   /** Plat demandé en filtre, uniquement présent quand `GET /cave?dish=` l'a retenu. */
   matchedDish?: string;
 }
-export interface CaveFilter { q?: string; color?: WineColor; includeEmpty?: boolean; drinkSoon?: boolean; noApogee?: boolean; dish?: string }
+/** `location` : id d'emplacement, ou `none` pour « Sans emplacement ». */
+export interface CaveFilter { q?: string; color?: WineColor; includeEmpty?: boolean; drinkSoon?: boolean; noApogee?: boolean; dish?: string; location?: string }
 export function getCave(filter: CaveFilter) {
   const q = new URLSearchParams();
   if (filter.q) q.set('q', filter.q);
@@ -182,6 +196,7 @@ export function getCave(filter: CaveFilter) {
   if (filter.drinkSoon) q.set('drinkSoon', 'true');
   if (filter.noApogee) q.set('noApogee', 'true');
   if (filter.dish) q.set('dish', filter.dish);
+  if (filter.location) q.set('location', filter.location);
   const s = q.toString();
   return apiFetch<CaveRow[]>(`/cave${s ? `?${s}` : ''}`);
 }
@@ -192,7 +207,12 @@ export interface WineDetail {
     /** Non nuls ⇔ la vignette vient d'une recherche web (afficher la source et « Revenir à ma photo »). */
     referencePhotoSource: string | null; referencePhotoSourceUrl: string | null;
   };
-  movements: Array<{ id: string; delta: number; type: 'IN' | 'OUT' | 'ADJUST'; occurredAt: string; note: string | null; reversesId: string | null }>;
+  movements: Array<{ id: string; delta: number; type: MovementType; occurredAt: string; note: string | null; reversesId: string | null; locationId?: string | null; locationLabel?: string | null }>;
+  /** Endroits du vin (quantités > 0), « Sans emplacement » en dernier. */
+  locations?: Place[];
+  /** Pré-sélection de la sortie (null = « Sans emplacement ») ; clé absente quand il ne reste rien. */
+  exitDefault?: string | null;
+  lastLocation?: LocationParts | null;
 }
 export const getWine = (id: string) => apiFetch<WineDetail>(`/wines/${id}`);
 
@@ -219,12 +239,18 @@ export const setProducerDescription = (producerKey: string, description: string)
 export const regenerateProducer = (producerKey: string) =>
   apiFetch<void>(`/producers/${encodeURIComponent(producerKey)}/regenerate`, { method: 'POST' });
 
-export const createOut = (input: { idempotencyKey: string; wineId: string; quantity: number; photoId?: string | null }) =>
+/** `locationId` : d'où sort la bouteille (null = « Sans emplacement ») ; absent, l'api choisit. */
+export const createOut = (input: { idempotencyKey: string; wineId: string; quantity: number; photoId?: string | null; locationId?: string | null }) =>
   apiFetch<MovementResult>('/movements/out', { method: 'POST', body: JSON.stringify(input) });
 
 export interface InventoryResult { movement: { id: string } | null; stock: number; delta: number; created: boolean }
-export const postInventory = (wineId: string, input: { idempotencyKey: string; counted: number }) =>
+export const postInventory = (wineId: string, input: { idempotencyKey: string; counted: number; locationId?: string | null }) =>
   apiFetch<InventoryResult>(`/wines/${wineId}/inventory`, { method: 'POST', body: JSON.stringify(input) });
+
+/** Déplacement de `quantity` bouteilles de `from` (null = « Sans emplacement ») vers `to`. */
+export interface MoveInput { idempotencyKey: string; from: string | null; to: LocationParts; quantity: number }
+export const moveWine = (wineId: string, input: MoveInput) =>
+  apiFetch<{ locations: Place[] }>(`/wines/${wineId}/move`, { method: 'POST', body: JSON.stringify(input) });
 
 export interface ExitRead { producer: string | null; cuvee: string | null; appellation: string | null; vintage: number | null }
 export interface ExitCandidate { wine: Omit<CaveRow, 'quantity' | 'referencePhotoId'>; quantity: number; referencePhotoId: string | null; score: number }

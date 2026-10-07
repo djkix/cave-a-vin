@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
@@ -90,4 +90,59 @@ it('affiche le refus d’une photo qui a déjà sorti un autre vin, sans rien an
   await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Cette photo a déjà servi à sortir un autre vin — annulez d’abord cette sortie');
   expect(screen.queryByText(/^(Sorti|Déjà sortie) —/)).not.toBeInTheDocument();
+});
+
+describe('d’où sort-elle ?', () => {
+  const places: api.Place[] = [
+    { id: 'l1', label: 'Cave 2 / B / 3', quantity: 2 },
+    { id: 'l2', label: 'Garage', quantity: 1 },
+    { id: null, label: 'Sans emplacement', quantity: 1 },
+  ];
+
+  it('demande l’endroit avec les quantités, pré-sélectionne le plus probable et l’envoie', async () => {
+    const out = vi.spyOn(api, 'createOut').mockResolvedValue(result(3));
+    mount({ wine: { ...wine, quantity: 4 }, places, exitDefault: 'l2' });
+    const group = screen.getByRole('group', { name: 'D\'où sort-elle ?' });
+    expect(within(group).getByRole('radio', { name: 'Cave 2 / B / 3 · 2' })).not.toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Garage · 1' })).toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Sans emplacement · 1' })).toBeInTheDocument();
+    // La quantité est bornée au stock de l'endroit choisi.
+    expect(screen.getByRole('button', { name: 'Une bouteille de plus' })).toBeDisabled();
+    await userEvent.click(within(group).getByRole('radio', { name: 'Sans emplacement · 1' }));
+    await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
+    await waitFor(() => expect(out).toHaveBeenCalledTimes(1));
+    expect(out.mock.calls[0][0]).toMatchObject({ wineId: 'w1', quantity: 1, locationId: null });
+  });
+
+  it('envoie la pré-sélection sans que l’on touche à rien', async () => {
+    const out = vi.spyOn(api, 'createOut').mockResolvedValue(result(3));
+    mount({ wine: { ...wine, quantity: 4 }, places, exitDefault: 'l1' });
+    await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
+    await waitFor(() => expect(out.mock.calls[0][0]).toMatchObject({ locationId: 'l1' }));
+  });
+
+  it('ne pose pas la question quand le vin n’est qu’à un endroit', async () => {
+    const out = vi.spyOn(api, 'createOut').mockResolvedValue(result(2));
+    mount({ places: [{ id: 'l1', label: 'Cave 2 / B / 3', quantity: 3 }], exitDefault: 'l1' });
+    expect(screen.queryByRole('group', { name: 'D\'où sort-elle ?' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
+    await waitFor(() => expect(out.mock.calls[0][0]).toMatchObject({ locationId: 'l1' }));
+  });
+
+  it('lit les endroits sur la fiche quand on ne les lui donne pas (sortie par photo)', async () => {
+    const getWine = vi.spyOn(api, 'getWine').mockResolvedValue({
+      wine: { ...wine, quantity: 4, referencePhotoSource: null, referencePhotoSourceUrl: null, producerKey: null }, movements: [], locations: places, exitDefault: null, lastLocation: null,
+    });
+    mount({ wine: { ...wine, quantity: 4 }, photoId: 'px' });
+    const group = await screen.findByRole('group', { name: 'D\'où sort-elle ?' });
+    expect(getWine).toHaveBeenCalledWith('w1');
+    expect(within(group).getByRole('radio', { name: 'Sans emplacement · 1' })).toBeChecked();
+  });
+
+  it('affiche tel quel le 409 de l’endroit vide', async () => {
+    vi.spyOn(api, 'createOut').mockRejectedValue(new api.ApiError(409, 'Pas assez de bouteilles à cet emplacement'));
+    mount({ wine: { ...wine, quantity: 4 }, places, exitDefault: 'l2' });
+    await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Pas assez de bouteilles à cet emplacement');
+  });
 });

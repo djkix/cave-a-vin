@@ -148,3 +148,58 @@ it('pré-remplit la fiche depuis la photo déjà lue, même sans nouvelle du flu
   mount();
   expect(await screen.findByDisplayValue('Domaine Tempier')).toBeInTheDocument();
 });
+
+describe('emplacement à l’entrée', () => {
+  const locations: api.Location[] = [{ id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3' }];
+  const recent: api.MovementWithWine[] = [
+    { id: 'm9', delta: 2, type: 'IN', occurredAt: '2026-10-06T10:00:00Z', note: null, reversesId: null, locationId: 'l1', locationLabel: 'Cave 2 / B / 3', wine: { id: 'w9', producer: 'X', cuvee: null, appellationRaw: 'Y', vintage: null } },
+  ];
+  const ok = { movement: { id: 'm1', delta: 6, type: 'IN', occurredAt: '' }, wine: { id: 'w1', producer: 'Domaine Tempier', appellationRaw: 'Bandol', color: 'ROUGE' as const, formatCl: 75 }, stock: 6, created: true };
+
+  function ready() {
+    vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'DONE', extraction, createdAt: '' });
+    vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation(() => () => {});
+    vi.spyOn(api, 'getLocations').mockResolvedValue(locations);
+  }
+
+  it('replie le bloc, le pré-remplit avec le dernier emplacement de la cave et l’envoie', async () => {
+    ready();
+    const recentSpy = vi.spyOn(api, 'getRecentMovements').mockResolvedValue(recent);
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    const { container } = mount();
+    await screen.findByDisplayValue('Domaine Tempier');
+    expect(await screen.findByText('Cave 2 / B / 3')).toBeInTheDocument();
+    const block = [...container.querySelectorAll('details')].find((d) => d.querySelector('summary')?.textContent?.startsWith('Emplacement'))!;
+    expect(block).not.toHaveAttribute('open');
+    expect(recentSpy).toHaveBeenCalledWith(100);
+    await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toEqual({ zone: 'Cave 2', casier: 'B', position: '3' });
+  });
+
+  it('envoie null (« Sans emplacement ») quand les champs sont vidés', async () => {
+    ready();
+    vi.spyOn(api, 'getRecentMovements').mockResolvedValue(recent);
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    mount();
+    await screen.findByText('Cave 2 / B / 3');
+    await userEvent.click(screen.getByText('Emplacement'));
+    for (const label of ['Zone', 'Casier', 'Position']) await userEvent.clear(screen.getByLabelText(label));
+    expect(screen.getByText('Sans emplacement')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toBeNull();
+  });
+
+  it('affiche telle quelle l’erreur de l’API sur l’emplacement', async () => {
+    ready();
+    vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
+    vi.spyOn(api, 'createMovement').mockRejectedValue(new api.ApiError(400, '40 caractères au plus par champ d\'emplacement'));
+    mount();
+    await screen.findByDisplayValue('Domaine Tempier');
+    await userEvent.click(screen.getByText('Emplacement'));
+    await userEvent.type(screen.getByLabelText('Zone'), 'Cellier');
+    await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('40 caractères au plus par champ d\'emplacement');
+  });
+});

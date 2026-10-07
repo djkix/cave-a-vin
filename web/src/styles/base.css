@@ -174,3 +174,20 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 .topbar__select { min-height: 32px; max-width: 100%; padding: 0 var(--space-xs); font-size: 16px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .topbar__badge { white-space: nowrap; font-size: 10px; padding: 1px 6px; }
 .topbar__error { position: absolute; top: 100%; right: 0; z-index: 41; width: max-content; max-width: 70vw; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-md); background: var(--color-error-container); color: var(--color-error); font-size: 12px; }
+
+/* Emplacements : champs empilés sur toute la largeur à 375 px, libellés longs coupés plutôt que débordants. */
+.location-block summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm); cursor: pointer; }
+.location-block__current { min-width: 0; overflow-wrap: anywhere; }
+.location-fields { display: grid; gap: var(--space-sm); margin-top: var(--space-sm); }
+.location-fields .field__label { flex-wrap: wrap; }
+.location-fields input { flex: 1 1 12rem; min-width: 0; width: 100%; }
+.place-picker { border: 0; padding: 0; margin: var(--space-md) 0 0; display: grid; gap: var(--space-xs); min-width: 0; }
+.place-picker legend { font-weight: 600; margin-bottom: var(--space-xs); }
+.place-picker__option { display: flex; align-items: center; gap: var(--space-sm); min-height: var(--size-touch-target); overflow-wrap: anywhere; }
+.place-picker__option input { min-height: 0; flex-shrink: 0; }
+.locations-list { list-style: none; padding: 0; margin: var(--space-sm) 0; display: grid; gap: var(--space-xs); }
+.locations-list li { display: flex; justify-content: space-between; gap: var(--space-sm); }
+.locations-list__label { min-width: 0; overflow-wrap: anywhere; }
+.move-form { display: grid; gap: var(--space-sm); margin-top: var(--space-sm); }
+.move-form select, .move-form input { width: 100%; min-width: 0; }
+.cave-filters select { max-width: 100%; }

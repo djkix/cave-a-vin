@@ -156,3 +156,27 @@ it('coche « Sans apogée » depuis l\'URL, et ignore une valeur inconnue', asyn
   expect(screen.getByLabelText('À boire en priorité')).not.toBeChecked();
   expect(screen.getByLabelText('Sans apogée')).not.toBeChecked();
 });
+
+it('filtre par emplacement, « Sans emplacement » compris', async () => {
+  const getCave = vi.spyOn(api, 'getCave').mockResolvedValue(rows);
+  vi.spyOn(api, 'getLocations').mockResolvedValue([
+    { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3' },
+    { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage' },
+  ]);
+  mount();
+  await screen.findByText(/Domaine Tempier/);
+  const select = screen.getByLabelText('Emplacement') as HTMLSelectElement;
+  await waitFor(() => expect([...select.options].map((o) => o.text)).toEqual(['Tous', 'Cave 2 / B / 3', 'Garage', 'Sans emplacement']));
+  await userEvent.selectOptions(select, 'Garage');
+  await waitFor(() => expect(getCave).toHaveBeenLastCalledWith({ q: '', color: undefined, includeEmpty: false, location: 'l2' }));
+  await userEvent.selectOptions(select, 'Sans emplacement');
+  await waitFor(() => expect(getCave).toHaveBeenLastCalledWith({ q: '', color: undefined, includeEmpty: false, location: 'none' }));
+  // La ligne d'un vin n'affiche pas ses emplacements (fiche seulement).
+  expect(screen.queryByText(/Cave 2 \/ B \/ 3/, { selector: '.cave-row *' })).not.toBeInTheDocument();
+});
+
+it('passe le filtre d’emplacement dans l’adresse de l’api', async () => {
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('[]', { status: 200 }));
+  await api.getCave({ location: 'none' });
+  expect(fetchSpy.mock.calls[0][0]).toBe('/api/cave?location=none');
+});

@@ -6,16 +6,19 @@ import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { DomaineBlock, producerPollInterval } from '../components/DomaineBlock';
 import { ImageSearchBlock } from '../components/ImageSearchBlock';
+import { PlacePicker } from '../components/LocationFields';
+import { LocationsBlock } from '../components/LocationsBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
 import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
 import { ApiError, getWine, postInventory } from '../lib/api-client';
+import { NO_LOCATION, useLocations } from '../lib/locations';
 import { useCurrentCave } from '../lib/use-current-cave';
 
 const fmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-const TYPE_LABEL = { IN: 'Entrée', OUT: 'Sortie', ADJUST: 'Correction' } as const;
+const TYPE_LABEL = { IN: 'Entrée', OUT: 'Sortie', ADJUST: 'Correction', MOVE: 'Déplacé' } as const;
 
 function plural(n: number) {
   return `${n} bouteille${Math.abs(n) > 1 ? 's' : ''}`;
@@ -45,6 +48,10 @@ export function WinePage() {
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Endroit de l'inventaire : choisi à l'écran, sinon la pré-sélection (baisse) ou « Sans emplacement » (hausse).
+  const [inventoryPlace, setInventoryPlace] = useState<{ id: string | null } | null>(null);
+  // Hausse : tous les emplacements de la cave, lus seulement quand le propriétaire compte.
+  const cellar = useLocations(isOwner && counting);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const inventoryKey = useMemo(() => crypto.randomUUID(), [wineId, counting]);
 
@@ -67,13 +74,25 @@ export function WinePage() {
   const tooMany = /^\d+$/.test(counted) && Number(counted) > MAX_COUNTED;
   const parsed = /^\d+$/.test(counted) && !tooMany ? Number(counted) : null;
   const delta = parsed === null ? null : parsed - wine.quantity;
+  const places = detail.data.locations;
+  // Baisse : même choix d'endroit que la sortie ; un seul endroit, pas de question.
+  const decreasePlaceIds = places?.map((p) => p.id) ?? [];
+  const decreasePlace =
+    inventoryPlace && decreasePlaceIds.includes(inventoryPlace.id) ? inventoryPlace.id
+      : detail.data.exitDefault !== undefined && decreasePlaceIds.includes(detail.data.exitDefault) ? detail.data.exitDefault
+        : places?.[0]?.id ?? null;
+  const increasePlace = inventoryPlace && (inventoryPlace.id === null || cellar.data?.some((l) => l.id === inventoryPlace.id)) ? inventoryPlace.id : null;
+  // Fiche sans endroits (ancienne api) : pas de champ, l'api applique sa règle.
+  const inventoryLocation = places === undefined || delta === null || delta === 0
+    ? {}
+    : { locationId: delta < 0 ? (places.length > 0 ? decreasePlace : null) : increasePlace };
 
   async function saveInventory() {
     if (parsed === null || delta === 0) return;
     setSaving(true);
     setInventoryError(null);
     try {
-      const r = await postInventory(wine.id, { idempotencyKey: inventoryKey, counted: parsed });
+      const r = await postInventory(wine.id, { idempotencyKey: inventoryKey, counted: parsed, ...inventoryLocation });
       setInventoryMessage(`Stock corrigé : ${r.stock} en stock`);
       setCounting(false);
       void qc.invalidateQueries({ predicate: (q) => ['cave', 'wine', 'movements'].includes(String(q.queryKey[0])) });
@@ -113,12 +132,15 @@ export function WinePage() {
         <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} canEdit={isAdmin} />
         <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} readOnly={readOnly} />
 
-        {!readOnly && <SortieConfirmation key={wine.id} wine={wine} />}
+        {places && <LocationsBlock key={`locations-${wine.id}`} wineId={wine.id} places={places} readOnly={readOnly} />}
+
+        {/* Endroits toujours fournis (vide = inconnus) : la sortie ne relit pas la fiche que la page tient déjà. */}
+        {!readOnly && <SortieConfirmation key={wine.id} wine={wine} places={places ?? []} exitDefault={detail.data.exitDefault} />}
 
         {!readOnly && <section className="card">
           {inventoryMessage && <p role="status">{inventoryMessage}</p>}
           {!counting ? (
-            <Button variant="outline" onClick={() => { setCounting(true); setCounted(String(wine.quantity)); setInventoryMessage(null); }}>
+            <Button variant="outline" onClick={() => { setCounting(true); setCounted(String(wine.quantity)); setInventoryMessage(null); setInventoryPlace(null); }}>
               Corriger le stock
             </Button>
           ) : (
@@ -127,6 +149,18 @@ export function WinePage() {
                 Bouteilles comptées
                 <input inputMode="numeric" value={counted} onChange={(e) => setCounted(e.target.value.trim())} />
               </label>
+              {places && delta !== null && delta < 0 && places.length > 1 && (
+                <PlacePicker places={places} value={decreasePlace} onChange={(id) => setInventoryPlace({ id })} />
+              )}
+              {places && delta !== null && delta > 0 && (
+                <label className="field__label">
+                  Emplacement
+                  <select value={increasePlace ?? ''} onChange={(e) => setInventoryPlace({ id: e.target.value || null })}>
+                    <option value="">{NO_LOCATION}</option>
+                    {cellar.data?.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                  </select>
+                </label>
+              )}
               <p>{tooMany ? 'Nombre de bouteilles trop élevé' : delta === null ? 'Saisis un nombre entier' : delta === 0 ? 'Stock déjà juste' : `${delta > 0 ? '+' : '−'}${plural(Math.abs(delta))}`}</p>
               {inventoryError && <p role="alert" className="text-error">{inventoryError}</p>}
               <Button variant="dark" onClick={saveInventory} disabled={saving || delta === null || delta === 0}>Enregistrer l’inventaire</Button>
@@ -140,7 +174,11 @@ export function WinePage() {
           {movements.map((m) => (
             <div key={m.id} className="list__row">
               <span className={`list__delta ${m.delta > 0 ? 'list__delta--in' : 'list__delta--out'} num`}>{m.delta > 0 ? `+${m.delta}` : m.delta}</span>
-              <span className="list__meta">{TYPE_LABEL[m.type]} · {fmt.format(new Date(m.occurredAt))}{m.note ? ` · ${m.note}` : ''}</span>
+              <span className="list__meta">
+                {TYPE_LABEL[m.type]}
+                {m.type === 'MOVE' ? ` · ${m.locationLabel ?? NO_LOCATION}` : m.locationLabel ? ` · ${m.locationLabel}` : ''}
+                {' · '}{fmt.format(new Date(m.occurredAt))}{m.note ? ` · ${m.note}` : ''}
+              </span>
             </div>
           ))}
         </div>
