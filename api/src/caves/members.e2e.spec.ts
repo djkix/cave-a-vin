@@ -273,7 +273,7 @@ describeIfInfra('membres de la cave et part de budget (HTTP)', () => {
       await prisma.appSetting.upsert({ where: { key: 'cave_budget_share' }, create: { key: 'cave_budget_share', value: '0.2' }, update: { value: '0.2' } });
       const res = await admin.get('/api/admin/budget');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ caveShare: 0.2, capCents: expect.any(Number), spentThisMonthCents: expect.any(Number) });
+      expect(res.body).toEqual({ caveShare: 0.2, invitedShare: expect.any(Number), capCents: expect.any(Number), spentThisMonthCents: expect.any(Number) });
     });
 
     it('GET : réglage absent → 0,2', async () => {
@@ -290,7 +290,7 @@ describeIfInfra('membres de la cave et part de budget (HTTP)', () => {
       for (const caveShare of [0.35, 1]) {
         const res = await admin.put('/api/admin/budget').send({ caveShare });
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ caveShare, capCents: expect.any(Number), spentThisMonthCents: expect.any(Number) });
+        expect(res.body).toEqual({ caveShare, invitedShare: expect.any(Number), capCents: expect.any(Number), spentThisMonthCents: expect.any(Number) });
         expect((await prisma.appSetting.findUniqueOrThrow({ where: { key: 'cave_budget_share' } })).value).toBe(String(caveShare));
       }
       await admin.put('/api/admin/budget').send({ caveShare: 0.2 });
@@ -301,6 +301,22 @@ describeIfInfra('membres de la cave et part de budget (HTTP)', () => {
         const res = await admin.put('/api/admin/budget').send(body);
         expect(res.status).toBe(400);
         expect(res.body.message).toBe('La part par cave doit être comprise entre 0 et 1');
+      }
+    });
+
+    it('PUT : enregistre la part de l’ensemble des caves invitées, sans toucher à la part par cave', async () => {
+      const before = (await admin.get('/api/admin/budget')).body.invitedShare;
+      try {
+        const res = await admin.put('/api/admin/budget').send({ invitedShare: 0.45 });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ invitedShare: 0.45, caveShare: 0.2 });
+        for (const invitedShare of [1.5, '0.4', null]) {
+          const bad = await admin.put('/api/admin/budget').send({ invitedShare });
+          expect(bad.status).toBe(400);
+          expect(bad.body.message).toBe('La part des caves invitées doit être comprise entre 0 et 1');
+        }
+      } finally {
+        await admin.put('/api/admin/budget').send({ invitedShare: before });
       }
     });
 

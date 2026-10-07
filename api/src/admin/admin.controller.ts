@@ -66,12 +66,17 @@ export class AdminBudgetController {
   async update(@Body() body: unknown) {
     const parsed = updateBudgetSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0].message);
-    await this.budget.setCaveShare(parsed.data.caveShare);
+    if (parsed.data.caveShare !== undefined) await this.budget.setCaveShare(parsed.data.caveShare);
+    if (parsed.data.invitedShare !== undefined) await this.budget.setInvitedShare(parsed.data.invitedShare);
     return this.view();
   }
 
-  private async view(): Promise<{ caveShare: number; capCents: number; spentThisMonthCents: number }> {
-    const [caveShare, spentThisMonthCents] = await Promise.all([this.budget.caveShare(), this.budget.spentThisMonthCents()]);
-    return { caveShare, capCents: this.budget.capCents, spentThisMonthCents };
+  private async view(): Promise<{ caveShare: number; invitedShare: number; capCents: number; spentThisMonthCents: number }> {
+    const [caveShare, invitedShare, spentThisMonthCents] = await Promise.all([
+      this.budget.caveShare(),
+      this.budget.invitedShare(),
+      this.budget.spentThisMonthCents(),
+    ]);
+    return { caveShare, invitedShare, capCents: this.budget.capCents, spentThisMonthCents };
   }
 }

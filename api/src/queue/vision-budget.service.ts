@@ -13,6 +13,12 @@ export const CAVE_BUDGET_SHARE_KEY = 'cave_budget_share';
 /** Part par cave quand le réglage manque (ou est illisible). */
 export const DEFAULT_CAVE_BUDGET_SHARE = 0.2;
 
+/** Réglage `app_setting` de la part maximale du plafond que toutes les caves invitées dépensent ensemble. */
+export const INVITED_BUDGET_SHARE_KEY = 'invited_budget_share';
+
+/** Part de l'ensemble des caves invitées quand le réglage manque (ou est illisible). */
+export const DEFAULT_INVITED_BUDGET_SHARE = 0.6;
+
 export class VisionBudgetExceededError extends Error {
   constructor(message = 'Plafond mensuel de dépense vision atteint — saisie manuelle uniquement jusqu’au mois prochain') {
     super(message);
@@ -25,8 +31,8 @@ export class VisionBudgetExceededError extends Error {
  * global (photo reportée, jamais perdue ; 503 pour la recherche d'image).
  */
 export class CaveBudgetShareExceededError extends VisionBudgetExceededError {
-  constructor() {
-    super('Part mensuelle de cette cave atteinte — reprise le mois prochain');
+  constructor(message = 'Part mensuelle de cette cave atteinte — reprise le mois prochain') {
+    super(message);
   }
 }
 
@@ -55,14 +61,7 @@ export class VisionBudgetService {
    */
   async spentThisMonthCents(caveId?: string): Promise<number> {
     const start = startOfMonth();
-    if (caveId !== undefined) {
-      const [photos, pairings, imageSearches] = await Promise.all([
-        this.prisma.photo.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start }, caveId } }),
-        this.prisma.pairing.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start }, wine: { caveId } } }),
-        this.prisma.imageSearchCost.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start }, caveId } }),
-      ]);
-      return (photos._sum.costCents ?? 0) + (pairings._sum.costCents ?? 0) + (imageSearches._sum.costCents ?? 0);
-    }
+    if (caveId !== undefined) return this.spentInCaves(start, caveId);
     const [photos, pairings, producers, imageSearches] = await Promise.all([
       this.prisma.photo.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start } } }),
       this.prisma.pairing.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start } } }),
@@ -78,26 +77,49 @@ export class VisionBudgetService {
     return this.assertUnderShare(1);
   }
 
+  /** Dépense attribuable aux caves désignées : une cave, ou toutes sauf une (`{ not }`). */
+  private async spentInCaves(start: Date, caveId: string | { not: string } | undefined): Promise<number> {
+    const [photos, pairings, imageSearches] = await Promise.all([
+      this.prisma.photo.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start }, caveId } }),
+      this.prisma.pairing.aggregate({ _sum: { costCents: true }, where: { generatedAt: { gte: start }, wine: { caveId } } }),
+      this.prisma.imageSearchCost.aggregate({ _sum: { costCents: true }, where: { createdAt: { gte: start }, caveId } }),
+    ]);
+    return (photos._sum.costCents ?? 0) + (pairings._sum.costCents ?? 0) + (imageSearches._sum.costCents ?? 0);
+  }
+
   /** `share` = 1 pour le plafond complet (photos), `PAIRING_BUDGET_SHARE` pour les accords. */
   async assertUnderShare(share: number): Promise<void> {
     if ((await this.spentThisMonthCents()) >= this.capCents * share) throw new VisionBudgetExceededError();
   }
 
   /** Part du plafond qu'une cave peut dépenser (0 à 1) ; 0,2 si le réglage manque ou est illisible. */
-  async caveShare(): Promise<number> {
-    const row = await this.prisma.appSetting.findUnique({ where: { key: CAVE_BUDGET_SHARE_KEY } });
-    if (!row || row.value.trim() === '') return DEFAULT_CAVE_BUDGET_SHARE;
-    const share = Number(row.value);
-    return Number.isFinite(share) && share >= 0 && share <= 1 ? share : DEFAULT_CAVE_BUDGET_SHARE;
+  caveShare(): Promise<number> {
+    return this.readShare(CAVE_BUDGET_SHARE_KEY, DEFAULT_CAVE_BUDGET_SHARE);
   }
 
-  async setCaveShare(share: number): Promise<void> {
+  setCaveShare(share: number): Promise<void> {
+    return this.writeShare(CAVE_BUDGET_SHARE_KEY, share);
+  }
+
+  /** Part du plafond que toutes les caves invitées dépensent ensemble (0 à 1) ; 0,6 par défaut. */
+  invitedShare(): Promise<number> {
+    return this.readShare(INVITED_BUDGET_SHARE_KEY, DEFAULT_INVITED_BUDGET_SHARE);
+  }
+
+  setInvitedShare(share: number): Promise<void> {
+    return this.writeShare(INVITED_BUDGET_SHARE_KEY, share);
+  }
+
+  private async readShare(key: string, fallback: number): Promise<number> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key } });
+    if (!row || row.value.trim() === '') return fallback;
+    const share = Number(row.value);
+    return Number.isFinite(share) && share >= 0 && share <= 1 ? share : fallback;
+  }
+
+  private async writeShare(key: string, share: number): Promise<void> {
     const value = String(share);
-    await this.prisma.appSetting.upsert({
-      where: { key: CAVE_BUDGET_SHARE_KEY },
-      create: { key: CAVE_BUDGET_SHARE_KEY, value },
-      update: { value },
-    });
+    await this.prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
   }
 
   /** Cave de l'administrateur principal, exemptée de la part par cave (voir mainCaveId). */
@@ -110,8 +132,18 @@ export class VisionBudgetService {
    * ne dépense pas plus de `plafond × part` dans le mois.
    */
   async assertCaveUnderShare(caveId: string): Promise<void> {
-    if ((await this.exemptCaveId()) === caveId) return;
-    const [share, spent] = await Promise.all([this.caveShare(), this.spentThisMonthCents(caveId)]);
+    const exempt = await this.exemptCaveId();
+    if (exempt === caveId) return;
+    const [share, spent, invitedShare, invitedSpent] = await Promise.all([
+      this.caveShare(),
+      this.spentThisMonthCents(caveId),
+      this.invitedShare(),
+      this.spentInCaves(startOfMonth(), exempt === null ? undefined : { not: exempt }),
+    ]);
     if (spent >= this.capCents * share) throw new CaveBudgetShareExceededError();
+    // Ensemble des caves invitées : laisse le reste du plafond à la cave principale.
+    if (invitedSpent >= this.capCents * invitedShare) {
+      throw new CaveBudgetShareExceededError('Part mensuelle des caves invitées atteinte — reprise le mois prochain');
+    }
   }
 }

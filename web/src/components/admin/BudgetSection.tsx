@@ -12,26 +12,33 @@ function parsePercent(text: string): number | null {
   return n >= 0 && n <= 100 ? n : null;
 }
 
+type Share = 'caveShare' | 'invitedShare';
+const FIELDS: { key: Share; label: string }[] = [
+  { key: 'caveShare', label: 'Part maximale par cave (%)' },
+  { key: 'invitedShare', label: 'Part maximale de l’ensemble des caves invitées (%)' },
+];
+
 export function BudgetSection() {
   const qc = useQueryClient();
   const budget = useQuery({ queryKey: ['admin', 'budget'], queryFn: getAdminBudget });
-  // Brouillon : nul tant que rien n'est saisi, la valeur enregistrée est alors affichée.
-  const [draft, setDraft] = useState<string | null>(null);
+  // Brouillons : absents tant que rien n'est saisi, la valeur enregistrée est alors affichée.
+  const [drafts, setDrafts] = useState<Partial<Record<Share, string>>>({});
   const save = useMutation({
-    mutationFn: (share: number) => putAdminBudget(share),
+    mutationFn: (shares: { caveShare: number; invitedShare: number }) => putAdminBudget(shares),
     onSuccess: (data) => {
       qc.setQueryData(['admin', 'budget'], data);
-      setDraft(null);
+      setDrafts({});
     },
   });
-  const current = budget.data ? String(Math.round(budget.data.caveShare * 100)) : '';
-  const value = draft ?? current;
-  const pct = parsePercent(value);
-  const invalid = budget.data !== undefined && pct === null;
+  const value = (key: Share) => drafts[key] ?? (budget.data ? String(Math.round(budget.data[key] * 100)) : '');
+  const pct = { caveShare: parsePercent(value('caveShare')), invitedShare: parsePercent(value('invitedShare')) };
+  const invalid = (key: Share) => budget.data !== undefined && pct[key] === null;
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (pct !== null) save.mutate(pct / 100);
+    if (pct.caveShare !== null && pct.invitedShare !== null) {
+      save.mutate({ caveShare: pct.caveShare / 100, invitedShare: pct.invitedShare / 100 });
+    }
   }
 
   return (
@@ -43,27 +50,31 @@ export function BudgetSection() {
           Dépensé ce mois : {euros(budget.data.spentThisMonthCents)} sur {euros(budget.data.capCents)}
         </p>
       )}
-      <form onSubmit={submit} style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)', alignItems: 'center' }}>
-        <label htmlFor="budget-share" className="field__label">Part maximale par cave (%)</label>
-        <input
-          id="budget-share"
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={100}
-          step={1}
-          value={value}
-          onChange={(e) => { setDraft(e.target.value); save.reset(); }}
-          aria-invalid={invalid}
-          aria-describedby={invalid ? 'budget-share-error' : undefined}
-          style={{ width: 96 }}
-        />
-        <button type="submit" className="btn btn--outline" disabled={!budget.data || pct === null || save.isPending}>Enregistrer</button>
+      <form onSubmit={submit} style={{ display: 'grid', gap: 'var(--space-sm)' }}>
+        {FIELDS.map(({ key, label }) => (
+          <div key={key} style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-sm)', alignItems: 'center' }}>
+            <label htmlFor={`budget-${key}`} className="field__label">{label}</label>
+            <input
+              id={`budget-${key}`}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={100}
+              step={1}
+              value={value(key)}
+              onChange={(e) => { setDrafts((d) => ({ ...d, [key]: e.target.value })); save.reset(); }}
+              aria-invalid={invalid(key)}
+              aria-describedby={invalid(key) ? `budget-${key}-error` : undefined}
+              style={{ width: 96 }}
+            />
+            {invalid(key) && <p id={`budget-${key}-error`} className="text-error" style={{ width: '100%' }}>Entrez un pourcentage entier entre 0 et 100</p>}
+          </div>
+        ))}
+        <button type="submit" className="btn btn--outline" disabled={!budget.data || pct.caveShare === null || pct.invitedShare === null || save.isPending}>Enregistrer</button>
       </form>
-      {invalid && <p id="budget-share-error" className="text-error">Entrez un pourcentage entier entre 0 et 100</p>}
       {save.isError && <p role="alert" className="text-error">{(save.error as Error).message}</p>}
-      {save.isSuccess && <p role="status" className="list__meta">Part enregistrée</p>}
-      <p className="list__meta">La cave de l’administrateur principal n’est pas limitée.</p>
+      {save.isSuccess && <p role="status" className="list__meta">Parts enregistrées</p>}
+      <p className="list__meta">La cave de l’administrateur principal n’est pas limitée : les caves invitées, ensemble, lui laissent le reste du plafond.</p>
     </section>
   );
 }
