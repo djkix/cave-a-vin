@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { AddressInfo, createServer } from 'node:net';
 import supertest from 'supertest';
 
 // Ce test parle HTTP au vrai AppModule : il ne tourne que là où Postgres et Redis
@@ -34,7 +35,11 @@ describeIfInfra('api HTTP', () => {
     app.setGlobalPrefix('api');
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
     sessionRedis = setupSession(app);
-    await app.init();
+    // Écoute une fois pour toutes sur 127.0.0.1, l'adresse que supertest appelle.
+    // Avec un simple `init()`, supertest ouvrait un port `::` à chaque requête ;
+    // macOS peut donner un port déjà pris sur 127.0.0.1 par un autre programme,
+    // qui recevait alors la requête (« socket hang up », 403…).
+    await app.listen(0, '127.0.0.1');
     agent = supertest.agent(app.getHttpServer());
     prisma = app.get(PrismaService);
   }, 120_000);
@@ -53,6 +58,32 @@ describeIfInfra('api HTTP', () => {
   it('refuses a protected route without a session', async () => {
     const res = await supertest(app.getHttpServer()).get('/api/movements/recent');
     expect(res.status).toBe(401);
+  });
+
+  it('reaches the api, never another program listening on 127.0.0.1', async () => {
+    // macOS attribue les ports éphémères à la suite : un port d'écoute qu'on vient
+    // de libérer annonce le suivant. Un intrus s'installe sur 127.0.0.1 à ce port
+    // et raccroche sans répondre, comme un tunnel ssh ou un autre service local.
+    // Si l'api écoutait `::` à chaque requête (supertest sur un serveur arrêté),
+    // macOS lui donnerait ce port quand même et la requête, envoyée à
+    // 127.0.0.1, tomberait sur l'intrus : « socket hang up ».
+    const intruder = createServer((socket) => socket.once('data', () => socket.end()));
+    for (let attempt = 0; attempt < 5 && !intruder.listening; attempt++) {
+      const probe = createServer();
+      await new Promise<void>((r) => probe.listen(0, r));
+      const next = (probe.address() as AddressInfo).port + 1;
+      await new Promise<void>((r) => probe.close(() => r()));
+      await new Promise<void>((r) => {
+        intruder.once('error', () => r());
+        intruder.listen(next, '127.0.0.1', () => r());
+      });
+    }
+    try {
+      expect(intruder.listening).toBe(true);
+      expect((await supertest(app.getHttpServer()).get('/api/movements/recent')).status).toBe(401);
+    } finally {
+      await new Promise<void>((r) => intruder.close(() => r()));
+    }
   });
 
   it('opens a session with the break-glass account', async () => {
