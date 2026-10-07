@@ -9,6 +9,27 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [1.9.0](https://github.com/djkix/cave-a-vin/compare/v1.8.0...v1.9.0) (2026-10-07)
+
+
+### Fonctionnalités
+
+* **photos:** chercher une image d'étiquette sur le web ([1a5a105](https://github.com/djkix/cave-a-vin/commit/1a5a1059676e0495f015dff29fec1fc151114b42))
+* **photos:** chercher une image depuis la fiche vin ([c599be8](https://github.com/djkix/cave-a-vin/commit/c599be8161d055fe6c425bc8ffdb1828ba64a4cf))
+* **photos:** version d'affichage recadrée et retouchée ([214ade0](https://github.com/djkix/cave-a-vin/commit/214ade03f6dff550448da4318a215abccb36c5aa))
+* **web:** icône de l'application, un verre de vin sur fond bordeaux ([11dadc1](https://github.com/djkix/cave-a-vin/commit/11dadc1b1c4eee8cab2ba573bc848ef8d6ca336d))
+
+
+### Corrections
+
+* **mouvements:** refuser une image du web comme photo d'entrée ou de sortie ([d237d9b](https://github.com/djkix/cave-a-vin/commit/d237d9bd11b7a31d45964bed0718c81f663d60ef))
+* **photos:** compter au moins 1 ct par recherche du site officiel ([2cf110f](https://github.com/djkix/cave-a-vin/commit/2cf110ffc478c9dc2253f43216877825d67ff8ad))
+* **photos:** délai global de 30 s pour « Chercher une image » ([868ead6](https://github.com/djkix/cave-a-vin/commit/868ead6607c4c09901ec7dd3db712d312edb8c35))
+* **photos:** durcir la recherche d'image et le retour à ma photo ([3904faf](https://github.com/djkix/cave-a-vin/commit/3904fafb782406cfaab16ae1c762cd3f0afa7afc))
+* **photos:** fenêtre de recherche d'image sur toute la largeur de la fiche ([9acd23f](https://github.com/djkix/cave-a-vin/commit/9acd23f9d0253d172adce1d0f2fe66501f8879dc))
+* **photos:** recherche Open Food Facts plus fiable et plus pertinente ([ff975cd](https://github.com/djkix/cave-a-vin/commit/ff975cdb1dd73857a2f32b5fba5295ca8645cefe))
+* **photos:** retouche des couleurs plus douce ([d059fbf](https://github.com/djkix/cave-a-vin/commit/d059fbfb7f8521d7b75befe349f2e777b6c8c229))
+
 ## [1.8.0](https://github.com/djkix/cave-a-vin/compare/v1.7.0...v1.8.0) (2026-10-06)
 
 ### Résumé
