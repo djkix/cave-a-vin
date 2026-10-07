@@ -18,6 +18,9 @@ export class StatsService {
    * milliers de lignes, sommées en mémoire. Un VIEWER ne reçoit ni la valeur au
    * prix d'achat ni le classement « les plus chères » (champs absents).
    */
+  compute(caveId: string, role: 'OWNER', now?: Date): Promise<Stats>;
+  compute(caveId: string, role: 'VIEWER', now?: Date): Promise<ViewerStats>;
+  compute(caveId: string, role: CaveRole, now?: Date): Promise<Stats | ViewerStats>;
   async compute(caveId: string, role: CaveRole, now = new Date()): Promise<Stats | ViewerStats> {
     const [rows, rules, movements] = await Promise.all([
       this.cave.allWithStock(caveId),

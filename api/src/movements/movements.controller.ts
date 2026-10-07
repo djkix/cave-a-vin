@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { CaveRole, CurrentCave } from '../caves/cave-access.decorators';
@@ -50,7 +50,7 @@ export class MovementsController {
 
   @Post(':id/cancel')
   @CaveRole('OWNER')
-  cancel(@CurrentCave() cave: CaveAccess, @Param('id') id: string, @Body() body: unknown) {
+  cancel(@CurrentCave() cave: CaveAccess, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const parsed = cancelMovementSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
     return this.movements.cancel(cave.caveId, id, parsed.data.idempotencyKey);

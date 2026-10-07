@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import ExcelJS from 'exceljs';
 import { PrismaClient, WineColor } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
@@ -39,9 +40,12 @@ describeIfDb('services filtrés par cave (base réelle)', () => {
     });
     wineA = wine.id;
     const m = await prisma.movement.create({
-      data: { wineId: wineA, delta: 6, type: 'IN', priceUnitCents: 4200, idempotencyKey: `scope-in-${run}` },
+      data: { wineId: wineA, delta: 6, type: 'IN', priceUnitCents: 4200, note: `Note A ${run}`, idempotencyKey: `scope-in-${run}` },
     });
     movementA = { id: m.id, idempotencyKey: m.idempotencyKey };
+    await prisma.movement.create({
+      data: { wineId: (await bWine()).id, delta: 2, type: 'IN', priceUnitCents: 1700, note: `Note B ${run}`, idempotencyKey: `scope-in-b-${run}` },
+    });
     photoA = (await prisma.photo.create({
       data: { caveId: caveA, contentHash: `scope-${run}`, storagePath: 'normalized/x.jpg', status: 'DONE', purpose: 'EXIT' },
     })).id;
@@ -81,6 +85,26 @@ describeIfDb('services filtrés par cave (base réelle)', () => {
       await rejects404(cave.clearRating(caveB, wineA), 'Vin introuvable');
       const unchanged = await prisma.wine.findUniqueOrThrow({ where: { id: wineA } });
       expect(unchanged).toMatchObject({ apogeeMin: null, rating: null });
+    });
+
+    it('auteur de la note : nom affiché ou null pour un VIEWER, jamais l’e-mail ; e-mail à défaut de nom pour l’OWNER', async () => {
+      const rater = await prisma.appUser.create({ data: { email: `scope-rater-${run}@example.test` } });
+      try {
+        await cave.setRating(caveA, wineA, 15, rater.id);
+        const ratedBy = async (role: 'OWNER' | 'VIEWER') => [
+          (await cave.list(caveA, { includeEmpty: true }, role)).find((w) => w.id === wineA)!.rating?.ratedBy,
+          (await cave.detail(caveA, wineA, role)).wine.rating?.ratedBy,
+        ];
+        expect(await ratedBy('OWNER')).toEqual([rater.email, rater.email]);
+        expect(await ratedBy('VIEWER')).toEqual([null, null]);
+        expect(JSON.stringify(await cave.detail(caveA, wineA, 'VIEWER'))).not.toContain(rater.email);
+        await prisma.appUser.update({ where: { id: rater.id }, data: { displayName: 'Goûteur' } });
+        expect(await ratedBy('VIEWER')).toEqual(['Goûteur', 'Goûteur']);
+        expect(await ratedBy('OWNER')).toEqual(['Goûteur', 'Goûteur']);
+      } finally {
+        await cave.clearRating(caveA, wineA);
+        await prisma.appUser.delete({ where: { id: rater.id } });
+      }
     });
 
     it('les candidates de sortie d’une photo d’une autre cave : 404 « Photo introuvable »', async () => {
@@ -134,7 +158,7 @@ describeIfDb('services filtrés par cave (base réelle)', () => {
     return prisma.wine.upsert({
       where: { caveId_matchKey: { caveId: caveB, matchKey: `scope-b-${run}` } },
       update: {},
-      create: { caveId: caveB, matchKey: `scope-b-${run}`, producer: 'Domaine B', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      create: { caveId: caveB, matchKey: `scope-b-${run}`, producer: `Domaine B ${run}`, appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
   }
 
@@ -154,12 +178,41 @@ describeIfDb('services filtrés par cave (base réelle)', () => {
       expect(viewer.bottles).toBeGreaterThanOrEqual(6);
     });
 
-    it('l’export ne contient que la cave et se journalise dans la cave', async () => {
+    /** Toutes les cellules d'une feuille, en texte. */
+    async function sheets(buffer: Buffer): Promise<Record<string, string[]>> {
+      const wb = new ExcelJS.Workbook();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- même contournement que export.service.spec (Buffer d'exceljs)
+      await wb.xlsx.load(buffer as any);
+      const out: Record<string, string[]> = {};
+      wb.eachSheet((ws) => {
+        const cells: string[] = [];
+        ws.eachRow((row) => row.eachCell((cell) => cells.push(String(cell.value))));
+        out[ws.name] = cells;
+      });
+      return out;
+    }
+
+    it('l’export ne contient que la cave, aucune feuille ne cite l’autre, et se journalise dans la cave', async () => {
       const a = await exporter.buildWorkbook(caveA, {}, userId);
       const b = await exporter.buildWorkbook(caveB, {}, userId);
       expect(a.rowCount).toBeGreaterThanOrEqual(1);
       expect(b.rowCount).toBe((await cave.list(caveB, {})).length);
       expect(await prisma.exportLog.count({ where: { caveId: caveB, userId } })).toBe(1);
+
+      const own = { a: [`Domaine Étanche ${run}`, `Note A ${run}`], b: [`Domaine B ${run}`, `Note B ${run}`] };
+      const [sheetsA, sheetsB] = [await sheets(a.buffer), await sheets(b.buffer)];
+      // Témoin : chaque classeur cite bien sa propre cave, journal compris.
+      expect(sheetsA.Stock).toContain(own.a[0]);
+      expect(sheetsA.Mouvements).toEqual(expect.arrayContaining([...own.a, '42']));
+      expect(sheetsB.Stock).toContain(own.b[0]);
+      expect(sheetsB.Mouvements).toEqual(expect.arrayContaining([...own.b, '17']));
+      for (const [book, foreign, foreignPrice] of [[sheetsB, own.a, '42'], [sheetsA, own.b, '17']] as const) {
+        for (const [name, cells] of Object.entries(book)) {
+          for (const text of foreign) expect({ name, hit: cells.some((c) => c.includes(text)) }).toEqual({ name, hit: false });
+        }
+        // Le journal porte les prix : le prix de l'autre cave n'y figure pas.
+        expect(book.Mouvements).not.toContain(foreignPrice);
+      }
     });
   });
 });

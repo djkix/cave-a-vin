@@ -39,13 +39,13 @@ export class CaveController {
     if (drinkSoon === 'true' && noApogee === 'true') {
       throw new BadRequestException('Choisis « à boire en priorité » ou « sans apogée », pas les deux');
     }
-    return this.cave.list(cave.caveId, { q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true', dish: dish || undefined });
+    return this.cave.list(cave.caveId, { q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true', dish: dish || undefined }, cave.role);
   }
 
   @Get('wines/:id')
   @CaveRole('VIEWER')
   detail(@CurrentCave() cave: CaveAccess, @Param('id', ParseUUIDPipe) id: string) {
-    return this.cave.detail(cave.caveId, id);
+    return this.cave.detail(cave.caveId, id, cave.role);
   }
 
   @Post('wines/:id/inventory')

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { CaveRole, Prisma } from '@prisma/client';
 import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { ManualApogeeInput } from '../apogee/dto';
@@ -82,9 +82,12 @@ export class CaveService {
    * Tous les vins avec leur stock. Lu en une requête puis filtré en mémoire : la
    * cave compte quelques centaines de références, et le filtre se teste ainsi
    * sans base. Seulement les vins de la cave `caveId` (la vue stock_courant
-   * n'a pas de cave : elle est jointe par le vin).
+   * n'a pas de cave : elle est jointe par le vin). L'auteur d'une note est
+   * nommé par son nom affiché ; l'OWNER voit l'e-mail à défaut de nom, un
+   * VIEWER (rôle par défaut, le plus restrictif) jamais.
    */
-  allWithStock(caveId: string): Promise<CaveDbRow[]> {
+  allWithStock(caveId: string, role: CaveRole = 'VIEWER'): Promise<CaveDbRow[]> {
+    const ratedBy = role === 'OWNER' ? Prisma.sql`COALESCE(u.display_name, u.email)` : Prisma.sql`u.display_name`;
     return this.prisma.$queryRaw<CaveDbRow[]>`
       SELECT w.id, w.producer, w.cuvee, w.appellation_raw AS "appellationRaw", w.vintage,
              w.color::TEXT AS color, w.format_cl AS "formatCl", w.reference_photo_id AS "referencePhotoId",
@@ -92,7 +95,7 @@ export class CaveService {
              w.appellation_id AS "appellationId", a.region,
              a.guard_min_years AS "referenceGuardMin", a.guard_max_years AS "referenceGuardMax",
              w.apogee_min AS "apogeeMin", w.apogee_max AS "apogeeMax", w.apogee_source AS "apogeeSource"
-             , w.rating::FLOAT8 AS rating, w.rated_at AS "ratedAt", COALESCE(u.display_name, u.email) AS "ratedBy",
+             , w.rating::FLOAT8 AS rating, w.rated_at AS "ratedAt", ${ratedBy} AS "ratedBy",
              p.status::TEXT AS "pairingStatus", p.dishes AS "pairingDishes", p.error_message AS "pairingError",
              p.generated_at AS "pairingGeneratedAt",
              w.reference_photo_source AS "referencePhotoSource", w.reference_photo_source_url AS "referencePhotoSourceUrl"
@@ -105,8 +108,8 @@ export class CaveService {
       ORDER BY w.producer ASC, w.vintage ASC NULLS FIRST`;
   }
 
-  async list(caveId: string, filter: CaveFilter): Promise<CaveItem[]> {
-    const [rows, rules] = await Promise.all([this.allWithStock(caveId), this.rules.load()]);
+  async list(caveId: string, filter: CaveFilter, role: CaveRole = 'VIEWER'): Promise<CaveItem[]> {
+    const [rows, rules] = await Promise.all([this.allWithStock(caveId, role), this.rules.load()]);
     const year = new Date().getFullYear();
     const kept = filterCave(rows, filter);
     let items = kept.map((r) => toItem(r, rules, year));
@@ -127,8 +130,8 @@ export class CaveService {
   }
 
   /** Fiche d'un vin de la cave ; un vin d'une autre cave est « introuvable », comme un identifiant inconnu. */
-  async detail(caveId: string, id: string) {
-    const [rows, rules] = await Promise.all([this.allWithStock(caveId), this.rules.load()]);
+  async detail(caveId: string, id: string, role: CaveRole = 'VIEWER') {
+    const [rows, rules] = await Promise.all([this.allWithStock(caveId, role), this.rules.load()]);
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
@@ -184,17 +187,17 @@ export class CaveService {
 
   async setManualApogee(caveId: string, id: string, input: ManualApogeeInput): Promise<Apogee> {
     await this.updateWine(caveId, id, { apogeeMin: input.min, apogeeMax: input.max, apogeeSource: 'MANUEL' });
-    return (await this.detail(caveId, id)).wine.apogee;
+    return (await this.detail(caveId, id, 'OWNER')).wine.apogee;
   }
 
   async clearManualApogee(caveId: string, id: string): Promise<Apogee> {
     await this.updateWine(caveId, id, { apogeeMin: null, apogeeMax: null, apogeeSource: null });
-    return (await this.detail(caveId, id)).wine.apogee;
+    return (await this.detail(caveId, id, 'OWNER')).wine.apogee;
   }
 
   async setRating(caveId: string, id: string, value: number, userId: string): Promise<Rating | null> {
     await this.updateWine(caveId, id, { rating: value, ratedAt: new Date(), ratedById: userId });
-    return (await this.detail(caveId, id)).wine.rating;
+    return (await this.detail(caveId, id, 'OWNER')).wine.rating;
   }
 
   async clearRating(caveId: string, id: string): Promise<null> {

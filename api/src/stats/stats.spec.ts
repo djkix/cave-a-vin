@@ -1,5 +1,5 @@
 import { Apogee, ApogeeStatus } from '../apogee/apogee';
-import { computeStats, lastMonths, monthKey, StatsMovement, StatsWine } from './stats';
+import { computeStats, lastMonths, monthKey, PRICE_KEYS, Stats, statsForRole, StatsMovement, StatsWine, ViewerStats } from './stats';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
 const ap = (status: ApogeeStatus | null): Apogee => ({ min: null, max: null, confidence: null, status, reason: null, source: null });
@@ -165,5 +165,25 @@ describe('computeStats — classements', () => {
     expect(computeStats({ wines, movements: [] }, NOW).bestRated.map((w) => [w.id, w.value])).toEqual([
       ['b', 18.5], ['a', 15], ['c', 15], ['e', 12], ['f', 11],
     ]);
+  });
+});
+
+describe('statsForRole', () => {
+  const stats = computeStats({ wines: [], movements: [] }, NOW);
+
+  it('retire au VIEWER chaque clé de PRICE_KEYS, et rien d’autre', () => {
+    const viewer = statsForRole(stats, 'VIEWER');
+    for (const k of PRICE_KEYS) expect(viewer).not.toHaveProperty(k);
+    expect(Object.keys(viewer).sort()).toEqual(Object.keys(stats).filter((k) => !(PRICE_KEYS as readonly string[]).includes(k)).sort());
+    expect(stats).toHaveProperty('purchaseValueCents');
+  });
+
+  it('rend les statistiques complètes au seul OWNER (typage compris)', () => {
+    const owner: Stats = statsForRole(stats, 'OWNER');
+    expect(owner).toBe(stats);
+    const viewer: ViewerStats = statsForRole(stats, 'VIEWER');
+    // @ts-expect-error -- un VIEWER ne peut pas recevoir le type Stats complet
+    const leaked: Stats = statsForRole(stats, 'VIEWER');
+    expect([viewer, leaked]).toHaveLength(2);
   });
 });

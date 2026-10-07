@@ -216,6 +216,8 @@ describeIfInfra('garde d’accès et cave courante (HTTP)', () => {
         await ownerB.post('/api/movements/out').send({ idempotencyKey: randomUUID(), wineId: wineA, quantity: 1 }),
       ]) expectNotFound(res, 'Vin introuvable');
       expectNotFound(await ownerB.post(`/api/movements/${movementA}/cancel`).send({ idempotencyKey: randomUUID() }), 'Mouvement introuvable');
+      const malformed = await ownerA.post('/api/movements/pas-un-uuid/cancel').send({ idempotencyKey: randomUUID() });
+      expect(malformed.status).toBe(400);
       expectNotFound(await ownerB.get(`/api/photos/${photoA}/exit-candidates`), 'Photo introuvable');
       expectNotFound(
         await ownerB.post('/api/movements').send({ idempotencyKey: randomUUID(), photoId: photoA, quantity: 1, wine: draft('photo-a') }),
