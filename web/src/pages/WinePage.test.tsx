@@ -267,6 +267,64 @@ describe('recherche d’image depuis la fiche', () => {
     expect(await screen.findByText('Proposition expirée, relancez la recherche')).toBeInTheDocument();
   });
 
+  it('502 et 504 (passerelle, délai) valent aussi « indisponible pour le moment »', async () => {
+    for (const status of [502, 504]) {
+      vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+      vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(status, 'Bad Gateway'));
+      const { unmount } = mount();
+      await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+      expect(await screen.findByText('Recherche d’image indisponible pour le moment')).toBeInTheDocument();
+      unmount();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('garde les images proposées quand le choix échoue pour une autre raison que l’expiration', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates });
+    vi.spyOn(api, 'chooseReferenceImage').mockRejectedValue(new api.ApiError(500, 'Enregistrement impossible'));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    const chooseButtons = await screen.findAllByRole('button', { name: 'Choisir cette image' });
+    await userEvent.click(chooseButtons[1]);
+    expect(await screen.findByText('Enregistrement impossible')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Choisir cette image' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Choisir cette image' })[0]).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'domainetempier.com' })).toBeInTheDocument();
+  });
+
+  it('ouvre la fenêtre de choix sous l’en-tête de la fiche, sur toute sa largeur, pas dans la colonne de la vignette', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockResolvedValue({ candidates });
+    const { container } = mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    const window = await screen.findByRole('region', { name: 'Images proposées' });
+    const header = container.querySelector('.wine-head__row')!;
+    expect(header).not.toBeNull();
+    // L'en-tête (vignette + titre) ne contient ni la fenêtre ni ses images.
+    expect(header).toContainElement(screen.getByRole('heading', { name: /Domaine Tempier/ }));
+    expect(header).not.toContainElement(window);
+    // La fenêtre est dans la même carte que l'en-tête, après lui.
+    expect(header.parentElement).toContainElement(window);
+    expect(header.compareDocumentPosition(window) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Grille d'images ; chaque proposition : image, lien vers la source, bouton.
+    expect(window.querySelector('ul')).toHaveClass('image-search__grid');
+    for (const link of [screen.getByRole('link', { name: 'Open Food Facts (CC BY-SA)' }), screen.getByRole('link', { name: 'domainetempier.com' })]) {
+      expect(link).toHaveClass('link');
+    }
+  });
+
+  it('la ligne « Image : … / Revenir à ma photo » est sous l’en-tête, et son lien a le style de l’application', async () => {
+    const withSource = { ...detail, wine: { ...detail.wine, referencePhotoSource: 'domainetempier.com', referencePhotoSourceUrl: 'https://domainetempier.com/vin' } };
+    vi.spyOn(api, 'getWine').mockResolvedValue(withSource);
+    const { container } = mount();
+    const link = await screen.findByRole('link', { name: 'domainetempier.com' });
+    const header = container.querySelector('.wine-head__row')!;
+    expect(link).toHaveClass('link');
+    expect(header).not.toContainElement(link);
+    expect(header).not.toContainElement(screen.getByRole('button', { name: 'Revenir à ma photo' }));
+  });
+
   it('revient à la photo d’origine', async () => {
     const withSource = { ...detail, wine: { ...detail.wine, referencePhotoSource: 'domainetempier.com', referencePhotoSourceUrl: 'https://domainetempier.com/vin' } };
     const getWine = vi.spyOn(api, 'getWine').mockResolvedValueOnce(withSource).mockResolvedValue(detail);

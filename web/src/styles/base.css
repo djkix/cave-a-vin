@@ -146,3 +146,23 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 
 .dish-pills { list-style: none; margin: var(--space-sm) 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 .dish-pill { padding: 4px 10px; border-radius: 999px; background: var(--color-surface-container-low); border: 1px solid var(--color-outline-subtle); font-size: 13px; }
+
+/* Lien dans le texte : couleur du texte, souligné, jamais le bleu du navigateur. */
+.link { color: inherit; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.link:hover { color: var(--color-primary); }
+.link:focus-visible { outline: 3px solid var(--color-primary-container); outline-offset: 2px; border-radius: 2px; }
+
+/* Fiche vin : vignette + titre sur une ligne, recherche d'image dessous, sur toute la largeur. */
+.wine-head { display: flex; flex-direction: column; gap: var(--space-sm); }
+.wine-head__row { display: flex; gap: var(--space-md); align-items: flex-start; }
+.image-search { display: flex; flex-direction: column; gap: var(--space-xs); }
+.image-search__source { margin: 0; }
+.image-search__actions { display: flex; flex-wrap: wrap; gap: 0 var(--space-md); }
+.image-search__actions .btn--link { padding: 0; }
+.image-search__window { display: flex; flex-direction: column; gap: var(--space-sm); border-top: 1px solid var(--color-outline-subtle); padding-top: var(--space-sm); }
+.image-search__window > p { margin: 0; }
+.image-search__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: var(--space-md) var(--space-sm); }
+.image-search__candidate { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.image-search__image { width: 100%; max-width: 160px; height: 180px; align-self: center; object-fit: contain; border-radius: var(--radius-md); background: var(--color-surface); }
+.image-search__link { font-size: 13px; color: var(--color-secondary); }
+.image-search__choose { width: 100%; padding: 0 var(--space-sm); }

@@ -12,7 +12,7 @@ import { Button } from './Button';
 type SearchState =
   | { phase: 'closed' }
   | { phase: 'loading' }
-  | { phase: 'done'; candidates: ImageCandidate[] }
+  | { phase: 'done'; candidates: ImageCandidate[]; chooseError?: string }
   | { phase: 'error'; message: string };
 
 function messageOf(e: unknown, overrides: Partial<Record<number, string>>): string {
@@ -20,8 +20,13 @@ function messageOf(e: unknown, overrides: Partial<Record<number, string>>): stri
   return e instanceof Error ? e.message : 'Une erreur est survenue';
 }
 
+const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
+// 502 et 504 : le proxy devant l'api (passerelle en panne, délai dépassé) ; pour
+// l'utilisateur, c'est la même indisponibilité passagère que le 503 de l'api.
 const SEARCH_ERRORS = {
-  503: 'Recherche d’image indisponible pour le moment',
+  502: UNAVAILABLE,
+  503: UNAVAILABLE,
+  504: UNAVAILABLE,
   429: 'Trop de recherches, réessayez dans une minute',
 };
 const CHOOSE_ERRORS = { 410: 'Proposition expirée, relancez la recherche' };
@@ -49,14 +54,18 @@ export function ImageSearchBlock({
     }
   }
 
-  async function choose(candidate: ImageCandidate) {
+  async function choose(candidate: ImageCandidate, candidates: ImageCandidate[]) {
     setChoosingId(candidate.id);
     try {
       await chooseReferenceImage(wine.id, candidate.id);
       setState({ phase: 'closed' });
       void refresh();
     } catch (e) {
-      setState({ phase: 'error', message: messageOf(e, CHOOSE_ERRORS) });
+      const message = messageOf(e, CHOOSE_ERRORS);
+      // Proposition expirée : il faut relancer la recherche, la liste ne sert plus.
+      // Toute autre erreur : on garde les images pour réessayer ou en choisir une autre.
+      if (e instanceof ApiError && e.status === 410) setState({ phase: 'error', message });
+      else setState({ phase: 'done', candidates, chooseError: message });
     } finally {
       setChoosingId(null);
     }
@@ -76,35 +85,47 @@ export function ImageSearchBlock({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)', marginTop: 'var(--space-xs)' }}>
+    <div className="image-search">
       {wine.referencePhotoSource && (
-        <p className="list__meta" style={{ margin: 0 }}>
-          Image : <a href={wine.referencePhotoSourceUrl ?? undefined} target="_blank" rel="noopener noreferrer">{wine.referencePhotoSource}</a>
+        <p className="list__meta image-search__source">
+          Image :{' '}
+          <a className="link" href={wine.referencePhotoSourceUrl ?? undefined} target="_blank" rel="noopener noreferrer">
+            {wine.referencePhotoSource}
+          </a>
         </p>
       )}
-      {wine.referencePhotoSource && (
-        <Button variant="link" disabled={revertBusy} onClick={revert}>Revenir à ma photo</Button>
+      {(wine.referencePhotoSource || state.phase === 'closed') && (
+        <div className="image-search__actions">
+          {state.phase === 'closed' && (
+            <Button variant="link" onClick={search}>Chercher une image</Button>
+          )}
+          {wine.referencePhotoSource && (
+            <Button variant="link" disabled={revertBusy} onClick={revert}>Revenir à ma photo</Button>
+          )}
+        </div>
       )}
       {revertError && <p role="alert" className="text-error">{revertError}</p>}
 
-      {state.phase === 'closed' && (
-        <Button variant="link" onClick={search}>Chercher une image</Button>
-      )}
-
       {state.phase !== 'closed' && (
-        <section className="card">
+        <section className="image-search__window" aria-label="Images proposées">
           {state.phase === 'loading' && <p>Recherche en cours…</p>}
           {state.phase === 'error' && <p role="alert" className="text-error">{state.message}</p>}
           {state.phase === 'done' && state.candidates.length === 0 && <p>Aucune image trouvée pour ce vin</p>}
+          {state.phase === 'done' && state.chooseError && <p role="alert" className="text-error">{state.chooseError}</p>}
           {state.phase === 'done' && state.candidates.length > 0 && (
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            <ul className="image-search__grid">
               {state.candidates.map((c) => (
-                <li key={c.id} style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                  <img src={c.imageUrl} alt={c.source} width={64} height={80} style={{ objectFit: 'cover', borderRadius: 'var(--radius-md)', flexShrink: 0 }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                    <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer">{c.source}</a>
-                    <Button variant="outline" disabled={choosingId !== null} onClick={() => choose(c)}>Choisir cette image</Button>
-                  </div>
+                <li key={c.id} className="image-search__candidate">
+                  <img src={c.imageUrl} alt={c.source} className="image-search__image" />
+                  <a className="link image-search__link" href={c.sourceUrl} target="_blank" rel="noopener noreferrer">{c.source}</a>
+                  <Button
+                    variant="outline"
+                    className="image-search__choose"
+                    disabled={choosingId !== null}
+                    onClick={() => choose(c, state.candidates)}
+                  >
+                    Choisir cette image
+                  </Button>
                 </li>
               ))}
             </ul>
