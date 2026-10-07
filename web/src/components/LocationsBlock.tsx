@@ -6,7 +6,7 @@ import { Button } from './Button';
 import { LocationFields } from './LocationFields';
 
 /**
- * Section « Emplacements » de la fiche : chaque endroit et sa quantité, pour
+ * Section « Emplacements » de la fiche (vin en stock) : chaque endroit et sa quantité, pour
  * tous ; « Ranger / déplacer » pour le propriétaire seulement.
  */
 export function LocationsBlock({ wineId, places, readOnly }: { wineId: string; places: Place[]; readOnly: boolean }) {
@@ -71,8 +71,10 @@ function MoveForm({ wineId, places, onClose }: { wineId: string; places: Place[]
       <select id={fromId} value={from ?? ''} onChange={(e) => setFrom(e.target.value || null)}>
         {places.map((p) => <option key={p.id ?? ''} value={p.id ?? ''}>{`${p.label} · ${p.quantity}`}</option>)}
       </select>
-      <p className="field__label" style={{ margin: 'var(--space-sm) 0 0' }}>Vers</p>
-      <LocationFields value={to} onChange={setTo} locations={locations.data ?? []} />
+      <fieldset className="move-form__to">
+        <legend className="field__label">Vers</legend>
+        <LocationFields value={to} onChange={setTo} locations={locations.data ?? []} />
+      </fieldset>
       <label htmlFor={qtyId} className="field__label">Quantité</label>
       <input id={qtyId} type="number" inputMode="numeric" min={1} max={max} value={quantity} onChange={(e) => setQuantity(e.target.value.trim())} />
       {error && <p role="alert" className="text-error">{error}</p>}

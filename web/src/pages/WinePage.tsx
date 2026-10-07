@@ -132,7 +132,7 @@ export function WinePage() {
         <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} canEdit={isAdmin} />
         <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} readOnly={readOnly} />
 
-        {places && <LocationsBlock key={`locations-${wine.id}`} wineId={wine.id} places={places} readOnly={readOnly} />}
+        {places && places.length > 0 && <LocationsBlock key={`locations-${wine.id}`} wineId={wine.id} places={places} readOnly={readOnly} />}
 
         {/* Endroits toujours fournis (vide = inconnus) : la sortie ne relit pas la fiche que la page tient déjà. */}
         {!readOnly && <SortieConfirmation key={wine.id} wine={wine} places={places ?? []} exitDefault={detail.data.exitDefault} />}
@@ -150,16 +150,16 @@ export function WinePage() {
                 <input inputMode="numeric" value={counted} onChange={(e) => setCounted(e.target.value.trim())} />
               </label>
               {places && delta !== null && delta < 0 && places.length > 1 && (
-                <PlacePicker places={places} value={decreasePlace} onChange={(id) => setInventoryPlace({ id })} />
+                <PlacePicker legend="D'où sortent-elles ?" places={places} value={decreasePlace} onChange={(id) => setInventoryPlace({ id })} />
               )}
               {places && delta !== null && delta > 0 && (
-                <label className="field__label">
-                  Emplacement
-                  <select value={increasePlace ?? ''} onChange={(e) => setInventoryPlace({ id: e.target.value || null })}>
+                <>
+                  <label htmlFor="inventory-location" className="field__label">Emplacement</label>
+                  <select id="inventory-location" value={increasePlace ?? ''} onChange={(e) => setInventoryPlace({ id: e.target.value || null })}>
                     <option value="">{NO_LOCATION}</option>
                     {cellar.data?.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
-                </label>
+                </>
               )}
               <p>{tooMany ? 'Nombre de bouteilles trop élevé' : delta === null ? 'Saisis un nombre entier' : delta === 0 ? 'Stock déjà juste' : `${delta > 0 ? '+' : '−'}${plural(Math.abs(delta))}`}</p>
               {inventoryError && <p role="alert" className="text-error">{inventoryError}</p>}

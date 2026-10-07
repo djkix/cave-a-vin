@@ -158,10 +158,12 @@ it('coche « Sans apogée » depuis l\'URL, et ignore une valeur inconnue', asyn
 });
 
 it('filtre par emplacement, « Sans emplacement » compris', async () => {
-  const getCave = vi.spyOn(api, 'getCave').mockResolvedValue(rows);
+  // Même si l'api joignait les emplacements aux lignes, la liste ne les affiche pas (fiche seulement).
+  const withPlaces = rows.map((r) => ({ ...r, locations: [{ id: 'l1', label: 'Cave 2 / B / 3', quantity: r.quantity }], locationLabel: 'Cave 2 / B / 3' }));
+  const getCave = vi.spyOn(api, 'getCave').mockResolvedValue(withPlaces);
   vi.spyOn(api, 'getLocations').mockResolvedValue([
-    { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3' },
-    { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage' },
+    { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: false },
+    { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: true },
   ]);
   mount();
   await screen.findByText(/Domaine Tempier/);
@@ -172,7 +174,8 @@ it('filtre par emplacement, « Sans emplacement » compris', async () => {
   await userEvent.selectOptions(select, 'Sans emplacement');
   await waitFor(() => expect(getCave).toHaveBeenLastCalledWith({ q: '', color: undefined, includeEmpty: false, location: 'none' }));
   // La ligne d'un vin n'affiche pas ses emplacements (fiche seulement).
-  expect(screen.queryByText(/Cave 2 \/ B \/ 3/, { selector: '.cave-row *' })).not.toBeInTheDocument();
+  for (const link of screen.getAllByRole('link')) expect(link).not.toHaveTextContent('Cave 2 / B / 3');
+  expect(screen.getAllByRole('link', { name: /Domaine/ })).toHaveLength(2);
 });
 
 it('passe le filtre d’emplacement dans l’adresse de l’api', async () => {

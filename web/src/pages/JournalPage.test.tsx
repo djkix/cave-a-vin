@@ -53,3 +53,26 @@ it('libelle « Déplacé » un déplacement, avec l’emplacement de chaque moit
   expect(screen.getAllByText(/Déplacé/)).toHaveLength(2);
   expect(screen.getByText(/Bandol · Cave 2 \/ B \/ 3/)).toBeInTheDocument();
 });
+
+it('ne propose plus « Annuler » sur un mouvement déjà annulé, ni sur les deux moitiés d’un déplacement annulé', async () => {
+  const row = (over: Partial<api.MovementWithWine>): api.MovementWithWine => ({
+    id: 'x', delta: 1, type: 'IN', occurredAt: '2026-10-02T10:00:00Z', note: null, reversesId: null, locationId: null, locationLabel: null, wine, ...over,
+  });
+  vi.spyOn(api, 'getRecentMovements').mockResolvedValue([
+    row({ id: 'r2', type: 'ADJUST', delta: 2, reversesId: 'mv1' }),
+    row({ id: 'r1', type: 'ADJUST', delta: -2, reversesId: 'mv2' }),
+    row({ id: 'mv2', type: 'MOVE', delta: 2, locationId: 'l1', locationLabel: 'Cave 2 / B / 3' }),
+    row({ id: 'mv1', type: 'MOVE', delta: -2 }),
+    row({ id: 'r0', type: 'ADJUST', delta: -1, reversesId: 'm1' }),
+    row({ id: 'm1', type: 'IN', delta: 1 }),
+    row({ id: 'm0', type: 'OUT', delta: -1 }),
+  ]);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter><JournalPage /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findAllByText(/Déplacé/);
+  // Seule la sortie m0, jamais annulée, garde son bouton.
+  expect(screen.getAllByRole('button', { name: 'Annuler' })).toHaveLength(1);
+});

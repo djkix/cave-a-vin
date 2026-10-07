@@ -296,6 +296,11 @@ describeIfDb('emplacements (base réelle)', () => {
         await entry(1, { zone: 'Dernier', position: '7' });
         await entry(1);
         expect(await locations.lastInLocation(caveId)).toEqual({ zone: 'Dernier', casier: null, position: '7' });
+        // La liste marque ce même emplacement (pré-remplissage de l'entrée), et lui seul.
+        const listed = await locations.list(caveId);
+        expect(listed.filter((l) => l.lastUsed).map((l) => l.label)).toEqual(['Dernier / 7']);
+        expect(listed.every((l) => typeof l.lastUsed === 'boolean')).toBe(true);
+        expect((await locations.list(fresh)).some((l) => l.lastUsed)).toBe(false);
       } finally {
         await deleteTestCaves(prisma, [fresh]);
       }

@@ -191,3 +191,4 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 .move-form { display: grid; gap: var(--space-sm); margin-top: var(--space-sm); }
 .move-form select, .move-form input { width: 100%; min-width: 0; }
 .cave-filters select { max-width: 100%; }
+.move-form__to { border: 0; padding: 0; margin: var(--space-sm) 0 0; min-width: 0; }

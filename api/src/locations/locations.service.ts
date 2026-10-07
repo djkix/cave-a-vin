@@ -9,7 +9,8 @@ import {
 /** Client Prisma ordinaire ou client d'une transaction interactive. */
 export type Db = PrismaService | Prisma.TransactionClient;
 
-export interface LocationView extends LocationParts { id: string; label: string }
+/** `lastUsed` : emplacement de la dernière entrée rangée de la cave (pré-remplit l'entrée suivante), un seul au plus. */
+export interface LocationView extends LocationParts { id: string; label: string; lastUsed: boolean }
 
 interface Group extends LocationParts { locationId: string | null; quantity: number }
 
@@ -28,10 +29,15 @@ function rawStockAt(groups: Group[], id: string | null): number {
 export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Emplacements de la cave, par libellé. */
+  /** Emplacements de la cave, par libellé ; `lastUsed` sur celui de la dernière entrée rangée. */
   async list(caveId: string): Promise<LocationView[]> {
-    const rows = await this.prisma.location.findMany({ where: { caveId }, select: { id: true, zone: true, casier: true, position: true } });
-    return rows.map((l) => ({ ...l, label: labelOf(l) })).sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+    const [rows, last] = await Promise.all([
+      this.prisma.location.findMany({ where: { caveId }, select: { id: true, zone: true, casier: true, position: true } }),
+      this.lastIn(caveId),
+    ]);
+    return rows
+      .map((l) => ({ ...l, label: labelOf(l), lastUsed: l.id === last?.id }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
   }
 
   /**
@@ -89,8 +95,15 @@ export class LocationsService {
 
   /** Emplacement de la dernière entrée (non annulée) de la cave qui en a un ; pré-remplit l'entrée suivante. */
   async lastInLocation(caveId: string): Promise<LocationParts | null> {
-    const rows = await this.prisma.$queryRaw<LocationParts[]>`
-      SELECT l.zone, l.casier, l.position
+    const last = await this.lastIn(caveId);
+    return last ? { zone: last.zone, casier: last.casier, position: last.position } : null;
+  }
+
+
+  /** Dernière entrée rangée et non annulée de la cave : son emplacement, id compris. */
+  private async lastIn(caveId: string): Promise<(LocationParts & { id: string }) | null> {
+    const rows = await this.prisma.$queryRaw<Array<LocationParts & { id: string }>>`
+      SELECT l.id, l.zone, l.casier, l.position
       FROM movement m
       JOIN wine w ON w.id = m.wine_id
       JOIN location l ON l.id = m.location_id

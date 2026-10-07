@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as api from '../lib/api-client';
@@ -28,8 +28,8 @@ const detail: api.WineDetail = {
 };
 
 const cellar: api.Location[] = [
-  { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3' },
-  { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage' },
+  { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
+  { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: false },
 ];
 
 function mount() {
@@ -58,14 +58,15 @@ it('liste chaque endroit et sa quantité, et les déplacements au journal du vin
 
 it('membre : voit les emplacements mais aucun bouton ni requête d’écriture', async () => {
   const me = vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
-  vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+  const getWine = vi.spyOn(api, 'getWine').mockResolvedValue(detail);
   const locations = vi.spyOn(api, 'getLocations').mockResolvedValue(cellar);
   const recent = vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
   const move = vi.spyOn(api, 'moveWine');
   mount();
   await screen.findByRole('region', { name: 'Emplacements' });
   await waitFor(() => expect(me).toHaveBeenCalled());
-  await new Promise((r) => setTimeout(r, 20));
+  // Fiche et session lues (rôle connu) avant de constater l'absence d'actions.
+  await act(async () => { await Promise.all([me.mock.results[0].value, getWine.mock.results[0].value]); });
   expect(section().getAllByRole('listitem')).toHaveLength(3);
   expect(screen.queryByRole('button', { name: 'Ranger / déplacer' })).not.toBeInTheDocument();
   expect(screen.queryByRole('group', { name: 'D\'où sort-elle ?' })).not.toBeInTheDocument();
@@ -135,8 +136,7 @@ describe('inventaire', () => {
     const inventory = vi.spyOn(api, 'postInventory').mockResolvedValue({ movement: { id: 'a1' }, stock: 5, delta: -1, created: true });
     mount();
     await count('5');
-    const groups = screen.getAllByRole('group', { name: 'D\'où sort-elle ?' });
-    const inv = groups[groups.length - 1];
+    const inv = screen.getByRole('group', { name: 'D\'où sortent-elles ?' });
     expect(within(inv).getByRole('radio', { name: 'Cave 2 / B / 3 · 2' })).toBeChecked();
     await userEvent.click(within(inv).getByRole('radio', { name: 'Garage · 1' }));
     await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’inventaire' }));
@@ -166,4 +166,20 @@ describe('inventaire', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’inventaire' }));
     expect(await screen.findByText('Pas assez de bouteilles à cet emplacement')).toBeInTheDocument();
   });
+});
+
+it('masque la section quand le vin n’a plus de stock', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue({ ...detail, wine: { ...detail.wine, quantity: 0 }, locations: [], exitDefault: undefined });
+  mount();
+  await screen.findByRole('heading', { name: /Domaine Tempier/ });
+  expect(screen.queryByRole('region', { name: 'Emplacements' })).not.toBeInTheDocument();
+});
+
+it('« Vers » est un groupe de champs nommé', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+  vi.spyOn(api, 'getLocations').mockResolvedValue(cellar);
+  mount();
+  await userEvent.click(await screen.findByRole('button', { name: 'Ranger / déplacer' }));
+  const to = screen.getByRole('group', { name: 'Vers' });
+  expect(within(to).getByLabelText('Zone')).toBeInTheDocument();
 });

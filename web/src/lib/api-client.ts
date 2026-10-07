@@ -102,8 +102,8 @@ export interface PhotoDto { id: string; status: 'PENDING' | 'PROCESSING' | 'DONE
 export interface WineDraft { producer: string; cuvee?: string | null; appellationRaw: string; vintage?: number | null; color: WineColor; formatCl: number }
 /** Trois champs facultatifs d'un emplacement (au moins un renseigné côté api). */
 export interface LocationParts { zone: string | null; casier: string | null; position: string | null }
-/** Emplacement de la cave (`GET /locations`), trié par libellé. */
-export interface Location extends LocationParts { id: string; label: string }
+/** Emplacement de la cave (`GET /locations`), trié par libellé ; `lastUsed` : celui de la dernière entrée rangée (un au plus). */
+export interface Location extends LocationParts { id: string; label: string; lastUsed: boolean }
 /** Un endroit où se trouve un vin : un emplacement, ou « Sans emplacement » (id null). */
 export interface Place { id: string | null; label: string; quantity: number }
 export const getLocations = () => apiFetch<Location[]>('/locations');

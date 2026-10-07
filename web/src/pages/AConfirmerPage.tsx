@@ -72,7 +72,7 @@ export function AConfirmerPage() {
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { locations, last } = useLastLocation();
+  const { locations, last, loading: locationsLoading } = useLastLocation();
   const locationOf = (r: Row) => r.location ?? last ?? EMPTY_LOCATION;
 
   useEffect(() => {
@@ -208,7 +208,7 @@ export function AConfirmerPage() {
                   <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end' }}>
                     <Button variant="outline" onClick={() => dismiss(r.photoId)} disabled={busy} aria-label={dismissLabel(r.draft)}>Écarter</Button>
                     {!r.ignored && (
-                      <Button variant="primary" onClick={() => validate([r])} disabled={busy || problem !== null}>Valider</Button>
+                      <Button variant="primary" onClick={() => validate([r])} disabled={busy || locationsLoading || problem !== null}>Valider</Button>
                     )}
                   </div>
                 </article>
@@ -249,7 +249,7 @@ export function AConfirmerPage() {
 
         {rows.length > 0 && (
           <div className="dock">
-            <Button variant="dark" onClick={() => validate(kept)} disabled={busy || kept.length === 0}>
+            <Button variant="dark" onClick={() => validate(kept)} disabled={busy || locationsLoading || kept.length === 0}>
               Tout valider ({kept.length})
             </Button>
             <span className="dock__hint">

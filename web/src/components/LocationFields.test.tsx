@@ -5,8 +5,8 @@ import type { Location, LocationParts } from '../lib/api-client';
 import { EntryLocationBlock } from './LocationFields';
 
 const locations: Location[] = [
-  { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3' },
-  { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage' },
+  { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: false },
+  { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: false },
 ];
 
 function Harness({ initial }: { initial: LocationParts }) {

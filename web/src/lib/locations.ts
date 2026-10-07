@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { getLocations, getRecentMovements, Location, LocationParts, MovementWithWine } from './api-client';
+import { getLocations, Location, LocationParts } from './api-client';
 
 export const NO_LOCATION = 'Sans emplacement';
 export const EMPTY_LOCATION: LocationParts = { zone: null, casier: null, position: null };
@@ -17,19 +17,6 @@ export function labelOf(parts: LocationParts): string {
   return [parts.zone, parts.casier, parts.position].map((v) => v?.trim()).filter(Boolean).join(' / ') || NO_LOCATION;
 }
 
-/**
- * Emplacement de la dernière entrée rangée et non annulée de la cave, lu dans
- * le journal (le plus récent d'abord) : l'api ne l'expose que sur la fiche
- * d'un vin, inconnue à l'entrée.
- */
-export function lastInLocation(rows: MovementWithWine[] | undefined, locations: Location[] | undefined): LocationParts | null {
-  if (!rows || !locations) return null;
-  const reversed = new Set(rows.map((r) => r.reversesId).filter(Boolean));
-  const last = rows.find((r) => r.type === 'IN' && r.locationId && !reversed.has(r.id));
-  const loc = last && locations.find((l) => l.id === last.locationId);
-  return loc ? { zone: loc.zone, casier: loc.casier, position: loc.position } : null;
-}
-
 /** Valeurs distinctes de chaque champ, pour les suggestions (`<datalist>`). */
 export function distinctParts(locations: Location[]): Record<keyof LocationParts, string[]> {
   const pick = (k: keyof LocationParts) =>
@@ -42,13 +29,16 @@ export function useLocations(enabled = true) {
   return useQuery({ queryKey: ['locations'], queryFn: getLocations, enabled });
 }
 
-/** Le journal ne garde que les 100 derniers mouvements : une entrée rangée plus ancienne ne pré-remplit plus. */
-const RECENT_FOR_PREFILL = 100;
-
-/** Pré-remplissage de l'entrée (écrans réservés au propriétaire : le journal l'est aussi). */
-export function useLastLocation(): { locations: Location[]; last: LocationParts | null } {
-  const locations = useLocations();
-  const recent = useQuery({ queryKey: ['movements', 'recent', RECENT_FOR_PREFILL], queryFn: () => getRecentMovements(RECENT_FOR_PREFILL) });
-  const last = useMemo(() => lastInLocation(recent.data, locations.data), [recent.data, locations.data]);
-  return { locations: locations.data ?? [], last };
+/**
+ * Pré-remplissage de l'entrée : l'emplacement que le serveur marque `lastUsed`
+ * (dernière entrée rangée, non annulée, de la cave). `loading` : tant que la
+ * liste n'est pas lue, l'entrée ne se confirme pas (elle partirait sans lui).
+ */
+export function useLastLocation(): { locations: Location[]; last: LocationParts | null; loading: boolean } {
+  const query = useLocations();
+  const last = useMemo(() => {
+    const l = query.data?.find((x) => x.lastUsed);
+    return l ? { zone: l.zone, casier: l.casier, position: l.position } : null;
+  }, [query.data]);
+  return { locations: query.data ?? [], last, loading: query.isLoading };
 }

@@ -15,7 +15,10 @@ const result = (stock: number): api.MovementResult => ({
   movement: { id: 'm1', delta: -1, type: 'OUT', occurredAt: '' }, wine: { ...wine, cuvee: wine.cuvee }, stock, created: true,
 });
 
+// Par défaut, endroits connus et vides (rien à demander) : la fiche n'est pas relue.
+// Les cas de la sortie par photo passent `places: undefined`.
 function mount(props: Partial<Parameters<typeof SortieConfirmation>[0]> = {}) {
+  props = { places: [], ...props };
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
@@ -133,7 +136,7 @@ describe('d’où sort-elle ?', () => {
     const getWine = vi.spyOn(api, 'getWine').mockResolvedValue({
       wine: { ...wine, quantity: 4, referencePhotoSource: null, referencePhotoSourceUrl: null, producerKey: null }, movements: [], locations: places, exitDefault: null, lastLocation: null,
     });
-    mount({ wine: { ...wine, quantity: 4 }, photoId: 'px' });
+    mount({ wine: { ...wine, quantity: 4 }, photoId: 'px', places: undefined });
     const group = await screen.findByRole('group', { name: 'D\'où sort-elle ?' });
     expect(getWine).toHaveBeenCalledWith('w1');
     expect(within(group).getByRole('radio', { name: 'Sans emplacement · 1' })).toBeChecked();
@@ -144,5 +147,26 @@ describe('d’où sort-elle ?', () => {
     mount({ wine: { ...wine, quantity: 4 }, places, exitDefault: 'l2' });
     await userEvent.click(screen.getByRole('button', { name: /Sortir 1 bouteille/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Pas assez de bouteilles à cet emplacement');
+  });
+
+  it('sortie par photo : « Sortir » attend la lecture de la fiche', async () => {
+    vi.spyOn(api, 'getWine').mockImplementation(() => new Promise(() => {}));
+    const out = vi.spyOn(api, 'createOut');
+    mount({ photoId: 'px', places: undefined });
+    const button = screen.getByRole('button', { name: /Sortir 1 bouteille/ });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(out).not.toHaveBeenCalled();
+  });
+
+  it('sortie par photo, fiche illisible : « Sortir » reste possible, sans locationId', async () => {
+    vi.spyOn(api, 'getWine').mockRejectedValue(new api.ApiError(500, 'Erreur'));
+    const out = vi.spyOn(api, 'createOut').mockResolvedValue(result(2));
+    mount({ photoId: 'px', places: undefined });
+    const button = screen.getByRole('button', { name: /Sortir 1 bouteille/ });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+    await waitFor(() => expect(out).toHaveBeenCalledTimes(1));
+    expect(out.mock.calls[0][0]).not.toHaveProperty('locationId');
   });
 });

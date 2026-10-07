@@ -44,12 +44,12 @@ export function EntryLocationBlock({ value, onChange, locations }: { value: Loca
   );
 }
 
-/** « D'où sort-elle ? » : un bouton radio par endroit, avec sa quantité. */
-export function PlacePicker({ places, value, onChange }: { places: Place[]; value: string | null; onChange: (id: string | null) => void }) {
+/** « D'où sort-elle ? » (ou la légende donnée) : un bouton radio par endroit, avec sa quantité. */
+export function PlacePicker({ places, value, onChange, legend = 'D\'où sort-elle ?' }: { places: Place[]; value: string | null; onChange: (id: string | null) => void; legend?: string }) {
   const name = useId();
   return (
     <fieldset className="place-picker">
-      <legend>D'où sort-elle ?</legend>
+      <legend>{legend}</legend>
       {places.map((p) => (
         <label key={p.id ?? ''} className="place-picker__option">
           <input type="radio" name={name} checked={value === p.id} onChange={() => onChange(p.id)} />

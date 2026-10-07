@@ -509,6 +509,23 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
       }
     });
 
+    it('la liste marque au plus un emplacement « lastUsed », celui de la dernière entrée rangée', async () => {
+      // Entrée rangée à locationA, retirée ensuite : A revient à l'état commun aux autres cas.
+      const m = await prisma.movement.create({ data: { wineId: ids.wineA, delta: 1, type: 'IN', locationId: ids.locationA, idempotencyKey: `iso-${run}-in-rangee` } });
+      try {
+        for (const agent of [agents.ownerA, agents.viewerA]) {
+          const res = await agent.get('/api/locations');
+          expect(res.status).toBe(200);
+          expect(res.body.filter((l: { lastUsed: boolean }) => l.lastUsed).map((l: { id: string }) => l.id)).toEqual([ids.locationA]);
+          expect(res.body.every((l: { lastUsed: unknown }) => typeof l.lastUsed === 'boolean')).toBe(true);
+        }
+        const b = await agents.ownerB.get('/api/locations');
+        expect(b.body.some((l: { id: string; lastUsed: boolean }) => l.id === ids.locationA || l.lastUsed)).toBe(false);
+      } finally {
+        await prisma.movement.delete({ where: { id: m.id } });
+      }
+    });
+
     it('la fiche montre les emplacements au membre comme au propriétaire', async () => {
       for (const agent of [agents.ownerA, agents.viewerA]) {
         const res = await agent.get(`/api/wines/${ids.wineA}`);

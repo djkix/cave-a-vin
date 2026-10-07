@@ -129,7 +129,9 @@ export function SortieConfirmation({ wine, photoId, onDone, places: givenPlaces,
         </Button>
       </div>
       {error && <p role="alert" className="text-error">{error}</p>}
-      <Button variant="dark" onClick={sortir} disabled={busy || max < 1}>
+      {/* Sortie par photo : on attend les endroits de la fiche, sinon l'api choisirait sans la pré-sélection.
+          Fiche illisible (erreur) : la sortie reste possible, l'api applique sa règle. */}
+      <Button variant="dark" onClick={sortir} disabled={busy || detail.isLoading || max < 1}>
         <Icon name="remove_circle_outline" />
         {busy ? 'Sortie…' : `Sortir ${safeQuantity} bouteille${safeQuantity > 1 ? 's' : ''}`}
       </Button>

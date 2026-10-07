@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/Button';
@@ -50,7 +51,8 @@ export function EntreeConfirmationPage() {
   const [submitting, setSubmitting] = useState(false);
   // Emplacement saisi ; tant qu'on n'y touche pas, celui de la dernière entrée rangée de la cave.
   const [location, setLocation] = useState<LocationParts | null>(null);
-  const { locations, last } = useLastLocation();
+  const qc = useQueryClient();
+  const { locations, last, loading: locationsLoading } = useLastLocation();
   const effectiveLocation = location ?? last ?? EMPTY_LOCATION;
   // One key per photo, not per value read inside the callback: a fresh photoId must get a fresh key.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,6 +130,8 @@ export function EntreeConfirmationPage() {
         location: toLocationInput(effectiveLocation),
       });
       setResult(r);
+      // Emplacement créé à la volée et nouveau « dernier utilisé » : l'entrée suivante doit le voir.
+      void qc.invalidateQueries({ queryKey: ['locations'] });
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : 'Écriture impossible');
     } finally {
@@ -218,7 +222,7 @@ export function EntreeConfirmationPage() {
             </details>
             {submitError && <p role="alert" className="text-error">{submitError}</p>}
             <div className="dock">
-              <Button variant="dark" onClick={confirm} disabled={submitting || !draft.producer || !draft.appellationRaw}>
+              <Button variant="dark" onClick={confirm} disabled={submitting || locationsLoading || !draft.producer || !draft.appellationRaw}>
                 <Icon name="check_circle" />
                 {submitting ? 'Enregistrement…' : `Confirmer l’entrée (+${quantity} bouteille${quantity > 1 ? 's' : ''})`}
               </Button>
