@@ -5,9 +5,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
-import { EXTRACTION_ATTEMPTS, extractionBackoffDelay } from './extraction.queue';
+import { EXTRACTION_ATTEMPTS, MAX_DELAY_MS, extractionBackoffDelay } from './extraction.queue';
 import { CONFIGURATION_DEFERRAL_REASON, deferralReason, isConfigurationError, isTransientVisionFailure } from './transient-failure';
-import { VisionBudgetService } from './vision-budget.service';
+import { CaveBudgetShareExceededError, VisionBudgetExceededError, VisionBudgetService } from './vision-budget.service';
 
 interface Reserved {
   id: string;
@@ -17,6 +17,19 @@ interface Reserved {
 }
 
 type Readable = Reserved & { data: Buffer };
+
+/** Lot réservé : des photos d'une seule cave. */
+interface ReservedBatch {
+  caveId: string;
+  photos: Reserved[];
+}
+
+/**
+ * Nombre maximal de lots reportés pour part de cave atteinte dans un même
+ * passage : chacun ne coûte qu'une réservation et une écriture (aucun appel
+ * Gemini), et les caves restantes passent au passage suivant.
+ */
+const MAX_OVER_SHARE_CAVES_PER_TICK = 20;
 
 const MIME = 'image/jpeg';
 
@@ -46,39 +59,63 @@ export class EntryBatchProcessor {
     private readonly budget: VisionBudgetService,
   ) {}
 
+  /**
+   * Un lot ne contient que des photos d'une même cave : celle de la plus
+   * ancienne candidate. Si cette cave a atteint sa part mensuelle, son lot est
+   * reporté (comme pour le plafond global) et le passage continue avec la plus
+   * ancienne candidate des autres caves : une cave à court de budget ne
+   * bloque jamais les autres. Au plus un appel Gemini par passage, comme avant.
+   */
   async tick(now = new Date()): Promise<{ processed: number }> {
-    let reserved: Reserved[];
     try {
       await this.reclaimExpired(now);
-      const candidates = await this.prisma.photo.findMany({
-        where: this.candidateWhere(now),
-        orderBy: { createdAt: 'asc' },
-        take: ENTRY_CANDIDATES_SCAN,
-        select: { createdAt: true, nextAttemptAt: true },
-      });
-      if (!shouldRun(candidates, now)) return { processed: 0 };
-      reserved = await this.reserve(now);
     } catch (e) {
       this.logger.error(`Lot d'entrée : préparation impossible : ${messageOf(e)}`);
       return { processed: 0 };
     }
-    if (reserved.length === 0) return { processed: 0 };
 
+    const overShare: string[] = [];
+    let processed = 0;
+    while (overShare.length < MAX_OVER_SHARE_CAVES_PER_TICK) {
+      let batch: ReservedBatch | null;
+      try {
+        const candidates = await this.prisma.photo.findMany({
+          where: { ...this.candidateWhere(now), ...(overShare.length > 0 ? { caveId: { notIn: overShare } } : {}) },
+          orderBy: { createdAt: 'asc' },
+          take: ENTRY_CANDIDATES_SCAN,
+          select: { createdAt: true, nextAttemptAt: true },
+        });
+        if (!shouldRun(candidates, now)) break;
+        batch = await this.reserve(now, overShare);
+      } catch (e) {
+        this.logger.error(`Lot d'entrée : préparation impossible : ${messageOf(e)}`);
+        break;
+      }
+      if (!batch) break;
+      processed += batch.photos.length;
+      if ((await this.runBatch(batch, now)) !== 'over-share') break;
+      overShare.push(batch.caveId);
+    }
+    return { processed };
+  }
+
+  /** Traite un lot réservé sans jamais laisser sortir d'exception. */
+  private async runBatch(batch: ReservedBatch, now: Date): Promise<'done' | 'over-share'> {
     const settled = new Set<string>();
     try {
-      await this.processBatch(reserved, now, settled);
+      return await this.processBatch(batch, now, settled);
     } catch (e) {
       // Erreur imprévue (écriture en base, bogue) : les photos encore réservées
       // reviennent en attente plutôt que de rester PROCESSING jusqu'à l'échéance.
       this.logger.error(`Lot d'entrée interrompu : ${messageOf(e)}`);
-      const rest = reserved.filter((p) => !settled.has(p.id));
+      const rest = batch.photos.filter((p) => !settled.has(p.id));
       try {
         await this.settleFailure(rest, e, now, settled);
       } catch (e2) {
         this.logger.error(`Lot d'entrée : remise en attente impossible, reprise à l'échéance : ${messageOf(e2)}`);
       }
+      return 'done';
     }
-    return { processed: reserved.length };
   }
 
   private candidateWhere(now: Date): Prisma.PhotoWhereInput {
@@ -125,39 +162,67 @@ export class EntryBatchProcessor {
 
   /**
    * `FOR UPDATE SKIP LOCKED` : deux passages simultanés (deux workers) ne
-   * réservent jamais la même photo. Les dates sont comparées en UTC, comme Prisma
-   * les écrit, quel que soit le fuseau de la session PostgreSQL.
+   * réservent jamais la même photo. Une seule cave par lot : la sous-requête
+   * (évaluée une fois) donne la cave de la plus ancienne candidate hors caves
+   * écartées ; la requête principale ne verrouille que des photos de cette
+   * cave. Un passage concurrent qui vise la même cave prend les photos
+   * restantes, ou rien : jamais deux caves dans un lot, jamais deux fois une
+   * photo. Les dates sont comparées en UTC, comme Prisma les écrit, quel que
+   * soit le fuseau de la session PostgreSQL.
    */
-  private async reserve(now: Date): Promise<Reserved[]> {
+  private async reserve(now: Date, skippedCaves: string[]): Promise<ReservedBatch | null> {
     const deadline = new Date(now.getTime() + RESERVATION_MS);
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Reserved[]>`
-        SELECT id, attempts, cost_cents AS "costCents" FROM photo
+      const rows = await tx.$queryRaw<Array<Reserved & { caveId: string }>>`
+        SELECT id, cave_id AS "caveId", attempts, cost_cents AS "costCents" FROM photo
         WHERE purpose = 'ENTRY' AND status = 'PENDING' AND dismissed_at IS NULL
           AND (next_attempt_at IS NULL OR next_attempt_at <= (${now}::timestamptz AT TIME ZONE 'UTC'))
+          AND cave_id = (
+            SELECT cave_id FROM photo
+            WHERE purpose = 'ENTRY' AND status = 'PENDING' AND dismissed_at IS NULL
+              AND (next_attempt_at IS NULL OR next_attempt_at <= (${now}::timestamptz AT TIME ZONE 'UTC'))
+              AND cave_id <> ALL(${skippedCaves}::text[])
+            ORDER BY created_at
+            LIMIT 1
+          )
         ORDER BY created_at
         LIMIT ${ENTRY_BATCH_SIZE}
         FOR UPDATE SKIP LOCKED`;
-      if (rows.length === 0) return [];
+      if (rows.length === 0) return null;
       await tx.photo.updateMany({
         where: { id: { in: rows.map((r) => r.id) } },
         data: { status: 'PROCESSING', nextAttemptAt: deadline },
       });
-      return rows.map((r) => ({
-        id: r.id,
-        attempts: Number(r.attempts),
-        costCents: r.costCents === null ? null : Number(r.costCents),
-      }));
+      return {
+        caveId: rows[0].caveId,
+        photos: rows.map((r) => ({
+          id: r.id,
+          attempts: Number(r.attempts),
+          costCents: r.costCents === null ? null : Number(r.costCents),
+        })),
+      };
     });
   }
 
-  private async processBatch(reserved: Reserved[], now: Date, settled: Set<string>): Promise<void> {
+  /**
+   * Plafond global, puis part mensuelle de la cave du lot : l'un ou l'autre
+   * atteint, le lot est reporté sans appel (la photo n'est jamais perdue).
+   * `over-share` : seule la cave est à court, le passage peut continuer.
+   */
+  private async processBatch(batch: ReservedBatch, now: Date, settled: Set<string>): Promise<'done' | 'over-share'> {
+    const reserved = batch.photos;
     try {
       await this.budget.assertUnderCap();
+      await this.budget.assertCaveUnderShare(batch.caveId);
     } catch (e) {
       await this.settleFailure(reserved, e, now, settled);
-      return;
+      return e instanceof CaveBudgetShareExceededError ? 'over-share' : 'done';
     }
+    await this.readBatch(reserved, now, settled);
+    return 'done';
+  }
+
+  private async readBatch(reserved: Reserved[], now: Date, settled: Set<string>): Promise<void> {
 
     const readable: Readable[] = [];
     for (const photo of reserved) {
@@ -247,9 +312,11 @@ export class EntryBatchProcessor {
   }
 
   /**
-   * Panne passagère (plafond compris) ou erreur de configuration (clé Gemini) :
-   * les photos repartent en attente avec une attente croissante, puis échouent
-   * après `EXTRACTION_ATTEMPTS` tentatives. Autre erreur définitive : échec
+   * Panne passagère ou erreur de configuration (clé Gemini) : les photos
+   * repartent en attente avec une attente croissante, puis échouent après
+   * `EXTRACTION_ATTEMPTS` tentatives. Un report pour budget (plafond global ou
+   * part de la cave) attend toujours l'attente maximale (15 min) et ne compte
+   * pas de tentative : il est repris sans limite et ne mène jamais à l'échec. Autre erreur définitive : échec
    * immédiat, la saisie manuelle est proposée. Le texte brut de l'erreur ne va
    * que dans les logs ; la photo ne porte qu'un message en français.
    */
@@ -262,8 +329,25 @@ export class EntryBatchProcessor {
         await this.fail(photo, UNREADABLE, settled);
         continue;
       }
-      const attempts = photo.attempts + 1;
       const reason = isConfigurationError(error) ? CONFIGURATION_DEFERRAL_REASON : deferralReason(error);
+      if (error instanceof VisionBudgetExceededError) {
+        // Plafond global ou part de la cave : aucun appel n'a eu lieu. La photo
+        // ne consomme pas de tentative et ne passe jamais en échec ; elle est
+        // reprise après l'attente maximale, fixe, dès que le budget le permet
+        // (plafond ou part relevés, ou mois suivant).
+        await this.prisma.photo.update({
+          where: { id: photo.id },
+          data: {
+            status: 'PENDING',
+            nextAttemptAt: new Date(now.getTime() + MAX_DELAY_MS),
+            errorMessage: reason,
+            ...costData(photo),
+          },
+        });
+        settled.add(photo.id);
+        continue;
+      }
+      const attempts = photo.attempts + 1;
       const exhausted = attempts >= EXTRACTION_ATTEMPTS;
       await this.prisma.photo.update({
         where: { id: photo.id },

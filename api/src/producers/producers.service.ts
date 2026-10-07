@@ -59,7 +59,8 @@ export class ProducersService {
         include: PRODUCER_PROFILE_INCLUDE,
       }),
     );
-    return producerProfileOf(saved);
+    // Réponse à l'administrateur qui vient d'écrire : il peut voir l'e-mail de l'auteur.
+    return producerProfileOf(saved, 'OWNER');
   }
 
   /**

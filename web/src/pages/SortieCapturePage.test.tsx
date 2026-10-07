@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -8,12 +9,14 @@ afterEach(() => vi.restoreAllMocks());
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={['/sortie']}>
-      <Routes>
-        <Route path="/sortie" element={<SortieCapturePage />} />
-        <Route path="/sortie/:photoId" element={<p>Résolution</p>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/sortie']}>
+        <Routes>
+          <Route path="/sortie" element={<SortieCapturePage />} />
+          <Route path="/sortie/:photoId" element={<p>Résolution</p>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

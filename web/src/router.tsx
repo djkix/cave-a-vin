@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
-import { RequireAuth } from './components/RequireAuth';
+import { RequireAuth, RequireOwner } from './components/RequireAuth';
 import { AdminPage } from './pages/AdminPage';
 import { AConfirmerPage } from './pages/AConfirmerPage';
 import { CavePage } from './pages/CavePage';
@@ -9,6 +9,7 @@ import { NotFoundPage, RouteErrorPage } from './pages/ErrorPages';
 import { HomePage } from './pages/HomePage';
 import { JournalPage } from './pages/JournalPage';
 import { LoginPage } from './pages/LoginPage';
+import { MembresPage } from './pages/MembresPage';
 import { SortieCapturePage } from './pages/SortieCapturePage';
 import { SortieResolutionPage } from './pages/SortieResolutionPage';
 import { StatsPage } from './pages/StatsPage';
@@ -26,18 +27,26 @@ export const routes: RouteObject[] = [
         element: <RequireAuth />,
         children: [
           { path: '/', element: <HomePage /> },
-          { path: '/entree', element: <EntreeCapturePage /> },
-          // Anciennes adresses du mode campagne, remplacé par la rafale et « À confirmer ».
-          { path: '/entree/campagne', element: <Navigate to="/entree" replace /> },
-          { path: '/entree/campagne/revue', element: <Navigate to="/a-confirmer" replace /> },
-          { path: '/a-confirmer', element: <AConfirmerPage /> },
-          { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
-          { path: '/journal', element: <JournalPage /> },
           { path: '/stats', element: <StatsPage /> },
           { path: '/cave', element: <CavePage /> },
           { path: '/cave/:wineId', element: <WinePage /> },
-          { path: '/sortie', element: <SortieCapturePage /> },
-          { path: '/sortie/:photoId', element: <SortieResolutionPage /> },
+          {
+            // Réservé au propriétaire de la cave courante : un membre en lecture
+            // seule qui y arrive (lien direct, changement de cave) revient à l'accueil.
+            element: <RequireOwner />,
+            children: [
+              { path: '/entree', element: <EntreeCapturePage /> },
+              // Anciennes adresses du mode campagne, remplacé par la rafale et « À confirmer ».
+              { path: '/entree/campagne', element: <Navigate to="/entree" replace /> },
+              { path: '/entree/campagne/revue', element: <Navigate to="/a-confirmer" replace /> },
+              { path: '/a-confirmer', element: <AConfirmerPage /> },
+              { path: '/entree/:photoId', element: <EntreeConfirmationPage /> },
+              { path: '/journal', element: <JournalPage /> },
+              { path: '/sortie', element: <SortieCapturePage /> },
+              { path: '/sortie/:photoId', element: <SortieResolutionPage /> },
+              { path: '/membres', element: <MembresPage /> },
+            ],
+          },
           { path: '/admin', element: <AdminPage /> },
           // Derrière RequireAuth : une URL inconnue commence par demander la session,
           // comme n'importe quelle page de l'application.

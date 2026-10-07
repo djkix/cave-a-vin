@@ -33,8 +33,11 @@ const CHOOSE_ERRORS = { 410: 'Proposition expirée, relancez la recherche' };
 
 export function ImageSearchBlock({
   wine,
+  readOnly = false,
 }: {
   wine: { id: string; referencePhotoSource: string | null; referencePhotoSourceUrl: string | null };
+  /** Membre en lecture seule : la source de l'image reste citée, sans recherche ni retour à la photo. */
+  readOnly?: boolean;
 }) {
   const qc = useQueryClient();
   const [state, setState] = useState<SearchState>({ phase: 'closed' });
@@ -94,7 +97,7 @@ export function ImageSearchBlock({
           </a>
         </p>
       )}
-      {(wine.referencePhotoSource || state.phase === 'closed') && (
+      {!readOnly && (wine.referencePhotoSource || state.phase === 'closed') && (
         <div className="image-search__actions">
           {state.phase === 'closed' && (
             <Button variant="link" onClick={search}>Chercher une image</Button>

@@ -1,5 +1,5 @@
 import { flushQueue, notifyQueueChanged } from './offline-queue';
-import { kickSender, sendQueuedPhotos, _resetSenderForTests } from './photo-sender';
+import { kickSender, sendQueuedPhotos, setSenderAccount, _resetSenderForTests } from './photo-sender';
 import { uploadPhoto } from './api-client';
 
 vi.mock('./offline-queue', () => ({
@@ -10,6 +10,7 @@ vi.mock('./api-client', () => ({ uploadPhoto: vi.fn() }));
 
 beforeEach(() => {
   _resetSenderForTests();
+  setSenderAccount('u1');
   vi.mocked(flushQueue).mockClear();
   vi.mocked(notifyQueueChanged).mockClear();
 });
@@ -22,7 +23,7 @@ it('sends with a single flight: two concurrent calls share one flushQueue run', 
   const b = sendQueuedPhotos();
   expect(a).toBe(b);
   expect(flushQueue).toHaveBeenCalledTimes(1);
-  expect(flushQueue).toHaveBeenCalledWith(uploadPhoto);
+  expect(flushQueue).toHaveBeenCalledWith(uploadPhoto, 'u1');
 
   resolveFlush({ sent: 1, failed: 0 });
   await a;
@@ -54,4 +55,11 @@ it('kickSender fires sendQueuedPhotos without waiting for it', () => {
   vi.mocked(flushQueue).mockResolvedValue({ sent: 0, failed: 0 });
   kickSender();
   expect(flushQueue).toHaveBeenCalledTimes(1);
+});
+
+it('n’envoie rien sans compte propriétaire', async () => {
+  setSenderAccount(null);
+  await sendQueuedPhotos();
+  kickSender();
+  expect(flushQueue).not.toHaveBeenCalled();
 });

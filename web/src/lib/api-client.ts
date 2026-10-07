@@ -26,15 +26,26 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return JSON.parse(text) as T;
 }
 
+export type AccountStatus = 'PENDING' | 'ACTIVE' | 'BLOCKED';
+export type CaveRole = 'OWNER' | 'VIEWER';
+export interface CaveSummary { id: string; name: string; role: CaveRole }
+
 export interface Me {
   id: string;
   email: string;
   displayName: string | null;
   isAdmin: boolean;
-  status: 'ACTIVE' | 'BLOCKED';
+  status: AccountStatus;
+  /** Caves accessibles, la sienne (OWNER) d'abord ; vide pour un compte en attente. */
+  caves: CaveSummary[];
+  /** Cave courante de la session, `null` sans cave. */
+  currentCaveId: string | null;
 }
 
 export const getMe = () => apiFetch<Me>('/auth/me');
+/** Change la cave courante de la session ; répond à la forme de /auth/me. */
+export const setCurrentCave = (caveId: string) =>
+  apiFetch<Me>('/auth/current-cave', { method: 'PUT', body: JSON.stringify({ caveId }) });
 export const localLogin = (email: string, password: string) =>
   apiFetch<Me>('/auth/local-login', { method: 'POST', body: JSON.stringify({ email, password }) });
 export const logout = () => apiFetch<{ ok: true }>('/auth/logout', { method: 'POST' });
@@ -43,15 +54,42 @@ export interface AdminUser {
   id: string;
   email: string;
   displayName: string | null;
-  status: 'ACTIVE' | 'BLOCKED';
+  status: AccountStatus;
   isAdmin: boolean;
   isBreakGlass: boolean;
   createdAt: string;
   lastLoginAt: string | null;
+  /** Vrai si le compte possède déjà une cave (OWNER). */
+  hasCave: boolean;
 }
 export const getAdminUsers = () => apiFetch<AdminUser[]>('/admin/users');
 export const updateAdminUser = (id: string, patch: { status?: AdminUser['status']; isAdmin?: boolean }) =>
   apiFetch<AdminUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+
+/** Inscriptions en attente de validation (comptes PENDING), du plus ancien au plus récent. */
+export interface Registration { id: string; email: string; displayName: string | null; createdAt: string }
+export const getRegistrations = () => apiFetch<Registration[]>('/admin/registrations');
+export const validateRegistration = (id: string) =>
+  apiFetch<{ id: string; status: 'ACTIVE'; cave: { id: string; name: string } }>(`/admin/registrations/${id}/validate`, { method: 'POST' });
+export const refuseRegistration = (id: string) =>
+  apiFetch<{ id: string; status: 'BLOCKED' }>(`/admin/registrations/${id}/refuse`, { method: 'POST' });
+export const createUserCave = (userId: string) =>
+  apiFetch<{ id: string; name: string }>(`/admin/users/${userId}/cave`, { method: 'POST' });
+
+/** `spentThisMonthCents` : dépense globale du mois, celle que compare le plafond. */
+export interface AdminBudget { caveShare: number; capCents: number; spentThisMonthCents: number }
+export const getAdminBudget = () => apiFetch<AdminBudget>('/admin/budget');
+export const putAdminBudget = (caveShare: number) =>
+  apiFetch<AdminBudget>('/admin/budget', { method: 'PUT', body: JSON.stringify({ caveShare }) });
+
+/** Membre de la cave courante ; `pending` = invitation pas encore rattachée à un compte. */
+export interface MemberView { id: string; email: string; displayName: string | null; role: CaveRole; pending: boolean }
+export const getMembers = () => apiFetch<MemberView[]>('/caves/current/members');
+export const inviteMember = (email: string) =>
+  apiFetch<MemberView>('/caves/current/members', { method: 'POST', body: JSON.stringify({ email }) });
+export const removeMember = (id: string) => apiFetch<void>(`/caves/current/members/${id}`, { method: 'DELETE' });
+export const renameCave = (name: string) =>
+  apiFetch<{ id: string; name: string }>('/caves/current', { method: 'PATCH', body: JSON.stringify({ name }) });
 
 export type WineColor = 'ROUGE' | 'BLANC' | 'ROSE' | 'PETILLANT';
 export interface ExtractedField<T> { value: T | null; confidence: number }
@@ -227,12 +265,16 @@ export const getReadingQuality = () => apiFetch<ReadingQuality>('/admin/reading-
 
 export interface StatsShare { key: string; bottles: number; share: number }
 export interface StatsRankedWine { id: string; producer: string; cuvee: string | null; vintage: number | null; value: number }
+/**
+ * Pour un membre en lecture seule, l'api omet `pricedReferences`,
+ * `purchaseValueCents` et `mostExpensive` : clés absentes, pas seulement nulles.
+ */
 export interface Stats {
-  bottles: number; references: number; pricedReferences: number; purchaseValueCents: number | null;
+  bottles: number; references: number; pricedReferences?: number; purchaseValueCents?: number | null;
   byColor: StatsShare[]; byRegion: StatsShare[]; byDecade: StatsShare[]; byApogee: StatsShare[];
   months: Array<{ month: string; in: number; out: number }>;
   drinkRate: number; yearsLeft: number | null;
-  mostDrunk: StatsRankedWine[]; topProducers: Array<{ producer: string; bottles: number }>; mostExpensive: StatsRankedWine[];
+  mostDrunk: StatsRankedWine[]; topProducers: Array<{ producer: string; bottles: number }>; mostExpensive?: StatsRankedWine[];
   bestRated: StatsRankedWine[];
 }
 export const getStats = () => apiFetch<Stats>('/stats');

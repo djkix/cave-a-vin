@@ -4,7 +4,7 @@ import { sendQueuedPhotos } from './photo-sender';
 import { useOfflineQueue } from './use-offline-queue';
 
 vi.mock('./offline-queue', () => ({
-  queueStats: vi.fn().mockResolvedValue({ count: 0, bytes: 0 }),
+  queueStats: vi.fn().mockResolvedValue({ count: 0, bytes: 0, others: 0 }),
   notifyQueueChanged: vi.fn(),
   subscribeQueueChanged: vi.fn().mockReturnValue(vi.fn()),
 }));

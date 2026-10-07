@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DISPLAY_FILE_NAMES } from '../photos/display-image';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
+import { CaveBudgetShareExceededError, PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
 import { OFFICIAL_SITE_PROVIDER, OfficialSiteProvider } from '../vision/official-site-provider.interface';
 import { CandidateExpiredError, CandidateMeta, CandidateStore } from './candidates';
 import { readOfficialSiteImages } from './official-site';
@@ -17,6 +17,7 @@ export const IMAGE_CANDIDATE_STORE = 'IMAGE_CANDIDATE_STORE';
 export const IMAGE_SEARCH_FETCHER = 'IMAGE_SEARCH_FETCHER';
 
 const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
+const CAVE_SHARE_REACHED = 'Part mensuelle de cette cave atteinte — recherche possible le mois prochain';
 
 /** Délai global d'une recherche : Open Food Facts, Gemini, page du site et téléchargements compris. */
 export const SEARCH_DEADLINE_MS = 30_000;
@@ -62,7 +63,7 @@ export interface ReferenceImageView {
 }
 
 const WINE_SELECT = {
-  id: true, producer: true, cuvee: true, appellationRaw: true, vintage: true,
+  id: true, caveId: true, producer: true, cuvee: true, appellationRaw: true, vintage: true,
   referencePhotoId: true, referencePhotoPreviousId: true, referencePhotoSource: true, referencePhotoSourceUrl: true,
 } satisfies Prisma.WineSelect;
 
@@ -100,14 +101,15 @@ export class ImageSearchService {
     @Inject(IMAGE_SEARCH_FETCHER) private readonly fetcher: Fetcher,
   ) {}
 
-  private async findWine(id: string) {
-    const wine = await this.prisma.wine.findUnique({ where: { id }, select: WINE_SELECT });
+  /** Vin de la cave courante ; celui d'une autre cave est inexistant (404). */
+  private async findWine(caveId: string, id: string) {
+    const wine = await this.prisma.wine.findFirst({ where: { id, caveId }, select: WINE_SELECT });
     if (!wine) throw new NotFoundException('Vin introuvable');
     return wine;
   }
 
-  async search(wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
-    const wine = await this.findWine(wineId);
+  async search(caveId: string, wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
+    const wine = await this.findWine(caveId, wineId);
     await this.store.cleanup();
     const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage };
 
@@ -160,17 +162,22 @@ export class ImageSearchService {
   }
 
   /**
-   * Gemini avec la recherche Google, dans la part du plafond réservée aux accords ;
-   * sa dépense est comptée. Gemini en panne ou qui ne répond pas avant le délai
-   * global : 503 (on n'arrive ici que sans image d'Open Food Facts).
+   * Gemini avec la recherche Google, dans la part du plafond réservée aux accords
+   * et dans la part mensuelle de la cave du vin ; sa dépense est comptée.
+   * Gemini en panne ou qui ne répond pas avant le délai global : 503 (on
+   * n'arrive ici que sans image d'Open Food Facts).
    */
   private async officialSiteImages(
-    wine: { id: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null },
+    wine: { id: string; caveId: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null },
     signal: AbortSignal,
   ): Promise<RemoteImage[]> {
     try {
       await this.budget.assertUnderShare(PAIRING_BUDGET_SHARE);
+      await this.budget.assertCaveUnderShare(wine.caveId);
     } catch (e) {
+      // Part de la cave atteinte : même 503 que le plafond, avec le motif de la
+      // cave (le motif des photos parle de reprise, ici rien ne reprend seul).
+      if (e instanceof CaveBudgetShareExceededError) throw new ServiceUnavailableException(CAVE_SHARE_REACHED);
       if (e instanceof VisionBudgetExceededError) throw new ServiceUnavailableException(UNAVAILABLE);
       throw e;
     }
@@ -185,7 +192,8 @@ export class ImageSearchService {
       this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
       throw new ServiceUnavailableException(UNAVAILABLE);
     }
-    await this.prisma.imageSearchCost.create({ data: { wineId: wine.id, model: result.model, costCents: result.costCents } });
+    // La dépense est portée par la cave du vin (part de budget par cave).
+    await this.prisma.imageSearchCost.create({ data: { caveId: wine.caveId, wineId: wine.id, model: result.model, costCents: result.costCents } });
     if (!result.site) return [];
     try {
       return await beforeDeadline(readOfficialSiteImages(result.site, wine, this.fetcher, signal), signal);
@@ -195,8 +203,16 @@ export class ImageSearchService {
     }
   }
 
-  async candidateImage(candidateId: string): Promise<Buffer> {
+  /**
+   * Image d'une candidate cherchée pour un vin de la cave courante. Une
+   * candidate d'un vin d'une autre cave est traitée comme inconnue (410, comme
+   * une candidate expirée) : elle n'est jamais servie hors de sa cave.
+   */
+  async candidateImage(caveId: string, candidateId: string): Promise<Buffer> {
     try {
+      const meta = await this.store.get(candidateId);
+      const wine = await this.prisma.wine.findFirst({ where: { id: meta.wineId, caveId }, select: { id: true } });
+      if (!wine) throw new CandidateExpiredError();
       return await this.store.read(candidateId);
     } catch (e) {
       if (e instanceof CandidateExpiredError) throw new GoneException(e.message);
@@ -209,8 +225,9 @@ export class ImageSearchService {
    * la vignette du vin. La vignette d'avant est mémorisée une seule fois : choisir
    * une autre image du web ne fait pas oublier la photo de l'utilisateur.
    */
-  async chooseReference(wineId: string, candidateId: string): Promise<ReferenceImageView> {
-    await this.findWine(wineId);
+  async chooseReference(caveId: string, wineId: string, candidateId: string): Promise<ReferenceImageView> {
+    // Vin de la cave courante, et candidate cherchée pour ce vin : donc de cette cave.
+    await this.findWine(caveId, wineId);
     let meta: CandidateMeta;
     try {
       meta = await this.store.get(candidateId, wineId);
@@ -240,7 +257,8 @@ export class ImageSearchService {
         await tx.photo.create({
           // Empreinte propre à la photo : une image du web ne doit jamais être prise
           // pour une photo d'entrée qui aurait les mêmes octets (et inversement).
-          data: { id: photoId, contentHash: `reference:${photoId}`, storagePath, mimeType: 'image/jpeg', status: 'DONE', purpose: 'REFERENCE' },
+          // L'image choisie appartient à la cave du vin.
+          data: { id: photoId, caveId: wine.caveId, contentHash: `reference:${photoId}`, storagePath, mimeType: 'image/jpeg', status: 'DONE', purpose: 'REFERENCE' },
         });
         const updated = await tx.wine.update({
           where: { id: wineId },
@@ -271,8 +289,8 @@ export class ImageSearchService {
    * Sans vignette d'avant, reprend la photo d'entrée la plus récente qui a servi à
    * une entrée de ce vin (s'il y en a une). Sans image du web, ne change rien.
    */
-  async revertReference(wineId: string): Promise<ReferenceImageView> {
-    await this.findWine(wineId);
+  async revertReference(caveId: string, wineId: string): Promise<ReferenceImageView> {
+    await this.findWine(caveId, wineId);
     let removed: string | null = null;
     const view = await this.prisma.$transaction(async (tx) => {
       const wine = await this.lockWine(tx, wineId);

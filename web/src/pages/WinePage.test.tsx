@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as api from '../lib/api-client';
+import { meFixture, viewerMe } from '../test-fixtures';
 import { WinePage } from './WinePage';
 
 afterEach(() => vi.restoreAllMocks());
@@ -269,6 +270,8 @@ describe('recherche d’image depuis la fiche', () => {
 
   it('502 et 504 (passerelle, délai) valent aussi « indisponible pour le moment »', async () => {
     for (const status of [502, 504]) {
+      // La session par défaut est restaurée à la fin de chaque tour : on la remet.
+      vi.spyOn(api, 'getMe').mockResolvedValue(meFixture());
       vi.spyOn(api, 'getWine').mockResolvedValue(detail);
       vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(status, 'Bad Gateway'));
       const { unmount } = mount();
@@ -334,5 +337,58 @@ describe('recherche d’image depuis la fiche', () => {
     await waitFor(() => expect(revert).toHaveBeenCalledWith('w1'));
     await waitFor(() => expect(getWine).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole('button', { name: 'Revenir à ma photo' })).not.toBeInTheDocument();
+  });
+});
+
+describe('selon le rôle', () => {
+  const apogee: api.Apogee = { min: 2024, max: 2030, confidence: 'SAISIE', status: 'A_BOIRE', reason: null, source: 'MANUEL' };
+  const full: api.WineDetail = {
+    ...detail,
+    wine: {
+      ...detail.wine, apogee,
+      rating: { value: 16.5, ratedAt: '2026-09-01T10:00:00Z', ratedBy: null },
+      referencePhotoSource: 'domainetempier.com', referencePhotoSourceUrl: 'https://domainetempier.com/vin',
+    },
+  };
+
+  it('ne montre aucun bouton d’action à un membre en lecture seule, mais tout le contenu', async () => {
+    const me = vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
+    vi.spyOn(api, 'getWine').mockResolvedValue(full);
+    mount();
+    expect(await screen.findByRole('heading', { name: /Domaine Tempier/ })).toBeInTheDocument();
+    await waitFor(() => expect(me).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByText('6 en stock')).toBeInTheDocument();
+    expect(screen.getByText('Un domaine du Var…')).toBeInTheDocument();
+    expect(screen.getByText('Accords mets-vins')).toBeInTheDocument();
+    expect(screen.getByText('Apogée')).toBeInTheDocument();
+    expect(screen.getByText(/notée le/)).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    for (const name of ['Noter ce vin', 'Modifier', 'Retirer', 'Corriger', 'Régénérer', 'Chercher une image', 'Revenir à ma photo', 'Corriger le stock', /Sortir/]) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it('montre au propriétaire non administrateur toutes les actions sauf celles du domaine', async () => {
+    vi.spyOn(api, 'getMe').mockResolvedValue(meFixture({ isAdmin: false }));
+    vi.spyOn(api, 'getWine').mockResolvedValue(full);
+    mount();
+    expect(await screen.findByRole('button', { name: 'Corriger le stock' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Corriger' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revenir à ma photo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sortir/ })).toBeInTheDocument();
+    const domaine = within(screen.getByRole('heading', { name: 'Le domaine' }).closest('section')!);
+    expect(domaine.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('montre les actions du domaine à un administrateur', async () => {
+    vi.spyOn(api, 'getMe').mockResolvedValue(meFixture({ isAdmin: true }));
+    vi.spyOn(api, 'getWine').mockResolvedValue(full);
+    mount();
+    const heading = await screen.findByRole('heading', { name: 'Le domaine' });
+    const domaine = within(heading.closest('section')!);
+    expect(await domaine.findByRole('button', { name: 'Modifier' })).toBeInTheDocument();
+    expect(domaine.getByRole('button', { name: 'Régénérer' })).toBeInTheDocument();
   });
 });

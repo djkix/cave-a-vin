@@ -58,6 +58,25 @@ export interface Stats {
   bestRated: RankedWine[];
 }
 
+/** Champs tirés des prix d'achat : absents de la réponse pour un membre en lecture seule. */
+export const PRICE_KEYS = ['pricedReferences', 'purchaseValueCents', 'mostExpensive'] as const;
+export type ViewerStats = Omit<Stats, (typeof PRICE_KEYS)[number]>;
+
+/**
+ * Statistiques vues par un rôle : un VIEWER ne reçoit aucune clé de PRICE_KEYS
+ * (absentes, pas null). Retrait dérivé de la liste : une clé de prix ajoutée à
+ * PRICE_KEYS ne peut pas fuiter.
+ */
+export function statsForRole(stats: Stats, role: 'OWNER'): Stats;
+export function statsForRole(stats: Stats, role: 'VIEWER'): ViewerStats;
+export function statsForRole(stats: Stats, role: 'OWNER' | 'VIEWER'): Stats | ViewerStats;
+export function statsForRole(stats: Stats, role: 'OWNER' | 'VIEWER'): Stats | ViewerStats {
+  if (role === 'OWNER') return stats;
+  const copy: Partial<Stats> = { ...stats };
+  for (const key of PRICE_KEYS) delete copy[key];
+  return copy as ViewerStats;
+}
+
 const monthFormat = new Intl.DateTimeFormat('en-CA', { timeZone: STATS_TIME_ZONE, year: 'numeric', month: '2-digit' });
 
 /** « AAAA-MM » du mois où tombe la date, à l'heure de Paris. */

@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AddressInfo, createServer } from 'node:net';
 import supertest from 'supertest';
+import { createTestCave, deleteTestCaves } from './test-utils/cave';
 
 // Ce test parle HTTP au vrai AppModule : il ne tourne que là où Postgres et Redis
 // sont joignables (poste de dev, job `api` de la CI).
@@ -14,6 +15,7 @@ describeIfInfra('api HTTP', () => {
   let email: string;
   let password: string;
   let prisma: import('./prisma/prisma.service').PrismaService;
+  let caveId: string;
 
   beforeAll(async () => {
     // Doit précéder le premier loadEnv(), donc le premier import de app.module.
@@ -42,9 +44,12 @@ describeIfInfra('api HTTP', () => {
     await app.listen(0, '127.0.0.1');
     agent = supertest.agent(app.getHttpServer());
     prisma = app.get(PrismaService);
+    caveId = (await createTestCave(prisma)).id;
   }, 120_000);
 
   afterAll(async () => {
+    // La cave de test et tout ce que les essais y ont écrit.
+    if (prisma && caveId) await deleteTestCaves(prisma, [caveId]);
     if (app) await app.close();
     if (sessionRedis) await sessionRedis.quit();
   });
@@ -92,6 +97,10 @@ describeIfInfra('api HTTP', () => {
     expect(res.status).toBe(201);
     expect(res.body.email).toBe(email.toLowerCase());
     expect(String(res.headers['set-cookie'])).toContain('cave.sid');
+    // Les routes de cave passent par CaveAccessGuard : le compte de secours
+    // devient propriétaire de la cave de test, qui devient sa cave courante.
+    await prisma.caveMember.create({ data: { caveId, userId: res.body.id, role: 'OWNER' } });
+    expect((await agent.put('/api/auth/current-cave').send({ caveId })).status).toBe(200);
   });
 
   it('serves /photos/pending-review as a list, not as a photo id', async () => {
@@ -117,13 +126,13 @@ describeIfInfra('api HTTP', () => {
 
   it('dismisses an entry photo without a movement, and refuses one already used', async () => {
     const free = await prisma.photo.create({
-      data: { contentHash: `e2e-dismiss-free-${Date.now()}`, storagePath: 'normalized/x.jpg', status: 'DONE', purpose: 'ENTRY' },
+      data: { caveId, contentHash: `e2e-dismiss-free-${Date.now()}`, storagePath: 'normalized/x.jpg', status: 'DONE', purpose: 'ENTRY' },
     });
     const used = await prisma.photo.create({
-      data: { contentHash: `e2e-dismiss-used-${Date.now()}`, storagePath: 'normalized/y.jpg', status: 'DONE', purpose: 'ENTRY' },
+      data: { caveId, contentHash: `e2e-dismiss-used-${Date.now()}`, storagePath: 'normalized/y.jpg', status: 'DONE', purpose: 'ENTRY' },
     });
     const wine = await prisma.wine.create({
-      data: { matchKey: `e2e-dismiss-${Date.now()}`, producer: 'Domaine e2e écarté', appellationRaw: 'Inconnue', color: 'ROUGE' },
+      data: { caveId, matchKey: `e2e-dismiss-${Date.now()}`, producer: 'Domaine e2e écarté', appellationRaw: 'Inconnue', color: 'ROUGE' },
     });
     const movement = await prisma.movement.create({
       data: {
@@ -197,6 +206,7 @@ describeIfInfra('api HTTP', () => {
     const appellation = await prisma.appellation.findFirstOrThrow({ where: { canonicalName: 'Châteauneuf-du-Pape' } });
     const wine = await prisma.wine.create({
       data: {
+        caveId,
         matchKey: `e2e-apogee-${Date.now()}`,
         producer: 'Domaine e2e',
         appellationId: appellation.id,
@@ -223,6 +233,7 @@ describeIfInfra('api HTTP', () => {
   it('filters the cave on « à boire en priorité » and « sans apogée »', async () => {
     const wine = await prisma.wine.create({
       data: {
+        caveId,
         matchKey: `e2e-drink-soon-${Date.now()}`, producer: 'Domaine e2e priorité', appellationRaw: 'Inconnue',
         vintage: null, color: 'ROUGE', apogeeMin: 2000, apogeeMax: 2001, apogeeSource: 'MANUEL',
       },
@@ -247,6 +258,7 @@ describeIfInfra('api HTTP', () => {
   it('measures « zéro saisie » from photo entries for an admin', async () => {
     const photo = await prisma.photo.create({
       data: {
+        caveId,
         contentHash: `e2e-zero-${Date.now()}`, storagePath: 'normalized/x.jpg', status: 'DONE',
         rawExtraction: {
           producteur: { value: 'Domaine e2e lecture', confidence: 0.9 }, cuvee: { value: null, confidence: 0 },
@@ -290,7 +302,7 @@ describeIfInfra('api HTTP', () => {
 
   it('lets a signed-in account rate a wine, then remove the rating', async () => {
     const wine = await prisma.wine.create({
-      data: { matchKey: `e2e-rating-${Date.now()}`, producer: 'Domaine e2e note', appellationRaw: 'Bandol', color: 'ROUGE' },
+      data: { caveId, matchKey: `e2e-rating-${Date.now()}`, producer: 'Domaine e2e note', appellationRaw: 'Bandol', color: 'ROUGE' },
     });
     try {
       const ok = await agent.put(`/api/wines/${wine.id}/rating`).send({ rating: 16.5 });
@@ -312,7 +324,7 @@ describeIfInfra('api HTTP', () => {
 
   it('queues a pairing regeneration for a known wine, 404 otherwise', async () => {
     const wine = await prisma.wine.create({
-      data: { matchKey: `e2e-pairing-${Date.now()}`, producer: 'Domaine e2e accords', appellationRaw: 'Bandol', color: 'ROUGE' },
+      data: { caveId, matchKey: `e2e-pairing-${Date.now()}`, producer: 'Domaine e2e accords', appellationRaw: 'Bandol', color: 'ROUGE' },
     });
     try {
       const res = await agent.post(`/api/wines/${wine.id}/pairing/regenerate`);
@@ -337,7 +349,7 @@ describeIfInfra('api HTTP', () => {
     const key = producerKeyOf(producer);
     const url = (suffix: string) => `/api/producers/${encodeURIComponent(key)}/${suffix}`;
     const wine = await prisma.wine.create({
-      data: { matchKey: `e2e-producer-${Date.now()}`, producer, appellationRaw: 'Bandol', color: 'ROUGE' },
+      data: { caveId, matchKey: `e2e-producer-${Date.now()}`, producer, appellationRaw: 'Bandol', color: 'ROUGE' },
     });
     try {
       const before = (await agent.get(`/api/wines/${wine.id}`)).body.wine;
@@ -400,7 +412,7 @@ describeIfInfra('api HTTP', () => {
     expect(gone.body.message).toBe('Proposition expirée, relancez la recherche');
 
     const wine = await prisma.wine.create({
-      data: { matchKey: `e2e-reference-${Date.now()}`, producer: 'Domaine e2e image', appellationRaw: 'Inconnue', color: 'ROUGE' },
+      data: { caveId, matchKey: `e2e-reference-${Date.now()}`, producer: 'Domaine e2e image', appellationRaw: 'Inconnue', color: 'ROUGE' },
     });
     try {
       const bad = await agent.post(`/api/wines/${wine.id}/reference-image`).send({ candidateId: 'pas-un-uuid' });
@@ -418,6 +430,7 @@ describeIfInfra('api HTTP', () => {
   it('exposes the source of a web image on the wine detail', async () => {
     const wine = await prisma.wine.create({
       data: {
+        caveId,
         matchKey: `e2e-reference-source-${Date.now()}`, producer: 'Domaine e2e source', appellationRaw: 'Inconnue', color: 'ROUGE',
         referencePhotoSource: 'Open Food Facts (CC BY-SA)', referencePhotoSourceUrl: 'https://world.openfoodfacts.org/product/1',
       },

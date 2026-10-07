@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
+import { viewerMe } from '../test-fixtures';
 import { AnalysisQueueBanner } from './AnalysisQueueBanner';
 
 afterEach(() => vi.restoreAllMocks());
@@ -48,4 +49,14 @@ it('masque le lien vers la liste quand on y est déjà', async () => {
   mount({ hideLink: true });
   expect(await screen.findByText(/3 photos en attente d’analyse/)).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Voir la liste/ })).not.toBeInTheDocument();
+});
+
+it('ne demande rien et n’affiche rien pour un membre en lecture seule', async () => {
+  const me = vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
+  const status = vi.spyOn(api, 'getPhotoQueueStatus').mockResolvedValue({ waiting: 2, oldestWaitingAt: null, lastReason: null });
+  const { container } = mount();
+  await waitFor(() => expect(me).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  expect(status).not.toHaveBeenCalled();
+  expect(container).toBeEmptyDOMElement();
 });

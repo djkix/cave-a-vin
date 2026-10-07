@@ -1,6 +1,7 @@
 import { PrismaClient, WineColor } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -8,12 +9,17 @@ const key = (p: string) => `${p}-${Date.now()}-${Math.random()}`;
 
 describeIfDb('lot 2a — sortie (base réelle)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
+
+  beforeAll(async () => {
+    caveId = (await createTestCave(prisma)).id;
+  });
   const wineIds: string[] = [];
   const photoIds: string[] = [];
 
   async function wineWithStock(quantity: number) {
     const wine = await prisma.wine.create({
-      data: { matchKey: key('lot2a'), producer: 'Domaine Test', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      data: { caveId, matchKey: key('lot2a'), producer: 'Domaine Test', appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
     wineIds.push(wine.id);
     if (quantity > 0) await prisma.movement.create({ data: { wineId: wine.id, delta: quantity, type: 'IN', idempotencyKey: key('in') } });
@@ -21,7 +27,7 @@ describeIfDb('lot 2a — sortie (base réelle)', () => {
   }
 
   async function photo(purpose: 'ENTRY' | 'EXIT' = 'ENTRY') {
-    const p = await prisma.photo.create({ data: { contentHash: key('hash'), storagePath: 'normalized/x.jpg', purpose } });
+    const p = await prisma.photo.create({ data: { caveId, contentHash: key('hash'), storagePath: 'normalized/x.jpg', purpose } });
     photoIds.push(p.id);
     return p;
   }
@@ -30,6 +36,7 @@ describeIfDb('lot 2a — sortie (base réelle)', () => {
     await prisma.movement.deleteMany({ where: { wineId: { in: wineIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
     await prisma.photo.deleteMany({ where: { id: { in: photoIds } } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 
@@ -73,7 +80,7 @@ describeIfDb('lot 2a — sortie (base réelle)', () => {
   });
 
   it('donne ENTRY par défaut à une photo', async () => {
-    const p = await prisma.photo.create({ data: { contentHash: key('hash'), storagePath: 'normalized/y.jpg' } });
+    const p = await prisma.photo.create({ data: { caveId, contentHash: key('hash'), storagePath: 'normalized/y.jpg' } });
     photoIds.push(p.id);
     expect(p.purpose).toBe('ENTRY');
   });

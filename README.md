@@ -16,7 +16,9 @@ utilisée depuis un téléphone (PWA installable).
   et sortie de stock (par la liste ou par photo), estimation de l'apogée par
   règles avec correction manuelle par vin, filtre « à boire en priorité »,
   statistiques de la cave, note de dégustation, accords mets-vins et descriptif
-  du domaine, photos retouchées, image d'étiquette trouvée sur le web, icône.
+  du domaine, photos retouchées, image d'étiquette trouvée sur le web, icône,
+  et, depuis la 2.0.0, une cave par compte : inscription validée par un
+  administrateur, membres invités en lecture seule, sélecteur de cave.
 - **Reportés, en lots séparés** : emplacements dans la cave, cote iDealwine
   (lot 2c). Pas d'alerte hors de l'application (notification ou e-mail) : la
   liste « à boire en priorité » se consulte dans l'application. Voir
@@ -35,6 +37,42 @@ utilisée depuis un téléphone (PWA installable).
 - [Stack technique](#stack-technique)
 
 ## Fonctionnalités
+
+**Une cave par compte.** Chaque compte a sa propre cave, dont il est le
+**propriétaire** : ses vins, ses photos, ses mouvements et ses exports ne sont
+visibles que de lui et des membres qu'il invite. Une adresse Google inconnue
+qui se connecte ne voit rien tant qu'un administrateur n'a pas validé son
+inscription : l'écran affiche « Inscription en attente de validation —
+revenez plus tard : l’accès s’ouvrira dès qu’un administrateur l’aura
+validée. » (aucun e-mail n'est envoyé, il suffit de revenir). La validation crée sa cave,
+« Cave de {nom affiché ou e-mail} ». Une adresse invitée par un propriétaire,
+elle, entre directement, sans validation. Un identifiant (vin, photo,
+mouvement, membre) d'une autre cave répond comme un identifiant inconnu (404),
+et une cave à laquelle le compte n'a pas accès répond « Cave introuvable ».
+
+**Membres en lecture seule.** Depuis l'accueil, *Membres de la cave*
+(propriétaire seulement) liste les membres, invite une adresse Google (« Cette
+adresse est déjà membre » si elle l'est déjà), retire un membre (jamais le
+propriétaire) et renomme la cave (1 à 80 caractères). Un membre voit la cave
+qui l'a invité : la liste et ses filtres, la recherche par plat, la fiche vin
+(apogée, note, accords, descriptif du domaine) et les statistiques. Il ne voit
+**aucun prix d'achat** — les champs sont absents des réponses de l'API, pas
+seulement masqués : ni valeur au prix d'achat ni classement « les plus
+chères » dans les statistiques —, ni le journal, ni l'export Excel, ni « À
+confirmer », et il **n'écrit rien** : pas d'entrée, de sortie, d'inventaire,
+de photo, de note, d'apogée manuelle, de recherche d'image ni de régénération
+des accords (l'API répond 403 « Lecture seule »). Son application n'affiche
+que les onglets *Cave* et *Stats*, sans boutons d'action sur la fiche. Les
+images des photos lui sont servies pour toutes les caves dont il est membre.
+
+**Sélecteur de cave.** Un compte qui a accès à plusieurs caves (la sienne et
+celles où il est invité) choisit la cave courante dans l'en-tête ; une cave
+en lecture seule porte la mention « (lecture) », et un badge « Lecture
+seule » rappelle le rôle courant. Le choix est gardé dans la session ; par
+défaut, c'est la cave dont le compte est propriétaire, sinon sa plus ancienne
+invitation. Un compte actif qui n'a aucune cave (ni la sienne, ni une
+invitation) voit « Vous n’avez pas encore de cave. Un administrateur peut
+vous en créer une, ou un propriétaire peut vous inviter. »
 
 **Entrée de stock par photo, en rafale.** Bouton *Rentrer*, un grand bouton photo
 et un compteur « N photos prises » : on enchaîne photo après photo, sans
@@ -171,8 +209,8 @@ plan. Le bandeau « N photos en cours d'envoi » reste visible ; file pleine,
 il annonce « File d'envoi pleine (200 photos) — attendez que les envois
 partent ».
 
-**Journal et annulation.** Les 20 derniers mouvements sont consultables et
-annulables en un tap. Une annulation écrit un mouvement inverse : rien n'est
+**Journal et annulation.** Les 20 derniers mouvements de la cave sont
+consultables et annulables en un tap, par son propriétaire seulement. Une annulation écrit un mouvement inverse : rien n'est
 jamais supprimé, l'historique reste vrai.
 
 **Apogée.** Une fourchette de buvabilité est estimée par règles pour chaque vin
@@ -188,15 +226,15 @@ moyenne* si le millésime est qualifié, *Confiance faible* sinon) et un statut
 (« Trop jeune », « À boire », « À boire vite », « Apogée passée depuis… ») ;
 quand aucune estimation n'est possible (vin non millésimé, appellation non
 reconnue, garde inconnue), la raison s'affiche avec une saisie manuelle
-proposée. *Corriger* permet à tout compte actif de fixer deux années, qui
-priment alors toujours sur les règles ; *Revenir à l'estimation* efface la
+proposée. *Corriger* permet au propriétaire de la cave de fixer deux années,
+qui priment alors toujours sur les règles ; *Revenir à l'estimation* efface la
 correction. L'onglet *Cave* porte une mention courte par ligne (« À boire
 2024-2036 », « Trop jeune (2027) », « À boire vite », « Apogée passée »).
 Réservée aux administrateurs, l'**administration des règles** (espace
 Administration) permet de qualifier le millésime d'une région (grand / moyen /
 faible) et d'ajuster la garde d'une appellation (pour toutes les couleurs ou
 une seule) ; les changements s'appliquent immédiatement partout, sur toutes
-les fiches concernées.
+les fiches concernées, dans toutes les caves.
 
 **À boire en priorité.** Dans l'onglet *Cave*, la case *À boire en priorité*
 ne garde que les vins dont l'apogée se termine **au plus tard l'an prochain**
@@ -224,8 +262,8 @@ comptées. Une photo dont l'analyse a échoué compte pour tout ce qui a été
 saisi. API : `GET /api/admin/reading-quality`.
 
 **Statistiques.** Le 5e onglet *Stats* ouvre une page calculée à chaque
-lecture (`GET /api/stats`, tout compte actif) : bouteilles, références et
-**valeur au prix d'achat** (stock × dernier prix d'achat saisi, la même règle
+lecture (`GET /api/stats`, propriétaire et membres de la cave) : bouteilles,
+références et **valeur au prix d'achat** (propriétaire seulement) (stock × dernier prix d'achat saisi, la même règle
 que l'export ; « sur N des M références » quand des prix manquent, « Aucun prix
 d'achat saisi » quand aucun prix n'est connu) ; répartition du stock par
 **apogée** (les barres *À boire vite*, *Passée* et *Sans estimation* ouvrent
@@ -237,12 +275,15 @@ de millésime** ; **mouvements sur 12 mois** (entrées et sorties par mois, heur
 de Paris ; annulations et inventaires exclus), avec le rythme moyen de
 consommation et la durée de cave qu'il donne ; et quatre **classements** : les
 vins les plus bus sur 12 mois, les producteurs les plus présents, les
-bouteilles les plus chères au prix d'achat et les mieux notés.
+bouteilles les plus chères au prix d'achat (propriétaire seulement) et les
+mieux notés. Pour un membre, la valeur au prix d'achat et « les plus chères »
+sont absentes : la page n'affiche que le reste.
 
-**Note de dégustation.** Sur la fiche d'un vin, le bloc *Ma note* permet à
-tout compte actif de noter le vin **sur 20, par demi-point** (« 16,5 » ou
+**Note de dégustation.** Sur la fiche d'un vin, le bloc *Ma note* permet au
+propriétaire de la cave de noter le vin **sur 20, par demi-point** (« 16,5 » ou
 « 16.5 » acceptés) ; la note remplace la précédente et peut être retirée. Elle
-s'affiche avec sa date et son auteur, sur la ligne du vin dans l'onglet Cave,
+s'affiche avec sa date et son auteur (un membre voit le nom affiché de
+l'auteur, jamais son adresse e-mail), sur la ligne du vin dans l'onglet Cave,
 dans la colonne *Note /20* de l'export Excel et dans le classement *Les mieux
 notés* de la page Stats. API : `PUT` et `DELETE /api/wines/:id/rating`.
 
@@ -256,7 +297,7 @@ et le plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` compte photos et accords
 ensemble ; les accords ne se génèrent que tant que la dépense du mois reste
 sous 80 % de ce plafond, pour que les photos d'étiquette gardent toujours la
 priorité. La fiche affiche les plats (« Suggestions générées par
-Gemini »), « Suggestions en préparation… » en attendant, et *Régénérer*
+Gemini »), « Suggestions en préparation… » en attendant, et, pour le propriétaire, *Régénérer*
 (`POST /api/wines/:id/pairing/regenerate`) ; une génération qui échoue pour un
 problème de configuration affiche « Génération impossible : configuration
 Gemini à vérifier », et une réponse inexploitable « Réponse de Gemini
@@ -267,14 +308,16 @@ premier, avec la mention « avec : … » (`GET /api/cave?dish=`). L'export ajou
 une colonne *Accords*.
 
 **Descriptif du domaine.** Chaque domaine (producteur) reçoit un seul texte,
-partagé par tous ses vins et millésimes, généré en arrière-plan par Gemini (3
+partagé par tous ses vins et millésimes, **dans toutes les caves**, généré en arrière-plan par Gemini (3
 à 4 phrases : lieu, histoire, style) — même file `wine-pairing` et même part de
 80 % du plafond mensuel que les accords mets-vins, déclenché à la création
 d'un vin dont le domaine n'a pas encore de descriptif et, pour les domaines
 déjà existants, au démarrage du worker. Quand Gemini n'a pas d'information
 fiable sur un petit domaine, la fiche affiche « Domaine peu documenté » plutôt
 qu'un texte inventé. Un descriptif généré par Gemini porte toujours la mention
-« Généré par Gemini, peut contenir des erreurs » ; un texte saisi à la main
+« Généré par Gemini, peut contenir des erreurs ». Tout le monde le lit ;
+**seuls les administrateurs l'écrivent** (403 « Réservé à l’administrateur »
+pour les autres, propriétaires compris) : un texte saisi à la main
 (2 000 caractères maximum) prend le pas sur celui de Gemini et le remplace
 tant qu'on ne choisit pas *Revenir au texte généré*, qui relance une
 génération ; *Régénérer* relance aussi une génération à tout moment. Le bloc
@@ -287,7 +330,7 @@ file que les accords) : les textes et les accords des vins déjà saisis
 peuvent donc mettre quelques dizaines de minutes à apparaître cette première
 fois-là.
 
-**Export Excel.** Un classeur `.xlsx` à la demande, régénéré intégralement à
+**Export Excel.** Réservé au propriétaire de la cave : un classeur `.xlsx` à la demande, limité à la cave courante, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
 optionnel par couleur et la case *Seulement les vins à boire en priorité*
 (même règle et même ordre que l'onglet Cave ; `GET /api/export.xlsx?drinkSoon=true`). La feuille `Stock` ajoute *Apogée min*, *Apogée max* et
@@ -312,11 +355,35 @@ http(s) publiques seulement (résolution DNS vérifiée, adresses privées,
 de bouclage et locales refusées), redirections limitées et revérifiées, taille
 et délai bornés.
 
-**Comptes et administration.** L'inscription est libre : n'importe quel compte
-Google se connecte et a immédiatement accès complet à l'application. Le
-propriétaire désigne un ou plusieurs administrateurs via `ADMIN_EMAILS`, et
-bloque ensuite les comptes indésirables depuis l'espace `/admin` (liste des
-comptes, blocage/réactivation, promotion/retrait des droits d'administration).
+**Comptes et administration.** Toute adresse Google peut demander l'accès ;
+le compte reste **en attente** jusqu'à ce qu'un administrateur le valide. Les
+adresses de `ADMIN_EMAILS` sont actives et administratrices dès leur première
+connexion, et une adresse invitée par un propriétaire est active d'emblée,
+en lecture seule sur la cave qui l'a invitée. L'espace `/admin` (lien sur
+l'accueil) réunit, pour les administrateurs :
+
+- **Inscriptions** (en tête) : les comptes en attente (nom, e-mail, date
+  d'inscription), avec *Valider* — le compte devient actif et reçoit sa cave,
+  « Cave de {nom affiché ou e-mail} », dont il est propriétaire — et
+  *Refuser* — le compte est bloqué.
+- **Comptes** : liste des comptes, blocage/réactivation,
+  promotion/retrait des droits d'administration, et *Créer sa cave* pour un
+  compte actif qui n'en a pas (un invité qui veut aussi sa propre cave, ou un
+  administrateur). Un compte n'est propriétaire que d'une seule cave.
+- **Budget** : la dépense Gemini du mois et la **part maximale par cave**
+  (20 % du plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` par défaut, réglable de
+  0 à 100 %). Une cave qui a atteint sa part voit ses analyses reportées avec
+  le motif « Part mensuelle de cette cave atteinte — reprise le mois
+  prochain », comme pour le plafond global. **La cave de l'administrateur
+  principal** (le plus ancien administrateur qui n'est pas le compte de
+  secours) **n'est pas limitée** ; le plafond global, lui, vaut pour tous.
+  Les accords mets-vins et les descriptifs de domaine ne sont soumis à
+  aucune part, seulement au plafond global.
+- **Qualité de la lecture** et **règles d'apogée** (voir plus haut).
+
+Les **membres** d'une cave se gèrent, eux, par son propriétaire, depuis
+l'écran *Membres de la cave* (voir *Membres en lecture seule*).
+
 `ADMIN_EMAILS` est un **plancher garanti, jamais un plafond** : une adresse qui
 y figure est administratrice même si la base dit le contraire (le propriétaire
 ne peut jamais s'enfermer dehors), et ces comptes-là ne sont ni blocables ni
@@ -326,7 +393,9 @@ durable : elle survit aux connexions suivantes, jamais écrasée par
 l'environnement. Un administrateur ne peut pas non plus modifier son propre
 compte, pour ne jamais perdre l'accès à l'administration par erreur. Un
 blocage prend effet dès la requête suivante, y compris sur une session déjà
-ouverte : il n'attend pas une prochaine connexion.
+ouverte : il n'attend pas une prochaine connexion. Être administrateur ne
+donne accès à aucune cave en particulier : un administrateur voit sa propre
+cave et celles où il est invité, comme tout compte.
 
 ## Architecture et ports
 
@@ -470,10 +539,11 @@ La réponse attendue est `{"status":"ok"}`. En cas d'échec :
 
 ### 7. Désigner un administrateur
 
-Le sous-domaine est public : depuis cette évolution, l'inscription est **libre**
-— n'importe quel titulaire d'un compte Google peut se connecter et obtient un
-accès complet immédiatement. C'est un choix assumé du propriétaire, qui bloque
-ensuite les comptes indésirables au lieu de les filtrer à l'entrée.
+Le sous-domaine est public : n'importe quel titulaire d'un compte Google peut
+se connecter, mais son compte reste **en attente de validation** et ne voit
+rien tant qu'un administrateur ne l'a pas validé depuis la section
+*Inscriptions* de `/admin` (ce qui lui crée sa cave). Seules les adresses
+d'`ADMIN_EMAILS` et celles qu'un propriétaire a invitées entrent directement.
 
 La seule façon de désigner un administrateur est la variable `ADMIN_EMAILS` du
 `.env` (adresses séparées par des virgules, en minuscules) : au moins la vôtre,
@@ -489,9 +559,13 @@ ADMIN_EMAILS=vous@gmail.com
 ```
 
 Une fois connecté avec cette adresse, l'espace **Administration** (lien sur
-l'accueil, ou `/admin`) liste tous les comptes créés et permet de bloquer un
-compte indésirable, de le réactiver, ou de promouvoir/retirer d'autres
-administrateurs. Un administrateur ne peut pas modifier son propre compte.
+l'accueil, ou `/admin`) valide ou refuse les inscriptions, liste tous les
+comptes créés et permet de bloquer un compte indésirable, de le réactiver, de
+promouvoir/retirer d'autres administrateurs, de créer la cave d'un compte qui
+n'en a pas et de régler la part de budget par cave. Un administrateur ne peut
+pas modifier son propre compte. Sur une installation neuve, le premier
+administrateur n'a pas encore de cave : *Créer sa cave* sur sa propre ligne
+la lui crée.
 
 ### 8. Configurer Nginx Proxy Manager
 
@@ -533,6 +607,73 @@ Si les images sont construites localement, remplacer `docker compose pull` par
 `docker compose build`. Pour figer une version plutôt que suivre `latest`,
 fusionner la demande de version proposée par release-please puis renseigner
 `IMAGE_TAG=<version>` dans le `.env`.
+
+### Passage à la 2.0.0 (une cave par compte)
+
+La 2.0.0 change le fonctionnement pour tous les comptes. **Vérifier d'abord
+les comptes**, avant la mise à jour :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT email, is_admin, is_break_glass, status FROM app_user ORDER BY created_at;"'
+```
+
+Votre adresse Google doit apparaître avec `is_admin` = `t` et le statut
+`ACTIVE`. Sinon, connectez-vous une fois avec Google avant de mettre à jour
+(`ADMIN_EMAILS` pose `is_admin` à la connexion) : c'est ce compte qui recevra
+la cave existante.
+
+**Faire ensuite une sauvegarde de la base**, juste avant la mise à jour, sans
+attendre le dump quotidien de `db-backup` :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' | gzip > backups/cave-avant-2.0.0.sql.gz
+```
+
+Vérifier que le fichier n'est pas vide (`ls -la backups/`) ; il se restaure
+comme les dumps quotidiens (voir *Sauvegarde et restauration*). Puis mettre à
+jour comme d'habitude. Au démarrage, la migration, en une seule transaction :
+
+- crée une cave **« Cave de {nom} »** appartenant au premier administrateur
+  (le plus ancien compte administrateur actif qui n'est pas le compte de
+  secours, sinon le compte de secours) et y rattache toutes les données
+  existantes : vins, mouvements, photos, exports (si la base contient des
+  données mais aucun compte, la cave attend son propriétaire : le premier
+  administrateur qui se connecte la reçoit) ;
+- fait des **autres comptes actifs des membres** de cette cave, **en lecture
+  seule** (les comptes bloqués n'y sont pas ajoutés) : ils ne voient plus les
+  prix d'achat et ne peuvent plus rien écrire. Pour qu'un de ces comptes
+  retrouve une cave où il écrit, un administrateur lui crée la sienne
+  (*Créer sa cave*) ;
+- règle la part de budget par cave à 20 %.
+
+**Compte de secours** : après la 2.0.0, le compte de secours devient un
+membre en lecture seule de votre cave. Il atteint toujours l'Administration,
+mais ne permet plus d'entrées ni de sorties pendant une panne de Google.
+
+Aucune variable d'environnement n'est ajoutée. Après la mise à jour, les
+nouvelles adresses Google qui se connectent attendent une validation dans
+*Inscriptions*.
+
+Vérifier après la mise à jour que la cave appartient bien à votre adresse
+Google :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT c.name, u.email FROM cave c LEFT JOIN app_user u ON u.id = c.owner_id;"'
+```
+
+**Retour arrière** : le schéma de la 1.9.0 ne sait pas lire la base migrée,
+il faut donc restaurer la sauvegarde prise juste avant la mise à jour. Les
+tables propres à la 2.0.0 (`cave`, `cave_member`, `app_setting`) ne figurent
+pas dans cette sauvegarde et bloqueraient sa restauration : on vide d'abord le
+schéma. Arrêter l'api et le worker, vider le schéma, restaurer, remettre
+`IMAGE_TAG=1.9.0` dans le `.env`, puis relancer :
+
+```bash
+cd /opt/stacks/cave-a-vin && docker compose stop api worker
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
+gunzip -c backups/cave-avant-2.0.0.sql.gz | docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+docker compose up -d
+```
 
 ## Sauvegarde et restauration
 
@@ -594,6 +735,20 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 
 ## Limites
 
+- **Un membre ne peut rien écrire** : la lecture seule est le seul rôle
+  d'invité, il n'existe pas de membre qui rentre ou sort des bouteilles dans
+  la cave d'un autre. Une cave n'a qu'un propriétaire, et la propriété ne se
+  transfère pas depuis l'interface.
+- **Une seule cave possédée par compte** : un compte peut être membre de
+  plusieurs caves, mais n'est propriétaire que d'une. Une cave ne se supprime
+  pas depuis l'interface.
+- **Descriptifs de domaine communs à toutes les caves** : un seul texte par
+  domaine, écrit ou régénéré par un administrateur seulement ; un propriétaire
+  ne peut pas avoir sa propre version. Il en va de même du référentiel des
+  appellations et des règles d'apogée.
+- **Pas d'e-mail** : ni l'inscription validée, ni l'invitation ne sont
+  annoncées par e-mail ; la personne invitée se connecte simplement avec
+  l'adresse invitée.
 - **Mesure « zéro saisie » à partir de la 1.5.0** : les entrées antérieures
   n'ont pas gardé leur fiche confirmée et ne comptent pas. Une entrée confirmée
   avant la fin de l'analyse est comparée à un formulaire vide : la lecture
@@ -622,7 +777,10 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   est une estimation à l'ordre de grandeur, pas une facturation réelle. Le
   réglage se comporte donc comme un nombre maximum de photos par mois.
 - **Compte de secours** : `BREAK_GLASS_EMAIL` / `BREAK_GLASS_PASSWORD` vides =
-  connexion Google uniquement.
+  connexion Google uniquement. Après la 2.0.0, le compte de secours devient un
+  membre en lecture seule de votre cave : il atteint toujours
+  l'Administration, mais ne permet plus d'entrées ni de sorties pendant une
+  panne de Google.
 - **Blocage de compte manuel** : il n'y a pas de modération automatique ; un
   administrateur doit bloquer un compte indésirable depuis `/admin`. Le blocage
   prend effet dès la requête suivante (la session en cours cesse de
@@ -630,7 +788,9 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Réessai borné dans le temps** : une photo reportée est reprise pendant
   environ dix jours (1 000 tentatives au plafond de 15 minutes). Au-delà, elle
   passe en échec et attend une saisie manuelle — un travail qui ne meurt jamais
-  finirait par masquer une panne réelle.
+  finirait par masquer une panne réelle. Seule exception : un report pour
+  budget (plafond mensuel ou part de la cave atteints) est repris sans limite,
+  toutes les 15 minutes, et ne passe jamais en échec.
 - **Pas de relance manuelle d'une analyse** : il n'y a pas de bouton
   « réanalyser » sur une photo en échec définitif ; la saisie manuelle prend le
   relais, et reprendre la photo crée simplement une nouvelle entrée.

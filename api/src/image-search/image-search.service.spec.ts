@@ -3,12 +3,12 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { VisionBudgetExceededError } from '../queue/vision-budget.service';
+import { CaveBudgetShareExceededError, VisionBudgetExceededError } from '../queue/vision-budget.service';
 import { CandidateStore } from './candidates';
 import { ImageSearchService } from './image-search.service';
 import { OFF_SOURCE } from './open-food-facts';
 
-const WINE = { id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Migoua', appellationRaw: 'Bandol', vintage: 2019 };
+const WINE = { id: 'w1', caveId: 'c1', producer: 'Domaine Tempier', cuvee: 'La Migoua', appellationRaw: 'Bandol', vintage: 2019 };
 
 let jpeg: Buffer;
 beforeAll(async () => {
@@ -29,15 +29,26 @@ function network(off: unknown = { hits: [] }) {
   });
 }
 
-function setup(opts: { off?: unknown; site?: string | null; budgetError?: Error; providerError?: Error; wine?: typeof WINE | null } = {}) {
+function setup(
+  opts: { off?: unknown; site?: string | null; budgetError?: Error; caveShareError?: Error; providerError?: Error; wine?: typeof WINE | null } = {},
+) {
   const fetcher = network(opts.off);
   const dir = mkdtempSync(join(tmpdir(), 'cave-image-search-'));
   const store = new CandidateStore(dir, fetcher);
   const prisma = {
-    wine: { findUnique: jest.fn(async () => (opts.wine === undefined ? WINE : opts.wine)) },
+    // Le vin n'est trouvé que dans sa cave.
+    wine: {
+      findFirst: jest.fn(async ({ where }: any) => {
+        const w = opts.wine === undefined ? WINE : opts.wine;
+        return w && where.id === w.id && where.caveId === w.caveId ? w : null;
+      }),
+    },
     imageSearchCost: { create: jest.fn(async () => ({})) },
   };
-  const budget = { assertUnderShare: jest.fn(async () => { if (opts.budgetError) throw opts.budgetError; }) };
+  const budget = {
+    assertUnderShare: jest.fn(async () => { if (opts.budgetError) throw opts.budgetError; }),
+    assertCaveUnderShare: jest.fn<Promise<void>, [string]>(async () => { if (opts.caveShareError) throw opts.caveShareError; }),
+  };
   const provider = {
     findOfficialSite: jest.fn(async () => {
       if (opts.providerError) throw opts.providerError;
@@ -51,7 +62,7 @@ function setup(opts: { off?: unknown; site?: string | null; budgetError?: Error;
 describe('ImageSearchService.search', () => {
   it('propose d’abord les images d’Open Food Facts, sans appeler Gemini', async () => {
     const { service, provider, budget } = setup({ off: OFF_HIT });
-    const r = await service.search('w1');
+    const r = await service.search('c1', 'w1');
     expect(r.candidates).toHaveLength(1);
     expect(r.candidates[0]).toEqual({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/),
@@ -65,10 +76,10 @@ describe('ImageSearchService.search', () => {
 
   it('sans résultat Open Food Facts, cherche le site officiel sous 80 % du plafond et compte la dépense', async () => {
     const { service, provider, budget, prisma } = setup();
-    const r = await service.search('w1');
+    const r = await service.search('c1', 'w1');
     expect(budget.assertUnderShare).toHaveBeenCalledWith(0.8);
     expect(provider.findOfficialSite).toHaveBeenCalledWith({ producer: 'Domaine Tempier', cuvee: 'La Migoua', appellation: 'Bandol', vintage: 2019 }, expect.any(AbortSignal));
-    expect(prisma.imageSearchCost.create).toHaveBeenCalledWith({ data: { wineId: 'w1', model: 'gemini-test', costCents: 1 } });
+    expect(prisma.imageSearchCost.create).toHaveBeenCalledWith({ data: { caveId: 'c1', wineId: 'w1', model: 'gemini-test', costCents: 1 } });
     expect(r.candidates).toEqual([expect.objectContaining({ source: 'tempier.fr', sourceUrl: 'https://tempier.fr/' })]);
   });
 
@@ -79,7 +90,7 @@ describe('ImageSearchService.search', () => {
       if (url.includes('images.openfoodfacts.org')) throw new Error('404');
       return base(url);
     });
-    const r = await service.search('w1');
+    const r = await service.search('c1', 'w1');
     expect(provider.findOfficialSite).toHaveBeenCalled();
     expect(r.candidates.map((c) => c.source)).toEqual(['tempier.fr']);
   });
@@ -98,29 +109,45 @@ describe('ImageSearchService.search', () => {
       inFlight--;
       return base(url);
     });
-    const r = await service.search('w1');
+    const r = await service.search('c1', 'w1');
     expect(r.candidates).toHaveLength(5);
     expect(maxInFlight).toBe(1);
   });
 
   it('rend une liste vide quand Gemini ne connaît pas de site', async () => {
     const { service, prisma } = setup({ site: null });
-    expect(await service.search('w1')).toEqual({ candidates: [] });
+    expect(await service.search('c1', 'w1')).toEqual({ candidates: [] });
     // L'appel a eu lieu : il est compté même sans résultat.
     expect(prisma.imageSearchCost.create).toHaveBeenCalled();
   });
 
   it('plafond atteint : 503 « Recherche d’image indisponible pour le moment », sans appeler Gemini', async () => {
     const { service, provider } = setup({ budgetError: new VisionBudgetExceededError() });
-    const e = await service.search('w1').catch((x) => x);
+    const e = await service.search('c1', 'w1').catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
     expect(e.message).toBe('Recherche d’image indisponible pour le moment');
     expect(provider.findOfficialSite).not.toHaveBeenCalled();
   });
 
+  it('part de la cave atteinte : 503 avec le message de la cave, sans appeler Gemini', async () => {
+    const { service, provider, budget, prisma } = setup({ caveShareError: new CaveBudgetShareExceededError() });
+    const e = await service.search('c1', 'w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe('Part mensuelle de cette cave atteinte — recherche possible le mois prochain');
+    expect(budget.assertCaveUnderShare).toHaveBeenCalledWith('c1');
+    expect(provider.findOfficialSite).not.toHaveBeenCalled();
+    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
+  it('Open Food Facts suffit : la part de la cave n’est pas consultée', async () => {
+    const { service, budget } = setup({ off: OFF_HIT });
+    await service.search('c1', 'w1');
+    expect(budget.assertCaveUnderShare).not.toHaveBeenCalled();
+  });
+
   it('Gemini en panne : 503', async () => {
     const { service, prisma } = setup({ providerError: new Error('500 Internal') });
-    const e = await service.search('w1').catch((x) => x);
+    const e = await service.search('c1', 'w1').catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
     expect(e.message).toBe('Recherche d’image indisponible pour le moment');
     expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
@@ -128,7 +155,7 @@ describe('ImageSearchService.search', () => {
 
   it('vin inconnu : 404 « Vin introuvable »', async () => {
     const { service } = setup({ wine: null });
-    const e = await service.search('nope').catch((x) => x);
+    const e = await service.search('c1', 'nope').catch((x) => x);
     expect(e).toBeInstanceOf(NotFoundException);
     expect(e.message).toBe('Vin introuvable');
   });
@@ -147,7 +174,7 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
     const { service, provider, prisma } = setup();
     provider.findOfficialSite.mockImplementation(never);
     let settled = false;
-    const pending = service.search('w1').finally(() => { settled = true; });
+    const pending = service.search('c1', 'w1').finally(() => { settled = true; });
     pending.catch(() => undefined);
     while (provider.findOfficialSite.mock.calls.length === 0) await flushIo();
     // Le signal de la recherche est transmis à Gemini.
@@ -171,7 +198,7 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
       return base(url);
     });
     const started = Date.now();
-    const r = await service.search('w1');
+    const r = await service.search('c1', 'w1');
     expect(Date.now() - started).toBeLessThan(3000);
     expect(r.candidates).toHaveLength(2);
     expect(provider.findOfficialSite).not.toHaveBeenCalled();
@@ -181,7 +208,7 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
     const { service, provider, fetcher } = setup();
     service.deadlineMs = 100;
     fetcher.mockImplementation(never);
-    const e = await service.search('w1').catch((x) => x);
+    const e = await service.search('c1', 'w1').catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
     expect(e.message).toBe('Recherche d’image indisponible pour le moment');
     expect(provider.findOfficialSite).not.toHaveBeenCalled();
@@ -192,13 +219,13 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
     service.deadlineMs = 200;
     const base = fetcher.getMockImplementation()!;
     fetcher.mockImplementation(async (url: string) => (url === 'https://tempier.fr/' ? never() : base(url)));
-    const e = await service.search('w1').catch((x) => x);
+    const e = await service.search('c1', 'w1').catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('transmet à chaque téléchargement le signal de la recherche', async () => {
     const { service, fetcher } = setup({ off: OFF_HIT });
-    await service.search('w1');
+    await service.search('c1', 'w1');
     for (const call of fetcher.mock.calls as unknown as Array<[string, { signal?: AbortSignal }]>) {
       expect(call[1].signal).toBeInstanceOf(AbortSignal);
     }
@@ -208,15 +235,35 @@ describe('ImageSearchService.search — délai global de 30 s', () => {
 describe('ImageSearchService.candidateImage', () => {
   it('candidate inconnue ou expirée : 410 « Proposition expirée, relancez la recherche »', async () => {
     const { service } = setup();
-    const e = await service.candidateImage('00000000-0000-4000-8000-000000000000').catch((x) => x);
+    const e = await service.candidateImage('c1', '00000000-0000-4000-8000-000000000000').catch((x) => x);
     expect(e).toBeInstanceOf(GoneException);
     expect(e.message).toBe('Proposition expirée, relancez la recherche');
   });
 
   it('rend le JPEG d’une candidate récente', async () => {
     const { service } = setup({ off: OFF_HIT });
-    const { candidates } = await service.search('w1');
-    const image = await service.candidateImage(candidates[0].id);
+    const { candidates } = await service.search('c1', 'w1');
+    const image = await service.candidateImage('c1', candidates[0].id);
     expect((await sharp(image).metadata()).format).toBe('jpeg');
+  });
+});
+
+describe('ImageSearchService — cave courante', () => {
+  it('recherche sur un vin d’une autre cave : 404 « Vin introuvable », aucun appel réseau', async () => {
+    const { service, fetcher } = setup({ off: OFF_HIT });
+    const e = await service.search('c2', 'w1').catch((x) => x);
+    expect(e).toBeInstanceOf(NotFoundException);
+    expect(e.message).toBe('Vin introuvable');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('candidate d’un vin d’une autre cave : traitée comme expirée (410), jamais servie', async () => {
+    const { service } = setup({ off: OFF_HIT });
+    const { candidates } = await service.search('c1', 'w1');
+    const e = await service.candidateImage('c2', candidates[0].id).catch((x) => x);
+    expect(e).toBeInstanceOf(GoneException);
+    expect(e.message).toBe('Proposition expirée, relancez la recherche');
+    // Toujours servie dans la cave du vin.
+    expect((await sharp(await service.candidateImage('c1', candidates[0].id)).metadata()).format).toBe('jpeg');
   });
 });

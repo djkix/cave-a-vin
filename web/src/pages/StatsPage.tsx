@@ -56,6 +56,9 @@ export function StatsPage() {
   const q = useQuery({ queryKey: ['stats'], queryFn: getStats });
   const s = q.data;
   const anyMovement = s?.months.some((m) => m.in > 0 || m.out > 0) ?? false;
+  // Un membre en lecture seule reçoit des statistiques sans aucun prix : les clés
+  // sont absentes de la réponse (et non nulles), les sections disparaissent.
+  const withPrices = s !== undefined && 'purchaseValueCents' in s;
   return (
     <>
       <TopBar title="Statistiques" />
@@ -65,16 +68,20 @@ export function StatsPage() {
         {s && s.bottles === 0 && <p className="centered">Aucune bouteille en cave pour l’instant</p>}
         {s && s.bottles > 0 && (
           <>
-            <section className="card stats-head">
+            <section className="card stats-head" style={withPrices ? undefined : { gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <span><span className="stats-head__value num">{s.bottles}</span><span className="list__meta">bouteilles</span></span>
               <span><span className="stats-head__value num">{s.references}</span><span className="list__meta">références</span></span>
-              <span>
-                <span className="stats-head__value num">{s.purchaseValueCents == null ? '—' : euros(s.purchaseValueCents)}</span>
-                <span className="list__meta">au prix d’achat</span>
-              </span>
-              {s.purchaseValueCents == null && <span className="list__meta stats-head__note">Aucun prix d’achat saisi</span>}
-              {s.purchaseValueCents != null && s.pricedReferences < s.references && (
-                <span className="list__meta stats-head__note">{`sur ${s.pricedReferences} des ${s.references} références`}</span>
+              {withPrices && (
+                <>
+                  <span>
+                    <span className="stats-head__value num">{s.purchaseValueCents == null ? '—' : euros(s.purchaseValueCents)}</span>
+                    <span className="list__meta">au prix d’achat</span>
+                  </span>
+                  {s.purchaseValueCents == null && <span className="list__meta stats-head__note">Aucun prix d’achat saisi</span>}
+                  {s.purchaseValueCents != null && s.pricedReferences != null && s.pricedReferences < s.references && (
+                    <span className="list__meta stats-head__note">{`sur ${s.pricedReferences} des ${s.references} références`}</span>
+                  )}
+                </>
               )}
             </section>
             <BarList
@@ -93,7 +100,9 @@ export function StatsPage() {
           <>
             <RankList title="Les plus bus" items={s.mostDrunk.map((w) => ({ key: w.id, label: wineLabel(w), value: bottlesText(w.value), to: `/cave/${w.id}` }))} />
             <RankList title="Producteurs" items={s.topProducers.map((p) => ({ key: p.producer, label: p.producer, value: bottlesText(p.bottles) }))} />
-            <RankList title="Les plus chères" items={s.mostExpensive.map((w) => ({ key: w.id, label: wineLabel(w), value: euros(w.value), to: `/cave/${w.id}` }))} />
+            {s.mostExpensive && (
+              <RankList title="Les plus chères" items={s.mostExpensive.map((w) => ({ key: w.id, label: wineLabel(w), value: euros(w.value), to: `/cave/${w.id}` }))} />
+            )}
             <RankList title="Les mieux notés" items={s.bestRated.map((w) => ({ key: w.id, label: wineLabel(w), value: formatRatingShort(w.value), to: `/cave/${w.id}` }))} />
           </>
         )}

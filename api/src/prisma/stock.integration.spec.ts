@@ -1,14 +1,19 @@
 import { PrismaClient, WineColor } from '@prisma/client';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 
 describeIfDb('stock journal (trigger + stock_courant)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
   let wineId: string;
 
   beforeAll(async () => {
+
+    caveId = (await createTestCave(prisma)).id;
     const wine = await prisma.wine.create({
       data: {
+        caveId,
         matchKey: `test|${Date.now()}`,
         producer: 'Domaine Test',
         appellationRaw: 'Test AOC',
@@ -21,6 +26,7 @@ describeIfDb('stock journal (trigger + stock_courant)', () => {
   afterAll(async () => {
     await prisma.movement.deleteMany({ where: { wineId } });
     await prisma.wine.delete({ where: { id: wineId } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 
@@ -56,7 +62,7 @@ describeIfDb('stock journal (trigger + stock_courant)', () => {
     // Un mouvement validé pendant qu'un autre s'enregistre ne doit jamais
     // disparaître du stock (l'ancienne vue matérialisée le perdait).
     const other = await prisma.wine.create({
-      data: { matchKey: `test-other|${Date.now()}`, producer: 'Domaine Croisé', appellationRaw: 'Test AOC', color: WineColor.ROUGE },
+      data: { caveId, matchKey: `test-other|${Date.now()}`, producer: 'Domaine Croisé', appellationRaw: 'Test AOC', color: WineColor.ROUGE },
     });
     const second = new PrismaClient();
     try {

@@ -29,7 +29,8 @@ export const EXTRACTION_BACKOFF = 'reprise-differee';
 export const EXTRACTION_ATTEMPTS = 1000;
 
 const FIRST_DELAY_MS = 30_000;
-const MAX_DELAY_MS = 15 * 60_000;
+/** Plus longue attente entre deux tentatives ; c'est aussi l'attente fixe d'un report pour budget. */
+export const MAX_DELAY_MS = 15 * 60_000;
 
 /**
  * 30 s, 1 min, 2, 4, 8, puis 15 min à chaque tentative suivante. Le premier délai

@@ -34,6 +34,8 @@ export class ExtractionProcessor {
     const attempts = photo.purpose === 'EXIT' ? EXIT_ATTEMPTS : EXTRACTION_ATTEMPTS;
     try {
       await this.budget.assertUnderCap();
+      // Part mensuelle de la cave de la photo : même report que le plafond global.
+      await this.budget.assertCaveUnderShare(photo.caveId);
       const image = await this.photos.readNormalized(photoId);
       const result = await this.vision.extractWineLabel(image, 'image/jpeg');
       await this.prisma.photo.update({

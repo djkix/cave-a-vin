@@ -1,12 +1,12 @@
 import { UnrecoverableError } from 'bullmq';
 import { VisionInvalidOutputError } from '../vision/gemini-vision.provider';
 import { ExtractionProcessor } from './extraction.processor';
-import { VisionBudgetExceededError } from './vision-budget.service';
+import { CaveBudgetShareExceededError, VisionBudgetExceededError } from './vision-budget.service';
 
 const GEMINI_503 = new Error('[503 Service Unavailable] This model is currently experiencing high demand.');
 
 function harness(opts: { visionError?: Error } = {}) {
-  const photo: any = { id: 'p1', status: 'PENDING' };
+  const photo: any = { id: 'p1', caveId: 'cave-1', status: 'PENDING' };
   const prisma = {
     photo: {
       findUnique: jest.fn(async () => photo),
@@ -20,7 +20,7 @@ function harness(opts: { visionError?: Error } = {}) {
       return { extraction: { producer: { value: 'X', confidence: 1 } }, raw: { producteur: { value: 'X', confidence: 1 } }, model: 'm', latencyMs: 12, costCents: 1 };
     }),
   };
-  const budget = { assertUnderCap: jest.fn(async () => undefined) };
+  const budget = { assertUnderCap: jest.fn(async () => undefined), assertCaveUnderShare: jest.fn<Promise<void>, [string]>(async () => undefined) };
   return { photo, prisma, photos, vision, budget, processor: new ExtractionProcessor(prisma as any, photos as any, vision as any, budget as any) };
 }
 
@@ -50,6 +50,21 @@ describe('ExtractionProcessor.process', () => {
     h.budget.assertUnderCap.mockRejectedValueOnce(new VisionBudgetExceededError());
     await expect(h.processor.process('p1')).rejects.toBeInstanceOf(VisionBudgetExceededError);
     expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+  });
+
+  it('vérifie aussi la part de la cave de la photo avant l’appel', async () => {
+    const h = harness();
+    await h.processor.process('p1');
+    expect(h.budget.assertCaveUnderShare).toHaveBeenCalledWith('cave-1');
+  });
+
+  it('part de la cave atteinte : la photo est reportée comme pour le plafond global, sans appel', async () => {
+    const h = harness();
+    h.budget.assertCaveUnderShare.mockRejectedValueOnce(new CaveBudgetShareExceededError());
+    await expect(h.processor.process('p1', false)).rejects.toBeInstanceOf(CaveBudgetShareExceededError);
+    expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+    expect(h.photo.status).toBe('PENDING');
+    expect(h.photo.errorMessage).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
   });
 
   describe('panne passagère — la photo retourne en attente, jamais en échec', () => {

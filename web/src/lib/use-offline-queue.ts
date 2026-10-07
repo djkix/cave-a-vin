@@ -11,11 +11,11 @@ export { notifyQueueChanged };
  * L'envoi automatique (minuterie, retour du réseau…) est porté une seule fois
  * pour toute l'application par `useBackgroundSender`.
  */
-export function useOfflineQueue() {
-  const [stats, setStats] = useState({ count: 0, bytes: 0 });
+export function useOfflineQueue(userId?: string | null) {
+  const [stats, setStats] = useState({ count: 0, bytes: 0, others: 0 });
   const [flushing, setFlushing] = useState(false);
 
-  const refresh = useCallback(() => void queueStats().then(setStats), []);
+  const refresh = useCallback(() => void queueStats(userId).then(setStats), [userId]);
 
   const flushNow = useCallback(async () => {
     if (!navigator.onLine) return;

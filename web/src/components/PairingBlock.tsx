@@ -10,7 +10,8 @@ export function pairingPollInterval(pairing: Pairing | null | undefined): number
   return !pairing || pairing.status === 'PENDING' ? PAIRING_POLL_MS : false;
 }
 
-export function PairingBlock({ wineId, pairing }: { wineId: string; pairing: Pairing | null | undefined }) {
+/** `readOnly` : membre en lecture seule, qui ne relance pas la génération. */
+export function PairingBlock({ wineId, pairing, readOnly = false }: { wineId: string; pairing: Pairing | null | undefined; readOnly?: boolean }) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export function PairingBlock({ wineId, pairing }: { wineId: string; pairing: Pai
         </>
       )}
       {error && <p role="alert" className="text-error">{error}</p>}
-      {pairing && (
+      {pairing && !readOnly && (
         <Button variant="link" disabled={busy} onClick={regenerate}>Régénérer</Button>
       )}
     </section>

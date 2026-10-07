@@ -25,8 +25,9 @@ export class PairingService {
     private readonly scheduler: PairingScheduler,
   ) {}
 
-  async regenerate(wineId: string): Promise<void> {
-    const wine = await this.prisma.wine.findUnique({ where: { id: wineId }, select: { id: true } });
+  /** Vin de la cave courante seulement : celui d'une autre cave est inexistant (404). */
+  async regenerate(caveId: string, wineId: string): Promise<void> {
+    const wine = await this.prisma.wine.findFirst({ where: { id: wineId, caveId }, select: { id: true } });
     if (!wine) throw new NotFoundException('Vin introuvable');
     await this.prisma.pairing.upsert({
       where: { wineId },

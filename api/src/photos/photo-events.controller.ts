@@ -1,17 +1,17 @@
-import { Controller, Logger, OnModuleDestroy, Param, Sse, UseGuards } from '@nestjs/common';
+import { Controller, Logger, OnModuleDestroy, Param, ParseUUIDPipe, Sse, UseGuards } from '@nestjs/common';
 import { QueueEvents } from 'bullmq';
 import { Observable } from 'rxjs';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
+import { CaveRole, CurrentCave } from '../caves/cave-access.decorators';
+import { CaveAccessGuard } from '../caves/cave-access.guard';
+import type { CaveAccess } from '../caves/cave-context.service';
 import { EXTRACTION_QUEUE, redisConnection } from '../queue/extraction.queue';
-import { parseExtraction } from '../vision/extraction-schema';
+import { PhotoEvent, photoEventStream } from './photo-events';
 import { PhotosService } from './photos.service';
 
-interface PhotoEvent {
-  data: { status: string; extraction?: unknown; errorMessage?: string | null };
-}
-
+/** Suivi d'analyse d'une photo : propriétaire, photo de la cave courante (résolue à l'ouverture). */
 @Controller('photos')
-@UseGuards(AuthenticatedGuard)
+@UseGuards(AuthenticatedGuard, CaveAccessGuard)
 export class PhotoEventsController implements OnModuleDestroy {
   private readonly logger = new Logger(PhotoEventsController.name);
   // QueueEvents duplique la connexion qu'on lui donne et ne ferme que la copie :
@@ -31,27 +31,15 @@ export class PhotoEventsController implements OnModuleDestroy {
     await this.connection.quit();
   }
 
+  /**
+   * La photo est cherchée dans la cave courante avant d'ouvrir le flux : une
+   * photo d'une autre cave rend un 404 ordinaire, pas un flux. Chaque envoi
+   * relit la photo dans cette même cave.
+   */
   @Sse(':id/events')
-  stream(@Param('id') id: string): Observable<PhotoEvent> {
-    return new Observable((subscriber) => {
-      const emit = async () => {
-        const photo = await this.photos.findById(id);
-        const data: PhotoEvent['data'] = { status: photo.status, errorMessage: photo.errorMessage };
-        if (photo.status === 'DONE' && photo.rawExtraction) data.extraction = parseExtraction(photo.rawExtraction);
-        subscriber.next({ data });
-        if (photo.status === 'DONE' || photo.status === 'FAILED') subscriber.complete();
-      };
-      const safeEmit = () => {
-        emit().catch((e) => subscriber.error(e));
-      };
-      const onDone = ({ jobId }: { jobId: string }) => { if (jobId === id) safeEmit(); };
-      this.events.on('completed', onDone);
-      this.events.on('failed', onDone);
-      safeEmit();
-      return () => {
-        this.events.off('completed', onDone);
-        this.events.off('failed', onDone);
-      };
-    });
+  @CaveRole('OWNER')
+  async stream(@CurrentCave() cave: CaveAccess, @Param('id', ParseUUIDPipe) id: string): Promise<Observable<PhotoEvent>> {
+    await this.photos.findInCave(cave.caveId, id);
+    return photoEventStream(this.events, id, () => this.photos.findInCave(cave.caveId, id));
   }
 }

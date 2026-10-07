@@ -1,5 +1,6 @@
 import { PrismaClient, WineColor } from '@prisma/client';
 import { MovementsService } from './movements.service';
+import { createTestCave, deleteTestCaves } from '../test-utils/cave';
 
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -7,12 +8,17 @@ const key = (p: string) => `${p}-${Date.now()}-${Math.random()}`;
 
 describeIfDb('inventaire sous concurrence (base réelle)', () => {
   const prisma = new PrismaClient();
+  let caveId: string;
+
+  beforeAll(async () => {
+    caveId = (await createTestCave(prisma)).id;
+  });
   const service = new MovementsService(prisma as never, {} as never);
   const wineIds: string[] = [];
 
   async function wineWithStock(quantity: number) {
     const wine = await prisma.wine.create({
-      data: { matchKey: key('inv'), producer: 'Domaine Inventaire', appellationRaw: 'Bandol', color: WineColor.ROUGE },
+      data: { caveId, matchKey: key('inv'), producer: 'Domaine Inventaire', appellationRaw: 'Bandol', color: WineColor.ROUGE },
     });
     wineIds.push(wine.id);
     if (quantity > 0) await prisma.movement.create({ data: { wineId: wine.id, delta: quantity, type: 'IN', idempotencyKey: key('inv-in') } });
@@ -22,6 +28,7 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
   afterAll(async () => {
     await prisma.movement.deleteMany({ where: { wineId: { in: wineIds } } });
     await prisma.wine.deleteMany({ where: { id: { in: wineIds } } });
+    await deleteTestCaves(prisma, [caveId]);
     await prisma.$disconnect();
   });
 
@@ -29,8 +36,8 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
     const wine = await wineWithStock(6);
     // Sans verrou, les deux calculeraient −2 sur un stock de 6 et laisseraient 2.
     const [a, b] = await Promise.all([
-      service.adjustTo(wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
-      service.adjustTo(wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
+      service.adjustTo(caveId, wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
+      service.adjustTo(caveId, wine.id, { idempotencyKey: crypto.randomUUID(), counted: 4 }),
     ]);
     expect([a.created, b.created].filter(Boolean)).toHaveLength(1);
     const sum = await prisma.movement.aggregate({ _sum: { delta: true }, where: { wineId: wine.id } });
@@ -60,7 +67,7 @@ describeIfDb('inventaire sous concurrence (base réelle)', () => {
     // lui-même ce verrou, il lirait le stock immédiatement (6) au lieu d'attendre
     // la fin de A (5).
     await locked;
-    const adjustPromise = service.adjustTo(wine.id, { idempotencyKey: key('inv-adjust'), counted: 4 });
+    const adjustPromise = service.adjustTo(caveId, wine.id, { idempotencyKey: key('inv-adjust'), counted: 4 });
 
     await Promise.all([txA, adjustPromise]);
 

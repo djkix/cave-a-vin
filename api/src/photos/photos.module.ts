@@ -1,6 +1,7 @@
 import { Inject, Module, OnModuleDestroy } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { AuthModule } from '../auth/auth.module';
+import { CavesModule } from '../caves/caves.module';
 import { loadEnv } from '../config/env';
 import { closeQueue, createExtractionQueue, EXTRACTION_QUEUE_TOKEN, ExtractionJobData } from '../queue/extraction.queue';
 import { ImageNormalizationService } from './image-normalization.service';
@@ -9,7 +10,7 @@ import { PhotosController } from './photos.controller';
 import { PHOTO_STORAGE_DIR, PhotosService } from './photos.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, CavesModule],
   controllers: [PhotosController, PhotoEventsController],
   providers: [
     PhotosService,

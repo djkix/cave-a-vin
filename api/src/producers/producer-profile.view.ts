@@ -7,7 +7,10 @@ export interface ProducerProfileView {
   source: string;
   errorMessage: string | null;
   generatedAt: Date | null;
-  /** Auteur d'un texte saisi : nom affiché, à défaut e-mail ; null sinon. */
+  /**
+   * Auteur d'un texte saisi : nom affiché, à défaut e-mail ; null sinon. Pour
+   * un membre (VIEWER) : nom affiché ou null, jamais un e-mail (comme `ratedBy`).
+   */
   updatedBy: string | null;
 }
 
@@ -25,7 +28,8 @@ export interface ProducerProfileRow {
 /** À passer en `include` pour lire l'auteur avec le descriptif. */
 export const PRODUCER_PROFILE_INCLUDE = { updatedBy: { select: { displayName: true, email: true } } } as const;
 
-export function producerProfileOf(p: ProducerProfileRow | null): ProducerProfileView | null {
+/** `role` : rôle du lecteur dans la cave ; seul OWNER peut voir l'e-mail de l'auteur. */
+export function producerProfileOf(p: ProducerProfileRow | null, role: 'OWNER' | 'VIEWER'): ProducerProfileView | null {
   if (!p) return null;
   return {
     key: p.producerKey,
@@ -35,6 +39,6 @@ export function producerProfileOf(p: ProducerProfileRow | null): ProducerProfile
     source: p.source,
     errorMessage: p.errorMessage,
     generatedAt: p.generatedAt,
-    updatedBy: p.updatedBy ? (p.updatedBy.displayName ?? p.updatedBy.email) : null,
+    updatedBy: p.updatedBy ? (p.updatedBy.displayName ?? (role === 'OWNER' ? p.updatedBy.email : null)) : null,
   };
 }

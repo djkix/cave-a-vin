@@ -12,6 +12,7 @@ import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
 import { ApiError, getWine, postInventory } from '../lib/api-client';
+import { useCurrentCave } from '../lib/use-current-cave';
 
 const fmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 const TYPE_LABEL = { IN: 'Entrée', OUT: 'Sortie', ADJUST: 'Correction' } as const;
@@ -25,6 +26,10 @@ const MAX_COUNTED = 100_000;
 export function WinePage() {
   const { wineId = '' } = useParams();
   const qc = useQueryClient();
+  // Membre en lecture seule : tout le contenu, aucune action. Le descriptif du
+  // domaine, commun à toutes les caves, ne s'écrit que par un administrateur.
+  const { isOwner, isAdmin } = useCurrentCave();
+  const readOnly = !isOwner;
   const detail = useQuery({
     queryKey: ['wine', wineId],
     queryFn: () => getWine(wineId),
@@ -97,20 +102,20 @@ export function WinePage() {
               <p className="num" style={{ fontSize: 22, margin: 0 }}>{wine.quantity} en stock</p>
             </div>
           </div>
-          <ImageSearchBlock wine={wine} />
+          <ImageSearchBlock wine={wine} readOnly={readOnly} />
         </section>
 
         {/* Clé distincte de celle de SortieConfirmation : deux enfants du même
             <main> partageant la même clé troublent la réconciliation de React
             (avertissement « two children with the same key », rendu dupliqué). */}
-        <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} />
-        <RatingBlock key={`rating-${wine.id}`} wine={wine} />
-        <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} />
-        <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} />
+        <ApogeeBlock key={`apogee-${wine.id}`} wine={wine} readOnly={readOnly} />
+        <RatingBlock key={`rating-${wine.id}`} wine={wine} readOnly={readOnly} />
+        <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} canEdit={isAdmin} />
+        <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} readOnly={readOnly} />
 
-        <SortieConfirmation key={wine.id} wine={wine} />
+        {!readOnly && <SortieConfirmation key={wine.id} wine={wine} />}
 
-        <section className="card">
+        {!readOnly && <section className="card">
           {inventoryMessage && <p role="status">{inventoryMessage}</p>}
           {!counting ? (
             <Button variant="outline" onClick={() => { setCounting(true); setCounted(String(wine.quantity)); setInventoryMessage(null); }}>
@@ -128,7 +133,7 @@ export function WinePage() {
               <Button variant="link" onClick={() => setCounting(false)}>Abandonner</Button>
             </>
           )}
-        </section>
+        </section>}
 
         <h2 style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)' }}>DERNIERS MOUVEMENTS</h2>
         <div className="list">
