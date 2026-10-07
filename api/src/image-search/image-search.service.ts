@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DISPLAY_FILE_NAMES } from '../photos/display-image';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
+import { CaveBudgetShareExceededError, PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
 import { OFFICIAL_SITE_PROVIDER, OfficialSiteProvider } from '../vision/official-site-provider.interface';
 import { CandidateExpiredError, CandidateMeta, CandidateStore } from './candidates';
 import { readOfficialSiteImages } from './official-site';
@@ -161,9 +161,10 @@ export class ImageSearchService {
   }
 
   /**
-   * Gemini avec la recherche Google, dans la part du plafond réservée aux accords ;
-   * sa dépense est comptée. Gemini en panne ou qui ne répond pas avant le délai
-   * global : 503 (on n'arrive ici que sans image d'Open Food Facts).
+   * Gemini avec la recherche Google, dans la part du plafond réservée aux accords
+   * et dans la part mensuelle de la cave du vin ; sa dépense est comptée.
+   * Gemini en panne ou qui ne répond pas avant le délai global : 503 (on
+   * n'arrive ici que sans image d'Open Food Facts).
    */
   private async officialSiteImages(
     wine: { id: string; caveId: string; producer: string; cuvee: string | null; appellationRaw: string; vintage: number | null },
@@ -171,7 +172,10 @@ export class ImageSearchService {
   ): Promise<RemoteImage[]> {
     try {
       await this.budget.assertUnderShare(PAIRING_BUDGET_SHARE);
+      await this.budget.assertCaveUnderShare(wine.caveId);
     } catch (e) {
+      // Part de la cave atteinte : même 503 que le plafond, avec le motif de la cave.
+      if (e instanceof CaveBudgetShareExceededError) throw new ServiceUnavailableException(e.message);
       if (e instanceof VisionBudgetExceededError) throw new ServiceUnavailableException(UNAVAILABLE);
       throw e;
     }

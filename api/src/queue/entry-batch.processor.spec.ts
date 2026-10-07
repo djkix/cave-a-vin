@@ -1,7 +1,7 @@
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, RESERVATION_MS } from './entry-batch';
 import { EntryBatchProcessor } from './entry-batch.processor';
-import { VisionBudgetExceededError } from './vision-budget.service';
+import { CaveBudgetShareExceededError, VisionBudgetExceededError } from './vision-budget.service';
 
 const NOW = new Date('2026-10-05T12:00:00.000Z');
 const at = (deltaMs: number) => new Date(NOW.getTime() + deltaMs);
@@ -15,6 +15,7 @@ const ZOD_OUTPUT = new Error('Sortie du modèle invalide : ZodError: [{"code":"i
 
 type Row = {
   id: string;
+  caveId: string;
   purpose: 'ENTRY' | 'EXIT';
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
   createdAt: Date;
@@ -38,6 +39,7 @@ function matches(row: any, where: any): boolean {
     if (cond instanceof Date) return value?.getTime() === cond.getTime();
     if (typeof cond === 'object') {
       if ('in' in cond) return cond.in.includes(value);
+      if ('notIn' in cond) return !cond.notIn.includes(value);
       if ('lte' in cond) return value !== null && value.getTime() <= cond.lte.getTime();
       if ('equals' in cond) return value === cond.equals;
       if ('gte' in cond) return value >= cond.gte;
@@ -93,13 +95,18 @@ function harness() {
     // sémantique ; la vraie requête est couverte par le test d'intégration.
     $transaction: jest.fn(async (fn: any) =>
       fn({
+        // Une seule cave par lot : celle de la plus ancienne candidate, hors caves écartées.
         $queryRaw: jest.fn(async (_strings: TemplateStringsArray, ...values: unknown[]) => {
           const now = values.find((v) => v instanceof Date) as Date;
-          return rows
-            .filter((r) => isCandidate(r, now))
-            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+          const skipped = (values.find((v) => Array.isArray(v)) as string[] | undefined) ?? [];
+          const ready = rows
+            .filter((r) => isCandidate(r, now) && !skipped.includes(r.caveId))
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+          if (ready.length === 0) return [];
+          return ready
+            .filter((r) => r.caveId === ready[0].caveId)
             .slice(0, 8)
-            .map((r) => ({ id: r.id, attempts: r.attempts, costCents: r.costCents ?? null }));
+            .map((r) => ({ id: r.id, caveId: r.caveId, attempts: r.attempts, costCents: r.costCents ?? null }));
         }),
         photo: { updateMany },
       }),
@@ -128,12 +135,16 @@ function harness() {
       costCents: 2,
     })),
   };
-  const budget = { assertUnderCap: jest.fn(async () => undefined) };
+  const budget = {
+    assertUnderCap: jest.fn(async () => undefined),
+    assertCaveUnderShare: jest.fn<Promise<void>, [string]>(async () => undefined),
+  };
   const processor = new EntryBatchProcessor(prisma, photos as any, vision as any, budget as any);
   let seq = 0;
   const add = (over: Partial<Row> = {}): Row => {
     const row: Row = {
       id: `p${++seq}`,
+      caveId: 'cave-a',
       purpose: 'ENTRY',
       status: 'PENDING',
       createdAt: at(-5_000 + seq), // récentes, dans l'ordre de création
@@ -579,6 +590,77 @@ describe('EntryBatchProcessor.tick — pannes', () => {
     const h = harness();
     h.prisma.photo.updateMany.mockRejectedValue(new Error('base injoignable'));
     await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 0 });
+  });
+});
+
+describe('EntryBatchProcessor.tick — une seule cave par lot', () => {
+  it('le lot ne prend que les photos de la cave de la plus ancienne candidate', async () => {
+    const h = harness();
+    const a1 = h.add({ caveId: 'cave-a' });
+    const b1 = h.add({ caveId: 'cave-b' });
+    const a2 = h.add({ caveId: 'cave-a' });
+    const b2 = h.add({ caveId: 'cave-b' });
+    h.addMany(2, { caveId: 'cave-a' });
+    h.addMany(2, { caveId: 'cave-b' });
+    await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 4 });
+    expect(h.vision.extractWineLabels).toHaveBeenCalledTimes(1);
+    const sent = h.vision.extractWineLabels.mock.calls[0][0].map((img: any) => img.data.toString());
+    expect(sent).toEqual(h.rows.filter((r) => r.caveId === 'cave-a').map((r) => `img-${r.id}`));
+    expect(a1.status).toBe('DONE');
+    expect(a2.status).toBe('DONE');
+    expect(b1.status).toBe('PENDING');
+    expect(b2.status).toBe('PENDING');
+  });
+
+  it('vérifie la part de la cave du lot avant l’appel', async () => {
+    const h = harness();
+    h.addMany(8, { caveId: 'cave-b' });
+    await h.processor.tick(NOW);
+    expect(h.budget.assertCaveUnderShare).toHaveBeenCalledWith('cave-b');
+  });
+
+  it('part de la cave atteinte : son lot est reporté sans appel, et la cave suivante passe dans le même passage', async () => {
+    const h = harness();
+    const a = h.addMany(8, { caveId: 'cave-a' });
+    const b = h.addMany(8, { caveId: 'cave-b' });
+    h.budget.assertCaveUnderShare.mockImplementation(async (caveId: string) => {
+      if (caveId === 'cave-a') throw new CaveBudgetShareExceededError();
+    });
+    await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 16 });
+    a.forEach((r) => {
+      expect(r.status).toBe('PENDING');
+      expect(r.attempts).toBe(1);
+      expect(r.nextAttemptAt).toEqual(at(30_000));
+      expect(r.errorMessage).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
+    });
+    b.forEach((r) => expect(r.status).toBe('DONE'));
+    expect(h.vision.extractWineLabels).toHaveBeenCalledTimes(1);
+    const sent = h.vision.extractWineLabels.mock.calls[0][0].map((img: any) => img.data.toString());
+    expect(sent).toEqual(b.map((r) => `img-${r.id}`));
+  });
+
+  it('cave reportée : les autres caves ne partent que si elles sont prêtes elles-mêmes', async () => {
+    const h = harness();
+    h.addMany(8, { caveId: 'cave-a' });
+    const b = h.addMany(2, { caveId: 'cave-b' }); // récentes, lot incomplet : elles attendent
+    h.budget.assertCaveUnderShare.mockImplementation(async (caveId: string) => {
+      if (caveId === 'cave-a') throw new CaveBudgetShareExceededError();
+    });
+    await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 8 });
+    expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+    b.forEach((r) => expect(r.status).toBe('PENDING'));
+  });
+
+  it('plafond global atteint : le passage s’arrête au premier lot reporté (toutes les caves sont concernées)', async () => {
+    const h = harness();
+    const a = h.addMany(8, { caveId: 'cave-a' });
+    const b = h.addMany(8, { caveId: 'cave-b' });
+    h.budget.assertUnderCap.mockRejectedValue(new VisionBudgetExceededError());
+    await expect(h.processor.tick(NOW)).resolves.toEqual({ processed: 8 });
+    a.forEach((r) => expect(r.errorMessage).toContain('Plafond mensuel'));
+    b.forEach((r) => expect(r.attempts).toBe(0));
+    expect(h.budget.assertCaveUnderShare).not.toHaveBeenCalled();
   });
 });
 

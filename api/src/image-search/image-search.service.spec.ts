@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { VisionBudgetExceededError } from '../queue/vision-budget.service';
+import { CaveBudgetShareExceededError, VisionBudgetExceededError } from '../queue/vision-budget.service';
 import { CandidateStore } from './candidates';
 import { ImageSearchService } from './image-search.service';
 import { OFF_SOURCE } from './open-food-facts';
@@ -29,7 +29,9 @@ function network(off: unknown = { hits: [] }) {
   });
 }
 
-function setup(opts: { off?: unknown; site?: string | null; budgetError?: Error; providerError?: Error; wine?: typeof WINE | null } = {}) {
+function setup(
+  opts: { off?: unknown; site?: string | null; budgetError?: Error; caveShareError?: Error; providerError?: Error; wine?: typeof WINE | null } = {},
+) {
   const fetcher = network(opts.off);
   const dir = mkdtempSync(join(tmpdir(), 'cave-image-search-'));
   const store = new CandidateStore(dir, fetcher);
@@ -43,7 +45,10 @@ function setup(opts: { off?: unknown; site?: string | null; budgetError?: Error;
     },
     imageSearchCost: { create: jest.fn(async () => ({})) },
   };
-  const budget = { assertUnderShare: jest.fn(async () => { if (opts.budgetError) throw opts.budgetError; }) };
+  const budget = {
+    assertUnderShare: jest.fn(async () => { if (opts.budgetError) throw opts.budgetError; }),
+    assertCaveUnderShare: jest.fn<Promise<void>, [string]>(async () => { if (opts.caveShareError) throw opts.caveShareError; }),
+  };
   const provider = {
     findOfficialSite: jest.fn(async () => {
       if (opts.providerError) throw opts.providerError;
@@ -122,6 +127,22 @@ describe('ImageSearchService.search', () => {
     expect(e).toBeInstanceOf(ServiceUnavailableException);
     expect(e.message).toBe('Recherche d’image indisponible pour le moment');
     expect(provider.findOfficialSite).not.toHaveBeenCalled();
+  });
+
+  it('part de la cave atteinte : 503 avec le message de la cave, sans appeler Gemini', async () => {
+    const { service, provider, budget, prisma } = setup({ caveShareError: new CaveBudgetShareExceededError() });
+    const e = await service.search('c1', 'w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe('Part mensuelle de cette cave atteinte — reprise le mois prochain');
+    expect(budget.assertCaveUnderShare).toHaveBeenCalledWith('c1');
+    expect(provider.findOfficialSite).not.toHaveBeenCalled();
+    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
+  it('Open Food Facts suffit : la part de la cave n’est pas consultée', async () => {
+    const { service, budget } = setup({ off: OFF_HIT });
+    await service.search('c1', 'w1');
+    expect(budget.assertCaveUnderShare).not.toHaveBeenCalled();
   });
 
   it('Gemini en panne : 503', async () => {

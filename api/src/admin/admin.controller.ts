@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { AppUser } from '@prisma/client';
 import { AdminGuard } from '../auth/admin.guard';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { VisionBudgetService } from '../queue/vision-budget.service';
 import { AdminService } from './admin.service';
-import { updateAdminUserSchema } from './dto';
+import { updateAdminUserSchema, updateBudgetSchema } from './dto';
 
 @Controller('admin/users')
 @UseGuards(AuthenticatedGuard, AdminGuard)
@@ -47,5 +48,30 @@ export class AdminRegistrationsController {
   @Post(':id/refuse')
   refuse(@Param('id', ParseUUIDPipe) id: string) {
     return this.admin.refuseRegistration(id);
+  }
+}
+
+/** Part du plafond mensuel Gemini qu'une cave peut dépenser (la cave du premier administrateur en est exemptée). */
+@Controller('admin/budget')
+@UseGuards(AuthenticatedGuard, AdminGuard)
+export class AdminBudgetController {
+  constructor(private readonly budget: VisionBudgetService) {}
+
+  @Get()
+  get() {
+    return this.view();
+  }
+
+  @Put()
+  async update(@Body() body: unknown) {
+    const parsed = updateBudgetSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0].message);
+    await this.budget.setCaveShare(parsed.data.caveShare);
+    return this.view();
+  }
+
+  private async view(): Promise<{ caveShare: number; capCents: number; spentThisMonthCents: number }> {
+    const [caveShare, spentThisMonthCents] = await Promise.all([this.budget.caveShare(), this.budget.spentThisMonthCents()]);
+    return { caveShare, capCents: this.budget.capCents, spentThisMonthCents };
   }
 }
