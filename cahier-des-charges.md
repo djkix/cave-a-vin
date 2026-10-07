@@ -38,6 +38,8 @@ L'application est auto-hébergée en Docker sur le homelab existant, exposée en
 
 **Hors périmètre.** Pas de gestion de commandes ou de fournisseurs, pas de cave à vin connectée (sondes de température), pas de partage public de la cave, pas de multi-foyer. L'application est mono-cave et mono-foyer, avec comptes locaux.
 
+*Révision (2026-10-07) : l'application est désormais multi-caves. Chaque compte a sa propre cave, l'inscription d'une adresse Google inconnue attend la validation d'un administrateur, et un propriétaire peut inviter des membres en lecture seule (sans prix d'achat, sans journal ni export, sans écriture). Le référentiel des appellations, les règles d'apogée et les descriptifs de domaine restent communs. Voir `docs/superpowers/specs/2026-10-07-cave-a-vin-multi-caves-design.md`.*
+
 **Volumétrie cible.** Environ **4 000 bouteilles** en stock pour **100 à 150 références** distinctes, soit 25 à 40 bouteilles par référence — cohérent avec des achats par caisses de 6, 12 ou 18. Le journal des mouvements atteint quelques milliers de lignes après dix ans d'exploitation, pour un trafic courant de 20 à 40 photos par mois. Ces ordres de grandeur restent très en deçà des limites de PostgreSQL. Le seul vrai pic de charge est la reprise de l'existant, traitée en section *Architecture technique*.
 
 ## Parcours utilisateur
@@ -284,6 +286,8 @@ Ce choix coûte une vue matérialisée et apporte trois choses que le compteur n
 | `vintage_rating` | Qualité du millésime par région | région, année, facteur |
 | `location` | Emplacement en cave (lot 3) | casier, rangée, colonne |
 
+*Révision (2026-10-07) : deux tables `cave` (nom, propriétaire) et `cave_member` (compte ou adresse invitée, rôle `OWNER` ou `VIEWER`) rattachent chaque cave à ses comptes ; `wine`, `photo`, `export_log` et `image_search_cost` portent un `cave_id`, et `wine.match_key` n'est plus unique que dans sa cave. `allowed_email` n'est plus consultée : l'accès passe par la validation de l'inscription et par les invitations.*
+
 ### Règles d'intégrité
 
 - `movement.delta` ne peut pas être nul ; un `OUT` est toujours négatif, un `IN` toujours positif.
@@ -524,6 +528,8 @@ Ce périmètre n'est pas cosmétique : Google exempte les autorisations limitée
 | Statut de publication | Aucune démarche : l'exemption des scopes de base suffit |
 
 La liste blanche est le point de sécurité déterminant : le sous-domaine est exposé publiquement, donc sans elle **n'importe quel titulaire d'un compte Google pourrait se créer un accès à la cave**. Avec elle, la surface se réduit aux deux ou trois adresses du foyer, et l'ajout d'un membre se fait par une ligne en base.
+
+*Révision (2026-10-07) : la liste blanche a été remplacée, d'abord par une inscription libre, puis, avec le passage multi-caves, par une inscription **en attente de validation** : une adresse Google inconnue obtient un compte `PENDING` qui ne voit rien tant qu'un administrateur ne l'a pas validé (ce qui lui crée sa cave) ; une adresse invitée par un propriétaire entre directement, en lecture seule sur la cave qui l'a invitée.*
 
 ### Coûts récurrents
 
