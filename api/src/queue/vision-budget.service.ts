@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { mainCaveId } from '../caves/main-cave';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const VISION_MONTHLY_CAP_CENTS = 'VISION_MONTHLY_CAP_CENTS';
@@ -99,24 +100,9 @@ export class VisionBudgetService {
     });
   }
 
-  /**
-   * Cave du premier administrateur, exemptée de la part par cave : la plus
-   * ancienne cave possédée par le plus ancien administrateur actif qui n'est
-   * pas le compte de secours. Aucun (ou sans cave) : aucune cave exemptée.
-   */
-  async exemptCaveId(): Promise<string | null> {
-    const admin = await this.prisma.appUser.findFirst({
-      where: { isAdmin: true, isBreakGlass: false, status: 'ACTIVE' },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true },
-    });
-    if (!admin) return null;
-    const cave = await this.prisma.cave.findFirst({
-      where: { ownerId: admin.id },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true },
-    });
-    return cave?.id ?? null;
+  /** Cave de l'administrateur principal, exemptée de la part par cave (voir mainCaveId). */
+  exemptCaveId(): Promise<string | null> {
+    return mainCaveId(this.prisma);
   }
 
   /**
