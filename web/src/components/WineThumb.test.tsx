@@ -11,7 +11,7 @@ it('affiche la photo de référence quand une photo existe', () => {
   const { container } = render(<WineThumb photoId="p1" />);
   const img = container.querySelector('img');
   expect(img).not.toBeNull();
-  expect(img).toHaveAttribute('src', '/api/photos/p1/image');
+  expect(img).toHaveAttribute('src', '/api/photos/p1/image?variant=display');
 });
 
 it('retombe sur le pictogramme si l’image échoue à charger, jamais une image cassée', () => {

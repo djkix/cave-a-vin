@@ -5,6 +5,7 @@ import { ApogeeBlock } from '../components/ApogeeBlock';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { DomaineBlock, producerPollInterval } from '../components/DomaineBlock';
+import { ImageSearchBlock } from '../components/ImageSearchBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
 import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
@@ -83,7 +84,10 @@ export function WinePage() {
       <TopBar title="Fiche vin" back="/cave" />
       <main className="page">
         <section className="card" style={{ display: 'flex', gap: 'var(--space-md)' }}>
-          <WineThumb photoId={wine.referencePhotoId} size={96} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-xs)' }}>
+            <WineThumb photoId={wine.referencePhotoId} size={96} />
+            <ImageSearchBlock wine={wine} />
+          </div>
           <div>
             <h2 className="list__title" style={{ fontSize: 20, margin: 0 }}>
               {wine.producer}{wine.cuvee ? ` — ${wine.cuvee}` : ''}

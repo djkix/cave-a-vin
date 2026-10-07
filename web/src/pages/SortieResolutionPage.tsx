@@ -118,7 +118,7 @@ export function SortieResolutionPage() {
     <>
       <TopBar title="Sortir une bouteille" back="/sortie" />
       <main className="page">
-        <img className="preview" src={`/api/photos/${photoId}/image`} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        <img className="preview" src={`/api/photos/${photoId}/image?variant=display`} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         {body}
       </main>
     </>
