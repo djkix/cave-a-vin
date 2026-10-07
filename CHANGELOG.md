@@ -9,6 +9,35 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.0.0](https://github.com/djkix/cave-a-vin/compare/v1.9.0...v2.0.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **caves:** chaque compte a désormais sa propre cave ; sauvegarder la base avant la mise à jour.
+
+### Fonctionnalités
+
+* **caves:** garde d'accès et cave, mouvements, statistiques et export par cave ([6c2f8e0](https://github.com/djkix/cave-a-vin/commit/6c2f8e02468c28e17fdcaefa39127f6a0a923fbf))
+* **caves:** inscriptions validées par l'administrateur et cave courante ([033a0b3](https://github.com/djkix/cave-a-vin/commit/033a0b35160f8ff07374b6bd82aa57e159c5442b))
+* **caves:** membres en lecture seule, part de budget par cave, lots mono-cave ([1e21d8e](https://github.com/djkix/cave-a-vin/commit/1e21d8e3ac70205a0668ec27646c09608a7a48a1))
+* **caves:** photos, recherche d'image, accords et descriptifs par cave ([353080d](https://github.com/djkix/cave-a-vin/commit/353080d37f1c6e425850e2bba81ef76030bef0bb))
+* **caves:** une cave par compte, schéma et migration ([9292813](https://github.com/djkix/cave-a-vin/commit/9292813f0707a56c0629220d6a1a47106a4f8921))
+* **web:** sélecteur de cave, lecture seule, membres, inscriptions et budget ([ba89809](https://github.com/djkix/cave-a-vin/commit/ba8980959c5eb319b5abf85cd5c9688eeddfc611))
+
+
+### Corrections
+
+* **analyse:** un report pour budget attend toujours 15 minutes ([f3873e9](https://github.com/djkix/cave-a-vin/commit/f3873e97569cf2fd043c6cb8ac9dc0c6b36ea8e3))
+* **analyse:** un report pour budget ne consomme plus de tentative ([ba36b48](https://github.com/djkix/cave-a-vin/commit/ba36b48613178e59b7514424399f6cc0b850ad08))
+* **auth:** refuser une adresse Google non vérifiée ([afbd47b](https://github.com/djkix/cave-a-vin/commit/afbd47ba939f1701697ef6aefd276619bfad6d07))
+* **auth:** un compte ADMIN_EMAILS en attente est activé à la connexion ([d4025b8](https://github.com/djkix/cave-a-vin/commit/d4025b8026d87a8e0a8e7330035a1526aaac30fa))
+* **caves:** statistiques sans prix dérivées de la liste, auteur des notes sans e-mail pour un membre ([43b15a9](https://github.com/djkix/cave-a-vin/commit/43b15a96113ca8b7c7ce42817485e7ac8313c888))
+* **image:** motif propre à la recherche d'image quand la part de la cave est atteinte ([ca00d44](https://github.com/djkix/cave-a-vin/commit/ca00d44c830596946a3160041ec8aede5194e07d))
+* **web:** changement de cave sans données de l'ancienne, file de photos rattachée au compte ([84a39dc](https://github.com/djkix/cave-a-vin/commit/84a39dcbedac97563bc005ab0f6068de1ca98947))
+* **web:** session posée avant la navigation au changement de cave, note des photos en attente pour un membre ([b628680](https://github.com/djkix/cave-a-vin/commit/b6286805a99a9a2df6888d3fd204de3048eeeeb9))
+* **web:** une photo en file n'est jamais effacée sur un 404 ([3c004b3](https://github.com/djkix/cave-a-vin/commit/3c004b3137c70a1a9a4f6daa0b8a4eb4b7de29c3))
+
 ## [1.9.0](https://github.com/djkix/cave-a-vin/compare/v1.8.0...v1.9.0) (2026-10-07)
 
 ### Résumé
