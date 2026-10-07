@@ -166,7 +166,7 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     const started = Date.now();
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts: [{ text: PROMPT }, { inlineData: { data: image.toString('base64'), mimeType } }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+      generationConfig: { responseMimeType: 'application/json' },
     });
     const latencyMs = Date.now() - started;
     const text = stripFences(result.response.text());
@@ -201,7 +201,7 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     const started = Date.now();
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+      generationConfig: { responseMimeType: 'application/json' },
     });
     const latencyMs = Date.now() - started;
     const costCents = costCentsOf(result.response.usageMetadata);
@@ -245,7 +245,7 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
   async suggestPairings(wine: PairingWine): Promise<PairingResult> {
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts: [{ text: pairingPrompt(wine) }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
+      generationConfig: { responseMimeType: 'application/json' },
     });
     let raw: unknown;
     try {
@@ -259,7 +259,7 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
   async describeProducer(query: ProducerQuery): Promise<ProducerResult> {
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts: [{ text: producerPrompt(query) }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
+      generationConfig: { responseMimeType: 'application/json' },
     });
     let raw: unknown;
     try {
@@ -288,7 +288,6 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     const request: GroundedRequest = {
       contents: [{ role: 'user', parts: [{ text: officialSitePrompt(query) }] }],
       tools: [{ googleSearch: {} }],
-      generationConfig: { temperature: 0 },
     };
     const result = await this.model.generateContent(request as Parameters<GenerativeModel['generateContent']>[0], { signal });
     let text = '';
