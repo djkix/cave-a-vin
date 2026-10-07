@@ -93,11 +93,43 @@ describe('AuthService', () => {
     expect(prisma.invitations[0]).toEqual({ id: 'm1', invitedEmail: null, userId: user.id });
   });
 
-  it('never changes the status of an existing account on login', async () => {
+  it('never changes the status of an existing non-admin PENDING account on login', async () => {
     const prisma = fakePrisma([{ id: 'm1', invitedEmail: 'p@example.com', userId: null }]);
     await prisma.appUser.create({ data: { email: 'p@example.com', googleSub: 'gp', status: 'PENDING' } });
     const user = await serviceWith(prisma).findOrCreateGoogleUser({ sub: 'gp', email: 'p@example.com', displayName: 'P' });
     expect(user.status).toBe('PENDING');
+  });
+
+  it('never reactivates a BLOCKED account, even an ADMIN_EMAILS one', async () => {
+    const prisma = fakePrisma();
+    await prisma.appUser.create({ data: { email: 'admin@example.com', googleSub: 'gb', status: 'BLOCKED' } });
+    await expect(serviceWith(prisma).findOrCreateGoogleUser({ sub: 'gb', email: 'admin@example.com', displayName: 'A' })).rejects.toBeInstanceOf(ForbiddenException);
+    expect([...prisma.users.values()][0].status).toBe('BLOCKED');
+
+    const linked = fakePrisma();
+    await linked.appUser.create({ data: { email: 'admin@example.com', googleSub: null, status: 'BLOCKED' } });
+    await expect(serviceWith(linked).findOrCreateGoogleUser({ sub: 'gl', email: 'admin@example.com', displayName: 'A' })).rejects.toBeInstanceOf(ForbiddenException);
+    expect([...linked.users.values()][0].status).toBe('BLOCKED');
+  });
+
+  it('activates an existing PENDING account whose e-mail is in ADMIN_EMAILS, then claims the orphan cave', async () => {
+    const caves = fakeCaves();
+    const prisma = fakePrisma();
+    const pending = await prisma.appUser.create({ data: { email: 'admin@example.com', googleSub: 'gp', status: 'PENDING' } });
+    const user = await serviceWith(prisma, caves).findOrCreateGoogleUser({ sub: 'gp', email: 'admin@example.com', displayName: 'A' });
+    expect(user.status).toBe('ACTIVE');
+    expect(user.isAdmin).toBe(true);
+    expect(caves.claimOrphanCave).toHaveBeenCalledWith(pending.id);
+  });
+
+  it('activates a PENDING ADMIN_EMAILS account linked by e-mail (no google_sub yet), then claims the orphan cave', async () => {
+    const caves = fakeCaves();
+    const prisma = fakePrisma();
+    const pending = await prisma.appUser.create({ data: { email: 'admin@example.com', googleSub: null, status: 'PENDING' } });
+    const user = await serviceWith(prisma, caves).findOrCreateGoogleUser({ sub: 'gn', email: 'admin@example.com', displayName: 'A' });
+    expect(user.id).toBe(pending.id);
+    expect(user.status).toBe('ACTIVE');
+    expect(caves.claimOrphanCave).toHaveBeenCalledWith(pending.id);
   });
 
   it('gives an orphan cave to an administrator on login (not to anyone else)', async () => {

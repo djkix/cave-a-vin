@@ -29,26 +29,36 @@ export class AuthService {
     return adminEmailsFromEnv().includes(email.toLowerCase()) || currentIsAdmin;
   }
 
+  // Un administrateur resté en attente (compte créé avant que son adresse
+  // n'entre dans ADMIN_EMAILS) est activé à la connexion ; un compte bloqué ne
+  // l'est jamais, et un non-administrateur garde son statut.
+  private resolveStatus(isAdmin: boolean, current: AppUser['status']): AppUser['status'] {
+    return isAdmin && current === 'PENDING' ? 'ACTIVE' : current;
+  }
+
   async findOrCreateGoogleUser(profile: GoogleProfile): Promise<AppUser> {
     const email = profile.email.toLowerCase();
 
     const existing = await this.prisma.appUser.findUnique({ where: { googleSub: profile.sub } });
     let user: AppUser;
     if (existing) {
+      const isAdmin = this.resolveIsAdmin(email, existing.isAdmin);
       user = await this.prisma.appUser.update({
         where: { id: existing.id },
-        data: { lastLoginAt: new Date(), isAdmin: this.resolveIsAdmin(email, existing.isAdmin) },
+        data: { lastLoginAt: new Date(), isAdmin, status: this.resolveStatus(isAdmin, existing.status) },
       });
     } else {
       const byEmail = await this.prisma.appUser.findUnique({ where: { email } });
       if (byEmail && byEmail.googleSub === null) {
+        const isAdmin = this.resolveIsAdmin(email, byEmail.isAdmin);
         user = await this.prisma.appUser.update({
           where: { id: byEmail.id },
           data: {
             googleSub: profile.sub,
             displayName: profile.displayName,
             lastLoginAt: new Date(),
-            isAdmin: this.resolveIsAdmin(email, byEmail.isAdmin),
+            isAdmin,
+            status: this.resolveStatus(isAdmin, byEmail.status),
           },
         });
       } else {
