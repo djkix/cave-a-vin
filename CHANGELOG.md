@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.0.1](https://github.com/djkix/cave-a-vin/compare/v2.0.0...v2.0.1) (2026-10-07)
+
+
+### Corrections
+
+* **gemini:** ne plus envoyer de température, refusée par les prochains modèles ([fc2bdb5](https://github.com/djkix/cave-a-vin/commit/fc2bdb5efba6c5336fb6c1fe0ad06b240859f1db))
+
 ## [2.0.0](https://github.com/djkix/cave-a-vin/compare/v1.9.0...v2.0.0) (2026-10-07)
 
 ### Résumé
