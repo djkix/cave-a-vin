@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { mkdtempSync, existsSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Prisma } from '@prisma/client';
@@ -344,5 +344,85 @@ describe('PhotosService.dismiss', () => {
     const svc = new PhotosService(prisma as any, new ImageNormalizationService(), '/tmp', { add: jest.fn() } as any);
     await svc.dismiss('p1');
     expect(prisma.photo.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { dismissedAt: expect.any(Date) } });
+  });
+});
+
+describe('PhotosService.readDisplay', () => {
+  const lecture = (etiquette?: unknown) => ({
+    producteur: { value: 'Domaine Tempier', confidence: 0.98 }, cuvee: { value: null, confidence: 0 },
+    appellation: { value: 'Bandol', confidence: 0.97 }, millesime: { value: 2019, confidence: 0.94 },
+    couleur: { value: 'rouge', confidence: 0.99 }, format_cl: { value: 75, confidence: 0.9 },
+    degre: { value: null, confidence: 0 }, pays_region: { value: 'Provence', confidence: 0.7 },
+    nb_cols_carton: { value: null, confidence: 0 }, confiance_globale: 0.93,
+    ...(etiquette === undefined ? {} : { etiquette }),
+  });
+
+  async function setup(row: Record<string, unknown>, image?: Buffer) {
+    const dir = mkdtempSync(join(tmpdir(), 'cave-display-'));
+    mkdirSync(join(dir, 'normalized'), { recursive: true });
+    const id = '11111111-1111-4111-8111-111111111111';
+    const original = image ?? (await sharp({ create: { width: 1000, height: 800, channels: 3, background: '#8a6a50' } }).jpeg().toBuffer());
+    writeFileSync(join(dir, 'normalized', `${id}.jpg`), original);
+    const prisma = fakePrisma();
+    prisma.photos.push({ id, contentHash: 'h', status: 'DONE', purpose: 'ENTRY', rawExtraction: null, ...row });
+    const service = new PhotosService(prisma as any, new ImageNormalizationService(), dir, { add: jest.fn() } as any);
+    return { dir, id, original, service, displayPath: join(dir, 'normalized', `${id}.display.jpg`) };
+  }
+
+  it('recadre sur l’étiquette (marge de 8 %) et garde la version d’affichage sur le disque', async () => {
+    const { id, service, displayPath } = await setup({ rawExtraction: lecture([250, 250, 750, 750]) });
+    const out = await service.readDisplay(id);
+    const meta = await sharp(out).metadata();
+    expect(meta.format).toBe('jpeg');
+    expect([meta.width, meta.height]).toEqual([580, 464]);
+    expect(existsSync(displayPath)).toBe(true);
+    expect(readFileSync(displayPath).equals(out)).toBe(true);
+  });
+
+  it('ne recadre pas sans cadre plausible, et ramène l’image à 1200 px au plus', async () => {
+    const big = await sharp({ create: { width: 2000, height: 1500, channels: 3, background: '#777777' } }).jpeg().toBuffer();
+    const { id, service } = await setup({ rawExtraction: lecture([0, 0, 1000, 1000]) }, big);
+    const meta = await sharp(await service.readDisplay(id)).metadata();
+    expect([meta.width, meta.height]).toEqual([1200, 900]);
+  });
+
+  it('corrige une dominante de couleur (balance des blancs « monde gris »)', async () => {
+    // Moitié gauche plus claire que la droite, le tout tiré vers le rouge.
+    const left = await sharp({ create: { width: 200, height: 200, channels: 3, background: { r: 200, g: 150, b: 130 } } }).png().toBuffer();
+    const img = await sharp({ create: { width: 400, height: 200, channels: 3, background: { r: 120, g: 80, b: 70 } } })
+      .composite([{ input: left, left: 0, top: 0 }]).jpeg().toBuffer();
+    const { id, service } = await setup({ status: 'FAILED', rawExtraction: null }, img);
+    const before = (await sharp(img).stats()).channels.map((c) => c.mean);
+    const after = (await sharp(await service.readDisplay(id)).stats()).channels.map((c) => c.mean);
+    expect(after[0] - after[2]).toBeLessThan(before[0] - before[2]);
+  });
+
+  it('réutilise la version d’affichage déjà fabriquée', async () => {
+    const { id, service, displayPath } = await setup({ rawExtraction: lecture(null) });
+    await service.readDisplay(id);
+    writeFileSync(displayPath, Buffer.from('déjà-fabriquée'));
+    expect((await service.readDisplay(id)).toString()).toBe('déjà-fabriquée');
+  });
+
+  it('rend l’image d’origine, sans rien garder, pour une photo en attente ou en cours', async () => {
+    for (const status of ['PENDING', 'PROCESSING']) {
+      const { id, service, original, displayPath } = await setup({ status });
+      expect((await service.readDisplay(id)).equals(original)).toBe(true);
+      expect(existsSync(displayPath)).toBe(false);
+    }
+  });
+
+  it('rend l’image d’origine et journalise l’erreur si la fabrication échoue', async () => {
+    const garbage = Buffer.from('pas une image');
+    const { id, service, displayPath } = await setup({ rawExtraction: lecture([250, 250, 750, 750]) }, garbage);
+    const error = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    expect((await service.readDisplay(id)).equals(garbage)).toBe(true);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(id));
+    expect(existsSync(displayPath)).toBe(false);
+  });
+
+  it('refuse une photo inconnue (404)', async () => {
+    const { service } = await setup({});
+    await expect(service.readDisplay('22222222-2222-4222-8222-222222222222')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

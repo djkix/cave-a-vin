@@ -4,11 +4,12 @@ import {
 import { Photo, PhotoPurpose, Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { EXTRACTION_QUEUE_TOKEN, ExtractionJobData, jobOptionsFor } from '../queue/extraction.queue';
 import { parseExtraction, safeParseExtraction } from '../vision/extraction-schema';
+import { buildDisplayImage } from './display-image';
 import { ImageNormalizationService } from './image-normalization.service';
 
 export const PHOTO_STORAGE_DIR = 'PHOTO_STORAGE_DIR';
@@ -135,6 +136,46 @@ export class PhotosService {
 
   async readNormalized(id: string): Promise<Buffer> {
     return readFile(join(this.dir, 'normalized', `${id}.jpg`));
+  }
+
+  /**
+   * Version d'affichage (vignettes, écrans de confirmation) : recadrée sur
+   * l'étiquette et retouchée, fabriquée à la première demande puis gardée dans
+   * `normalized/<id>.display.jpg`. Seulement pour une photo lue (DONE) ou en
+   * échec (FAILED) : avant la lecture, le cadre de l'étiquette n'est pas connu,
+   * l'image d'origine est rendue sans rien garder. Une fabrication ratée ne
+   * prive jamais l'utilisateur de sa photo : l'image d'origine est rendue.
+   * Gemini, lui, lit toujours l'image d'origine (`readNormalized`).
+   */
+  async readDisplay(id: string): Promise<Buffer> {
+    const photo = await this.findById(id);
+    if (photo.status !== 'DONE' && photo.status !== 'FAILED') return this.readNormalized(id);
+
+    const displayPath = join(this.dir, 'normalized', `${id}.display.jpg`);
+    try {
+      return await readFile(displayPath);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
+
+    const original = await this.readNormalized(id);
+    let display: Buffer;
+    try {
+      display = await buildDisplayImage(original, safeParseExtraction(photo.rawExtraction)?.labelBox ?? null);
+    } catch (e) {
+      this.logger.error(`Version d'affichage impossible pour la photo ${id} : ${(e as Error).message}`);
+      return original;
+    }
+    // Écriture puis renommage : une lecture concurrente ne voit jamais un fichier à moitié écrit.
+    const tmpPath = `${displayPath}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(tmpPath, display);
+      await rename(tmpPath, displayPath);
+    } catch (e) {
+      await unlinkIgnoringMissing(tmpPath).catch(() => undefined);
+      this.logger.error(`Version d'affichage non gardée pour la photo ${id} : ${(e as Error).message}`);
+    }
+    return display;
   }
 
   /**

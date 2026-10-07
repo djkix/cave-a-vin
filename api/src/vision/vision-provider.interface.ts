@@ -5,6 +5,9 @@ export interface ExtractedField<T> {
   confidence: number;
 }
 
+/** Cadre de l'étiquette sur la photo : [ymin, xmin, ymax, xmax], coordonnées normalisées de 0 à 1000 (convention Gemini). */
+export type LabelBox = [number, number, number, number];
+
 export interface WineExtraction {
   producer: ExtractedField<string>;
   cuvee: ExtractedField<string>;
@@ -16,6 +19,8 @@ export interface WineExtraction {
   countryRegion: ExtractedField<string>;
   bottlesPerCase: ExtractedField<number>;
   globalConfidence: number;
+  /** `null` si le modèle n'a pas repéré l'étiquette, ou pour une lecture antérieure à ce champ. */
+  labelBox: LabelBox | null;
 }
 
 export interface VisionResult {

@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Res, UploadedFile, UseGuards, UseInterceptors,
+  BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
@@ -64,11 +64,20 @@ export class PhotosController {
     return this.photos.findById(id);
   }
 
+  /**
+   * Sans paramètre : l'image d'origine. `?variant=display` : la version
+   * d'affichage (recadrée, retouchée). Une photo pas encore lue rend son image
+   * d'origine sous cette même adresse : le navigateur ne doit pas la garder, sa
+   * version d'affichage viendra après la lecture.
+   */
   @Get(':id/image')
-  async image(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
-    await this.photos.findById(id);
+  async image(@Param('id', ParseUUIDPipe) id: string, @Query('variant') variant: string | undefined, @Res() res: Response) {
+    if (variant !== undefined && variant !== 'display') throw new BadRequestException("Variante d'image inconnue");
+    const photo = await this.photos.findById(id);
+    const settled = photo.status === 'DONE' || photo.status === 'FAILED';
+    const image = variant === 'display' ? await this.photos.readDisplay(id) : await this.photos.readNormalized(id);
     res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'private, max-age=86400');
-    res.send(await this.photos.readNormalized(id));
+    res.setHeader('Cache-Control', variant === 'display' && !settled ? 'no-cache' : 'private, max-age=86400');
+    res.send(image);
   }
 }

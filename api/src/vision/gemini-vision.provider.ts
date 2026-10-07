@@ -24,7 +24,8 @@ const READING_RULES = `Règles :
 - Distingue le nom du producteur (domaine, château, maison) du nom de la cuvée.
 - Sur un carton, lis le nombre de bouteilles s'il est imprimé (« 6 bouteilles », « caisse de 12 »), sinon null.
 - "couleur" ∈ rouge | blanc | rosé | pétillant.
-- "format_cl" en centilitres (75 par défaut uniquement si l'image le confirme, sinon null).`;
+- "format_cl" en centilitres (75 par défaut uniquement si l'image le confirme, sinon null).
+- "etiquette" : le cadre de l'étiquette principale sur la photo, [ymin, xmin, ymax, xmax] en coordonnées normalisées de 0 à 1000 (0,0 = coin haut gauche), ou null si l'étiquette n'est pas repérable.`;
 
 const PROMPT = `Tu lis une étiquette de vin (ou un carton de vin) photographiée. Réponds UNIQUEMENT par un objet JSON strict de cette forme :
 ${EXTRACTION_JSON_SCHEMA_DESCRIPTION}

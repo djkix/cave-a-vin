@@ -214,6 +214,27 @@ describe('GeminiVisionProvider.extractWineLabels', () => {
     }
   });
 
+  it('les consignes simple et de lot demandent le cadre de l’étiquette, et le lot le rend', async () => {
+    const single = fakeModel(JSON.stringify(validObj({ etiquette: [50, 100, 950, 900] })));
+    const res = await new GeminiVisionProvider(single as any, 'g').extractWineLabel(Buffer.from('x'), 'image/jpeg');
+    expect(res.extraction.labelBox).toEqual([50, 100, 950, 900]);
+    const singlePrompt = single.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    const arr = [
+      { image: 1, ...validObj({ etiquette: [10, 20, 900, 800] }) },
+      { image: 2, ...validObj({ etiquette: null }) },
+      { image: 3, ...validObj() },
+    ];
+    const batch = fakeModel(JSON.stringify(arr));
+    const out = await new GeminiVisionProvider(batch as any, 'g').extractWineLabels(images);
+    const batchPrompt = batch.generateContent.mock.calls[0][0].contents[0].parts[0].text as string;
+    for (const prompt of [singlePrompt, batchPrompt]) {
+      expect(prompt).toContain('"etiquette"');
+      expect(prompt).toMatch(/\[ymin, xmin, ymax, xmax\]/);
+      expect(prompt).toMatch(/0 à 1000/);
+    }
+    expect(out.items.map((i) => ('extraction' in i ? i.extraction.labelBox : 'erreur'))).toEqual([[10, 20, 900, 800], null, null]);
+  });
+
   it('accepte un tableau enveloppé dans un objet à une seule propriété tableau', async () => {
     const arr = [{ image: 2, ...validObj() }, { image: 1, ...validObj() }, { image: 3, ...validObj() }];
     for (const key of ['items', 'resultats']) {
