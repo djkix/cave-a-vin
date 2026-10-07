@@ -11,6 +11,19 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.1.1](https://github.com/djkix/cave-a-vin/compare/v2.1.0...v2.1.1) (2026-10-07)
 
+### Résumé
+
+Petites corrections. Un appel à Gemini abandonné au délai de 30 s d'une
+recherche d'image est désormais compté (2 ct, estimation d'une recherche) au
+lieu de rien, pour que le plafond ne sous-estime jamais la dépense. Une image
+du web choisie comme vignette, proposée pour une entrée ou une sortie, est
+refusée avec un message clair : « Cette image vient du web : prenez une photo
+de la bouteille ». Aucune migration, aucune nouvelle variable
+d'environnement.
+
+### Détail par commit
+
+
 
 ### Corrections
 
