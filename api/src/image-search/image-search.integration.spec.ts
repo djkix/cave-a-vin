@@ -133,8 +133,10 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
     const own = await entryPhoto();
     const w = await wine(own.id);
     const c = await candidate(w.id);
-    for (const call of [service.chooseReference(otherCaveId, w.id, c.id), service.revertReference(otherCaveId, w.id)]) {
-      const e = await call.catch((x) => x);
+    // Appels lancés un à un : créés d'avance, le second pouvait être rejeté
+    // avant qu'on l'attende (rejet non géré, test instable).
+    for (const call of [() => service.chooseReference(otherCaveId, w.id, c.id), () => service.revertReference(otherCaveId, w.id)]) {
+      const e = await call().catch((x) => x);
       expect(e).toBeInstanceOf(NotFoundException);
       expect(e.message).toBe('Vin introuvable');
     }
