@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GeminiJournal } from '../vision/gemini-journal';
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
@@ -57,9 +59,14 @@ export class EntryBatchProcessor {
     private readonly photos: PhotosService,
     @Inject(VISION_PROVIDER) private readonly vision: VisionProvider,
     private readonly budget: VisionBudgetService,
+    private readonly pause: GeminiJournal,
   ) {}
 
   /**
+   * Pendant une pause commune de Gemini, le passage ne fait rien : aucune
+   * réservation, aucune tentative touchée. À la fin de la pause, les photos
+   * arrivées entre-temps partent ensemble, huit par appel : c'est le regroupement.
+   *
    * Un lot ne contient que des photos d'une même cave : celle de la plus
    * ancienne candidate. Si cette cave a atteint sa part mensuelle, son lot est
    * reporté (comme pour le plafond global) et le passage continue avec la plus
@@ -68,6 +75,7 @@ export class EntryBatchProcessor {
    */
   async tick(now = new Date()): Promise<{ processed: number }> {
     try {
+      if (await this.pause.currentPause(now)) return { processed: 0 };
       await this.reclaimExpired(now);
     } catch (e) {
       this.logger.error(`Lot d'entrée : préparation impossible : ${messageOf(e)}`);
@@ -284,7 +292,7 @@ export class EntryBatchProcessor {
       const photo = photos[i];
       let r;
       try {
-        r = await this.withTimeout(this.vision.extractWineLabel(photo.data, MIME));
+        r = await this.withTimeout(this.vision.extractWineLabel(photo.data, MIME, 'ENTRY'));
       } catch (e) {
         if (isDeferred(e)) {
           await this.settleFailure(photos.slice(i), e, now, settled);
@@ -316,7 +324,9 @@ export class EntryBatchProcessor {
    * repartent en attente avec une attente croissante, puis échouent après
    * `EXTRACTION_ATTEMPTS` tentatives. Un report pour budget (plafond global ou
    * part de la cave) attend toujours l'attente maximale (15 min) et ne compte
-   * pas de tentative : il est repris sans limite et ne mène jamais à l'échec. Autre erreur définitive : échec
+   * pas de tentative : il est repris sans limite et ne mène jamais à l'échec.
+   * Une pause commune de Gemini est reportée de même, mais jusqu'à la fin de la
+   * pause (aucun appel n'a été envoyé). Autre erreur définitive : échec
    * immédiat, la saisie manuelle est proposée. Le texte brut de l'erreur ne va
    * que dans les logs ; la photo ne porte qu'un message en français.
    */
@@ -330,16 +340,17 @@ export class EntryBatchProcessor {
         continue;
       }
       const reason = isConfigurationError(error) ? CONFIGURATION_DEFERRAL_REASON : deferralReason(error);
-      if (error instanceof VisionBudgetExceededError) {
+      if (error instanceof VisionBudgetExceededError || error instanceof GeminiPausedError) {
         // Plafond global ou part de la cave : aucun appel n'a eu lieu. La photo
         // ne consomme pas de tentative et ne passe jamais en échec ; elle est
         // reprise après l'attente maximale, fixe, dès que le budget le permet
-        // (plafond ou part relevés, ou mois suivant).
+        // (plafond ou part relevés, ou mois suivant). En pause commune : reprise
+        // à la fin de la pause, avec les photos arrivées entre-temps.
         await this.prisma.photo.update({
           where: { id: photo.id },
           data: {
             status: 'PENDING',
-            nextAttemptAt: new Date(now.getTime() + MAX_DELAY_MS),
+            nextAttemptAt: error instanceof GeminiPausedError ? error.until : new Date(now.getTime() + MAX_DELAY_MS),
             errorMessage: reason,
             ...costData(photo),
           },

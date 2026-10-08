@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { deferralReason, isTransientVisionFailure } from '../queue/transient-failure';
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { PAIRING_BUDGET_SHARE, VisionBudgetService } from '../queue/vision-budget.service';
 import { PairingInvalidOutputError } from '../vision/pairing-output';
 import { PAIRING_PROVIDER, PairingProvider } from '../vision/pairing-provider.interface';
@@ -36,6 +37,13 @@ export class PairingProcessor {
         data: { status: 'DONE', dishes: result.dishes, model: result.model, costCents: result.costCents, errorMessage: null, generatedAt: new Date() },
       });
     } catch (e) {
+      // Pause commune de Gemini : aucun appel n'est parti. En attente avec le
+      // message de la pause, même au dernier essai ; le travail est reporté
+      // après la pause sans consommer de tentative (wine-pairing-dispatch).
+      if (e instanceof GeminiPausedError) {
+        await this.prisma.pairing.update({ where: { wineId }, data: { status: 'PENDING', errorMessage: deferralReason(e) } });
+        throw e;
+      }
       const transient = isTransientVisionFailure(e);
       this.logger.warn(`Accords ${wineId} ${transient ? 'reportés' : 'en échec'} : ${e instanceof Error ? e.message : String(e)}`);
       if (transient && !isLastAttempt) {

@@ -1,3 +1,4 @@
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { VisionInvalidOutputError } from '../vision/gemini-vision.provider';
 import { deferralReason, isTransientVisionFailure } from './transient-failure';
 import { VisionBudgetExceededError } from './vision-budget.service';
@@ -62,5 +63,17 @@ describe('deferralReason', () => {
 
   it('garde le message du plafond mensuel, qui explique déjà quoi faire', () => {
     expect(deferralReason(new VisionBudgetExceededError())).toContain('Plafond mensuel');
+  });
+});
+
+describe('pause commune de Gemini', () => {
+  const paused = new GeminiPausedError(new Date('2026-10-08T12:05:00.000Z'), 'modèle saturé');
+
+  it('est toujours passagère : la photo n’est jamais perdue', () => {
+    expect(isTransientVisionFailure(paused)).toBe(true);
+  });
+
+  it('le motif affiché est le message de la pause', () => {
+    expect(deferralReason(paused)).toBe(`Gemini en pause jusqu'à 14:05 (modèle saturé)`);
   });
 });

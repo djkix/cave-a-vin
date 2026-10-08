@@ -7,6 +7,7 @@ import { DISPLAY_FILE_NAMES } from '../photos/display-image';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { statusFromMessage } from '../queue/transient-failure';
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { CaveBudgetShareExceededError, PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
 import { OFFICIAL_SITE_PROVIDER, OfficialSiteProvider } from '../vision/official-site-provider.interface';
 import { CandidateExpiredError, CandidateMeta, CandidateStore } from './candidates';
@@ -218,6 +219,9 @@ export class ImageSearchService {
     } catch (e) {
       const reason = e instanceof DeadlineError ? `pas de réponse en ${this.deadlineMs} ms` : (e as Error).message;
       this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
+      // Pause commune de Gemini : aucun appel n'est parti, rien n'est compté ;
+      // le 503 dit jusqu'à quand (l'écran affiche ce message tel quel).
+      if (e instanceof GeminiPausedError) throw new ServiceUnavailableException(e.message);
       if (!(e instanceof DeadlineError) && statusFromMessage((e as Error).message) === 429) {
         throw new ServiceUnavailableException(QUOTA_EXHAUSTED);
       }

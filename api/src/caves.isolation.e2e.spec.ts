@@ -195,6 +195,7 @@ const ROUTES: Route[] = [
   { method: 'POST', path: '/api/admin/registrations/:id/refuse', kind: 'admin', req: (i) => ({ url: `/api/admin/registrations/${i.pendingUser}/refuse` }) },
   { method: 'GET', path: '/api/admin/budget', kind: 'admin', req: () => ({ url: '/api/admin/budget' }), happy: { status: 200 } },
   { method: 'PUT', path: '/api/admin/budget', kind: 'admin', req: () => ({ url: '/api/admin/budget', body: { caveShare: 1 } }) },
+  { method: 'GET', path: '/api/admin/gemini-usage', kind: 'admin', req: () => ({ url: '/api/admin/gemini-usage?days=7' }), happy: { status: 200, check: (res) => expect(res.body).toMatchObject({ rows: expect.any(Array), totals: expect.any(Object), pause: expect.any(Object) }) } },
   { method: 'GET', path: '/api/admin/vintages', kind: 'admin', req: () => ({ url: '/api/admin/vintages' }), happy: { status: 200 } },
   { method: 'PUT', path: '/api/admin/vintages', kind: 'admin', req: () => ({ url: '/api/admin/vintages', body: { region: 'Bordeaux', year: 1900, quality: 'EXCEPTIONNEL' } }) },
   { method: 'DELETE', path: '/api/admin/vintages/:region/:year', kind: 'admin', req: () => ({ url: '/api/admin/vintages/Bordeaux/1900' }) },

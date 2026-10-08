@@ -1,3 +1,4 @@
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { UnrecoverableError } from 'bullmq';
 import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError } from '../queue/vision-budget.service';
 import { PairingInvalidOutputError } from '../vision/pairing-output';
@@ -67,5 +68,17 @@ describe('PairingProcessor', () => {
       where: { wineId: 'w1' },
       data: { status: 'FAILED', errorMessage: 'Génération impossible : configuration Gemini à vérifier' },
     });
+  });
+});
+
+describe('PairingProcessor — pause commune de Gemini', () => {
+  const PAUSED = new GeminiPausedError(new Date('2026-10-08T12:05:00.000Z'), 'modèle saturé');
+const PAUSE_MESSAGE = `Gemini en pause jusqu'à 14:05 (modèle saturé)`;
+
+  it.each([false, true])('reste en attente avec le message de la pause et relaie la pause (dernier essai : %s), sans échec', async (isLast) => {
+    const h = harness({ suggest: jest.fn(async () => { throw PAUSED; }) });
+    await expect(h.processor.process('w1', isLast)).rejects.toBe(PAUSED);
+    expect(h.update).toHaveBeenCalledWith({ where: { wineId: 'w1' }, data: { status: 'PENDING', errorMessage: PAUSE_MESSAGE } });
+    expect(h.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }));
   });
 });

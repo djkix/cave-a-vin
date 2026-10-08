@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { UnrecoverableError } from 'bullmq';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
 import { EXIT_ATTEMPTS, EXTRACTION_ATTEMPTS } from './extraction.queue';
 import { deferralReason, isTransientVisionFailure } from './transient-failure';
@@ -51,6 +52,15 @@ export class ExtractionProcessor {
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      // Sortie pendant une pause commune de Gemini : aucun appel n'est parti.
+      // L'utilisateur est devant la bouteille : échec immédiat avec le message
+      // de la pause, l'écran propose aussitôt la recherche dans la cave. Jamais
+      // réessayé (les deux tentatives de sortie ne sont pas brûlées en vain).
+      if (e instanceof GeminiPausedError && photo.purpose === 'EXIT') {
+        this.logger.warn(`Extraction ${photoId} échouée : ${message}`);
+        await this.prisma.photo.update({ where: { id: photoId }, data: { status: 'FAILED', errorMessage: message } });
+        throw new UnrecoverableError(message);
+      }
       const transient = isTransientVisionFailure(e);
       this.logger.warn(`Extraction ${photoId} ${transient ? 'reportée' : 'échouée'} : ${message}`);
 

@@ -1,13 +1,19 @@
 import { GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
 import { EXTRACTION_JSON_SCHEMA_DESCRIPTION, parseExtraction } from './extraction-schema';
+import { GeminiJournal, GeminiUsage, classifyFailure } from './gemini-journal';
 import { parsePairingOutput, PairingInvalidOutputError } from './pairing-output';
 import { PairingProvider, PairingResult, PairingWine } from './pairing-provider.interface';
 import { parseProducerOutput, ProducerInvalidOutputError } from './producer-output';
 import { OfficialSiteProvider, OfficialSiteQuery, OfficialSiteResult } from './official-site-provider.interface';
 import { ProducerProvider, ProducerQuery, ProducerResult } from './producer-provider.interface';
-import { BatchVisionResult, VisionProvider, VisionResult, WineExtraction } from './vision-provider.interface';
+import { BatchVisionResult, LabelPurpose, VisionProvider, VisionResult, WineExtraction } from './vision-provider.interface';
 
-export class VisionInvalidOutputError extends Error {}
+export class VisionInvalidOutputError extends Error {
+  /** `costCents` : l'appel a abouti et il est facturé même si sa sortie est inexploitable. */
+  constructor(message: string, readonly costCents = 0) {
+    super(message);
+  }
+}
 
 /** Lot mélangé (JSON illisible, pas un tableau, longueur ≠ N, indice manquant/dupliqué/hors bornes) :
  * attrapée par le processeur de lot, qui relit alors photo par photo. */
@@ -152,43 +158,82 @@ function siteOf(text: string): string | null {
 type GroundedRequest = Parameters<GenerativeModel['generateContent']>[0] & { tools: Array<{ googleSearch: Record<string, never> }> };
 
 export class GeminiVisionProvider implements VisionProvider, PairingProvider, ProducerProvider, OfficialSiteProvider {
+  /**
+   * `journal` : point de passage unique de tous les appels (voir `call`). Sans
+   * journal (tests unitaires des consignes), les appels partent tels quels.
+   */
   constructor(
     private readonly model: Pick<GenerativeModel, 'generateContent'>,
     private readonly modelName: string,
+    private readonly journal?: GeminiJournal,
   ) {}
 
-  static fromApiKey(apiKey: string, modelName: string): GeminiVisionProvider {
+  static fromApiKey(apiKey: string, modelName: string, journal?: GeminiJournal): GeminiVisionProvider {
     const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({ model: modelName });
-    return new GeminiVisionProvider(model, modelName);
+    return new GeminiVisionProvider(model, modelName, journal);
   }
 
-  async extractWineLabel(image: Buffer, mimeType: string): Promise<VisionResult> {
+  /**
+   * Chaque méthode publique passe par ici : pendant une pause commune, aucun
+   * appel ne part (`GeminiPausedError`) et rien n'est noté ; sinon une ligne
+   * `gemini_call` par requête envoyée, réussie, refusée (429, 503 : la pause
+   * est posée) ou en erreur. Le journal ne lève jamais.
+   */
+  private async call<T extends { costCents: number }>(usage: GeminiUsage, run: () => Promise<T>): Promise<T> {
+    if (!this.journal) return run();
+    await this.journal.assertNotPaused();
+    const started = Date.now();
+    let result: T;
+    try {
+      result = await run();
+    } catch (e) {
+      await this.journal.record({ usage, ...classifyFailure(e), durationMs: Date.now() - started });
+      throw e;
+    }
+    await this.journal.record({ usage, outcome: 'OK', httpStatus: null, reason: null, costCents: result.costCents, durationMs: Date.now() - started });
+    return result;
+  }
+
+  /**
+   * Photo seule : `EXIT` pour une sortie (ExtractionProcessor), `ENTRY` pour une
+   * photo d'entrée relue seule par le lot (EntryBatchProcessor) ; sert à
+   * distinguer lecture d'entrée et de sortie dans le journal des appels.
+   */
+  extractWineLabel(image: Buffer, mimeType: string, purpose: LabelPurpose = 'EXIT'): Promise<VisionResult> {
+    return this.call(purpose === 'ENTRY' ? 'LECTURE_ENTREE' : 'LECTURE_SORTIE', () => this.readLabel(image, mimeType));
+  }
+
+  private async readLabel(image: Buffer, mimeType: string): Promise<VisionResult> {
     const started = Date.now();
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts: [{ text: PROMPT }, { inlineData: { data: image.toString('base64'), mimeType } }] }],
       generationConfig: { responseMimeType: 'application/json' },
     });
     const latencyMs = Date.now() - started;
+    const costCents = costCentsOf(result.response.usageMetadata);
     const text = stripFences(result.response.text());
 
     let raw: unknown;
     try {
       raw = JSON.parse(text);
     } catch {
-      throw new VisionInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
+      throw new VisionInvalidOutputError('Sortie du modèle invalide (JSON illisible)', costCents);
     }
     let extraction;
     try {
       extraction = parseExtraction(raw);
     } catch (e) {
-      throw new VisionInvalidOutputError(`Sortie du modèle invalide : ${(e as Error).message}`);
+      throw new VisionInvalidOutputError(`Sortie du modèle invalide : ${(e as Error).message}`, costCents);
     }
 
-    const costCents = costCentsOf(result.response.usageMetadata);
     return { extraction, raw, model: this.modelName, latencyMs, costCents };
   }
 
-  async extractWineLabels(images: Array<{ data: Buffer; mimeType: string }>): Promise<BatchVisionResult> {
+  extractWineLabels(images: Array<{ data: Buffer; mimeType: string }>): Promise<BatchVisionResult> {
+    return this.call('LECTURE_ENTREE', () => this.readLabels(images));
+  }
+
+  private async readLabels(images: Array<{ data: Buffer; mimeType: string }>): Promise<BatchVisionResult> {
     const n = images.length;
     const parts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [
       { text: batchPrompt(n) },
@@ -242,7 +287,11 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     return { items, model: this.modelName, latencyMs, costCents };
   }
 
-  async suggestPairings(wine: PairingWine): Promise<PairingResult> {
+  suggestPairings(wine: PairingWine): Promise<PairingResult> {
+    return this.call('ACCORDS', () => this.pairings(wine));
+  }
+
+  private async pairings(wine: PairingWine): Promise<PairingResult> {
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts: [{ text: pairingPrompt(wine) }] }],
       generationConfig: { responseMimeType: 'application/json' },
@@ -256,7 +305,11 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     return { dishes: parsePairingOutput(raw), model: this.modelName, costCents: pairingCostCentsOf(result.response.usageMetadata) };
   }
 
-  async describeProducer(query: ProducerQuery): Promise<ProducerResult> {
+  describeProducer(query: ProducerQuery): Promise<ProducerResult> {
+    return this.call('DESCRIPTIF', () => this.producer(query));
+  }
+
+  private async producer(query: ProducerQuery): Promise<ProducerResult> {
     const result = await this.model.generateContent({
       contents: [{ role: 'user', parts: [{ text: producerPrompt(query) }] }],
       generationConfig: { responseMimeType: 'application/json' },
@@ -284,7 +337,11 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
    * inexploitable vaut « pas de site » (l'appel reste facturé). `signal` : délai
    * global de la recherche d'image, l'appel est abandonné quand il est levé.
    */
-  async findOfficialSite(query: OfficialSiteQuery, signal?: AbortSignal): Promise<OfficialSiteResult> {
+  findOfficialSite(query: OfficialSiteQuery, signal?: AbortSignal): Promise<OfficialSiteResult> {
+    return this.call('RECHERCHE_IMAGE', () => this.officialSite(query, signal));
+  }
+
+  private async officialSite(query: OfficialSiteQuery, signal?: AbortSignal): Promise<OfficialSiteResult> {
     const request: GroundedRequest = {
       contents: [{ role: 'user', parts: [{ text: officialSitePrompt(query) }] }],
       tools: [{ googleSearch: {} }],

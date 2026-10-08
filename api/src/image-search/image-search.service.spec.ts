@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { CaveBudgetShareExceededError, VisionBudgetExceededError } from '../queue/vision-budget.service';
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { CandidateStore } from './candidates';
 import { ABORTED_CALL_COST_CENTS, ImageSearchService } from './image-search.service';
 import { OFF_SOURCE } from './open-food-facts';
@@ -151,6 +152,15 @@ describe('ImageSearchService.search', () => {
     const e = await service.search('c1', 'w1').catch((x) => x);
     expect(e).toBeInstanceOf(ServiceUnavailableException);
     expect(e.message).toBe('Recherche d’image impossible : quota Gemini épuisé');
+    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
+  it('Gemini en pause commune : 503 immédiat avec le message de la pause, sans dépense comptée', async () => {
+    const { service, prisma, provider } = setup({ providerError: new GeminiPausedError(new Date('2026-10-08T12:05:00.000Z'), 'quota épuisé') });
+    const e = await service.search('c1', 'w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe(`Gemini en pause jusqu'à 14:05 (quota épuisé)`);
+    expect(provider.findOfficialSite).toHaveBeenCalledTimes(1);
     expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
   });
 

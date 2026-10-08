@@ -27,3 +27,14 @@ export const updateBudgetSchema = z
     { invalid_type_error: INVALID_SHARE, required_error: INVALID_SHARE },
   )
   .refine((b) => b.caveShare !== undefined || b.invitedShare !== undefined, { message: INVALID_SHARE });
+
+const INVALID_DAYS = 'La période doit être un nombre de jours entre 1 et 90';
+
+/** `?days=` de la consommation Gemini : 1 à 90 jours, 7 si absent. */
+export const geminiUsageDaysSchema = z
+  .string()
+  .regex(/^\d+$/, { message: INVALID_DAYS })
+  .transform(Number)
+  .pipe(z.number().int().min(1, { message: INVALID_DAYS }).max(90, { message: INVALID_DAYS }))
+  .optional()
+  .transform((days) => days ?? 7);

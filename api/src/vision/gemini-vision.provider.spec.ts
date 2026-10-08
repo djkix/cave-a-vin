@@ -1,3 +1,5 @@
+import { GEMINI_PAUSE_REASON_KEY, GEMINI_PAUSE_UNTIL_KEY, GeminiJournal, GeminiPausedError } from './gemini-journal';
+import { fakeGeminiPrisma as fakePrisma } from '../test-utils/fake-gemini-prisma';
 import { GeminiVisionProvider, VisionBatchMismatchError } from './gemini-vision.provider';
 import { PairingInvalidOutputError } from './pairing-output';
 import { ProducerInvalidOutputError } from './producer-output';
@@ -392,5 +394,110 @@ describe('GeminiVisionProvider.findOfficialSite', () => {
   it('laisse remonter une panne de Gemini', async () => {
     const model = { generateContent: jest.fn(async () => { throw new Error('503 Service Unavailable'); }) };
     await expect(new GeminiVisionProvider(model as any, 'm').findOfficialSite(query)).rejects.toThrow('503');
+  });
+});
+
+describe('GeminiVisionProvider — journal des appels et pause commune', () => {
+  const NOW = new Date('2026-10-08T12:00:00.000Z');
+  const GEMINI_503 = new Error('[GoogleGenerativeAI Error]: Error fetching from https://…:generateContent: [503 Service Unavailable] busy');
+  const GEMINI_429 = new Error('[GoogleGenerativeAI Error]: Error fetching from https://…:generateContent: [429 Too Many Requests] quota');
+  const wine = { producer: 'Domaine Tempier', cuvee: null, appellation: 'Bandol', region: null, color: 'ROUGE', vintage: 2019 };
+  const failing = (e: Error) => ({ generateContent: jest.fn(async () => { throw e; }) });
+  const journalOf = (prisma = fakePrisma()) => ({ prisma, journal: new GeminiJournal(prisma, { warn: jest.fn(), error: jest.fn() }, () => NOW) });
+
+  it('note un appel réussi : usage, issue OK, coût et durée', async () => {
+    const { prisma, journal } = journalOf();
+    await new GeminiVisionProvider(fakeModel(validJson) as any, 'm', journal).extractWineLabel(Buffer.from('x'), 'image/jpeg');
+    expect(prisma.calls).toEqual([
+      { usage: 'LECTURE_SORTIE', outcome: 'OK', httpStatus: null, reason: null, costCents: 1, durationMs: expect.any(Number) },
+    ]);
+  });
+
+  it('distingue lecture d’entrée (photo seule ou lot), accords, descriptifs et recherche d’image', async () => {
+    const { prisma, journal } = journalOf();
+    await new GeminiVisionProvider(fakeModel(validJson) as any, 'm', journal).extractWineLabel(Buffer.from('x'), 'image/jpeg', 'ENTRY');
+    const arr = [{ image: 1, ...validObj() }, { image: 2, ...validObj() }];
+    await new GeminiVisionProvider(fakeModel(JSON.stringify(arr)) as any, 'm', journal).extractWineLabels([
+      { data: Buffer.from('a'), mimeType: 'image/jpeg' },
+      { data: Buffer.from('b'), mimeType: 'image/jpeg' },
+    ]);
+    await new GeminiVisionProvider(fakeModel('{"plats":["Agneau"]}') as any, 'm', journal).suggestPairings(wine);
+    await new GeminiVisionProvider(fakeModel('{"connu": false}') as any, 'm', journal).describeProducer({ producer: 'X', appellations: [], region: null });
+    await new GeminiVisionProvider(fakeModel('{"site": null}') as any, 'm', journal).findOfficialSite({ producer: 'X', cuvee: null, appellation: 'Bandol', vintage: null });
+    expect(prisma.calls.map((c: any) => c.usage)).toEqual(['LECTURE_ENTREE', 'LECTURE_ENTREE', 'ACCORDS', 'DESCRIPTIF', 'RECHERCHE_IMAGE']);
+  });
+
+  it('503 : noté REFUSE avec le statut, et met Gemini en pause 5 min (« modèle saturé »)', async () => {
+    const { prisma, journal } = journalOf();
+    await expect(new GeminiVisionProvider(failing(GEMINI_503) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(GEMINI_503);
+    expect(prisma.calls).toEqual([
+      { usage: 'ACCORDS', outcome: 'REFUSE', httpStatus: 503, reason: GEMINI_503.message, costCents: 0, durationMs: expect.any(Number) },
+    ]);
+    expect(prisma.settings.get(GEMINI_PAUSE_UNTIL_KEY)).toBe('2026-10-08T12:05:00.000Z');
+    expect(prisma.settings.get(GEMINI_PAUSE_REASON_KEY)).toBe('modèle saturé');
+  });
+
+  it('429 : noté REFUSE avec le statut, et met Gemini en pause 1 h (« quota épuisé »)', async () => {
+    const { prisma, journal } = journalOf();
+    await expect(new GeminiVisionProvider(failing(GEMINI_429) as any, 'm', journal).describeProducer({ producer: 'X', appellations: [], region: null })).rejects.toBe(GEMINI_429);
+    expect(prisma.calls[0]).toMatchObject({ usage: 'DESCRIPTIF', outcome: 'REFUSE', httpStatus: 429 });
+    expect(prisma.settings.get(GEMINI_PAUSE_UNTIL_KEY)).toBe('2026-10-08T13:00:00.000Z');
+    expect(prisma.settings.get(GEMINI_PAUSE_REASON_KEY)).toBe('quota épuisé');
+  });
+
+  it('un 503 après un 429 ne raccourcit pas la pause d’une heure', async () => {
+    const { prisma, journal } = journalOf();
+    prisma.settings.set(GEMINI_PAUSE_UNTIL_KEY, '2026-10-08T11:59:00.000Z'); // pause échue : l'appel part
+    await expect(new GeminiVisionProvider(failing(GEMINI_429) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(GEMINI_429);
+    await journal.extendPause(503, NOW);
+    expect(prisma.settings.get(GEMINI_PAUSE_UNTIL_KEY)).toBe('2026-10-08T13:00:00.000Z');
+  });
+
+  it('une autre panne est notée ERREUR, sans pause ; une sortie inexploitable aussi, avec son coût', async () => {
+    const { prisma, journal } = journalOf();
+    const boom = new Error('[500 Internal Server Error] boom');
+    await expect(new GeminiVisionProvider(failing(boom) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(boom);
+    await expect(new GeminiVisionProvider(fakeModel('pas du json') as any, 'm', journal).extractWineLabel(Buffer.from('x'), 'image/jpeg')).rejects.toThrow(/sortie du modèle invalide/i);
+    await expect(
+      new GeminiVisionProvider(fakeModel('pas du json', { promptTokenCount: 200000, candidatesTokenCount: 50000 }) as any, 'm', journal).extractWineLabels([
+        { data: Buffer.from('a'), mimeType: 'image/jpeg' },
+        { data: Buffer.from('b'), mimeType: 'image/jpeg' },
+      ]),
+    ).rejects.toThrow(VisionBatchMismatchError);
+    expect(prisma.calls.map((c: any) => [c.outcome, c.httpStatus, c.costCents])).toEqual([
+      ['ERREUR', 500, 0],
+      ['ERREUR', null, 1],
+      ['ERREUR', null, 4],
+    ]);
+    expect(prisma.settings.has(GEMINI_PAUSE_UNTIL_KEY)).toBe(false);
+  });
+
+  it('pendant une pause, aucun appel n’est envoyé à Google et rien n’est noté', async () => {
+    const { prisma, journal } = journalOf();
+    prisma.settings.set(GEMINI_PAUSE_UNTIL_KEY, '2026-10-08T12:05:00.000Z');
+    prisma.settings.set(GEMINI_PAUSE_REASON_KEY, 'modèle saturé');
+    const model = fakeModel(validJson);
+    const provider = new GeminiVisionProvider(model as any, 'm', journal);
+    for (const call of [
+      () => provider.extractWineLabel(Buffer.from('x'), 'image/jpeg'),
+      () => provider.extractWineLabels([{ data: Buffer.from('a'), mimeType: 'image/jpeg' }]),
+      () => provider.suggestPairings(wine),
+      () => provider.describeProducer({ producer: 'X', appellations: [], region: null }),
+      () => provider.findOfficialSite({ producer: 'X', cuvee: null, appellation: 'Bandol', vintage: null }),
+    ]) {
+      const e = await call().catch((x) => x);
+      expect(e).toBeInstanceOf(GeminiPausedError);
+      expect(e.message).toBe(`Gemini en pause jusqu'à 14:05 (modèle saturé)`);
+    }
+    expect(model.generateContent).not.toHaveBeenCalled();
+    expect(prisma.calls).toEqual([]);
+  });
+
+  it('une écriture du journal en échec ne casse pas l’appel', async () => {
+    const { prisma, journal } = journalOf();
+    prisma.geminiCall.create.mockRejectedValue(new Error('base injoignable'));
+    const r = await new GeminiVisionProvider(fakeModel('{"plats":["Agneau"]}') as any, 'm', journal).suggestPairings(wine);
+    expect(r.dishes).toEqual(['Agneau']);
+    await expect(new GeminiVisionProvider(failing(GEMINI_503) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(GEMINI_503);
   });
 });

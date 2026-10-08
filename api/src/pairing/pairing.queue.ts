@@ -1,6 +1,8 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
-import { EXTRACTION_ATTEMPTS, EXTRACTION_BACKOFF, redisConnection } from '../queue/extraction.queue';
+import { EXTRACTION_ATTEMPTS, EXTRACTION_BACKOFF, extractionBackoffDelay, redisConnection } from '../queue/extraction.queue';
+import { statusFromMessage } from '../queue/transient-failure';
+import { PAUSE_AFTER_REFUSAL } from '../vision/gemini-pause';
 
 export const PAIRING_QUEUE = 'wine-pairing';
 export const PAIRING_QUEUE_TOKEN = 'PAIRING_QUEUE';
@@ -18,6 +20,18 @@ export type WinePairingJobData = PairingJobData | ProducerJobData;
 
 /** Un identifiant par vin : jamais deux générations du même vin dans la file. */
 export const pairingJobId = (wineId: string) => `pairing-${wineId}`;
+
+/**
+ * Reprise des accords et descriptifs : celle des photos, sauf après un refus de
+ * Google (503 saturé, 429 quota) où elle attend au moins la pause commune
+ * (5 min, 1 h) au lieu de repartir au bout de 30 s pour tomber sur la pause.
+ */
+export function pairingBackoffDelay(attemptsMade: number, err?: Error): number {
+  const base = extractionBackoffDelay(attemptsMade);
+  const status = err ? statusFromMessage(err.message) : null;
+  const pause = status === null ? undefined : PAUSE_AFTER_REFUSAL[status];
+  return pause ? Math.max(base, pause.ms) : base;
+}
 
 /** Même patience que les photos : une panne de Gemini ne perd jamais un vin. */
 export function createPairingQueue(): Queue<WinePairingJobData> {

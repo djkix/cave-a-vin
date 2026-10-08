@@ -1,3 +1,4 @@
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { Prisma } from '@prisma/client';
 import { UnrecoverableError } from 'bullmq';
 import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError } from '../queue/vision-budget.service';
@@ -112,5 +113,17 @@ describe('ProducerProcessor', () => {
     const h = harness({ describe: jest.fn(async () => { throw new Error('[GoogleGenerativeAI Error]: [400 Bad Request] API key not valid'); }) });
     await expect(h.processor.process(KEY, false)).rejects.toBeInstanceOf(UnrecoverableError);
     expect(h.updateMany).toHaveBeenCalledWith({ ...onGemini, data: { status: 'FAILED', errorMessage: 'Génération impossible : configuration Gemini à vérifier' } });
+  });
+});
+
+describe('ProducerProcessor — pause commune de Gemini', () => {
+  const PAUSED = new GeminiPausedError(new Date('2026-10-08T12:05:00.000Z'), 'modèle saturé');
+const PAUSE_MESSAGE = `Gemini en pause jusqu'à 14:05 (modèle saturé)`;
+
+  it.each([false, true])('reste en attente avec le message de la pause et relaie la pause (dernier essai : %s), sans échec', async (isLast) => {
+    const h = harness({ describe: jest.fn(async () => { throw PAUSED; }) });
+    await expect(h.processor.process(KEY, isLast)).rejects.toBe(PAUSED);
+    expect(h.updateMany).toHaveBeenCalledWith({ ...onGemini, data: { status: 'PENDING', errorMessage: PAUSE_MESSAGE } });
+    expect(h.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }));
   });
 });

@@ -1,3 +1,4 @@
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { UnrecoverableError } from 'bullmq';
 import { VisionInvalidOutputError } from '../vision/gemini-vision.provider';
 import { ExtractionProcessor } from './extraction.processor';
@@ -118,5 +119,19 @@ describe('ExtractionProcessor.process', () => {
       await expect(h.processor.process('p1', false)).rejects.toBeInstanceOf(UnrecoverableError);
       expect(h.photo.status).toBe('FAILED');
     });
+  });
+});
+
+describe('ExtractionProcessor.process — pause commune de Gemini', () => {
+  const paused = new GeminiPausedError(new Date('2026-10-08T12:05:00.000Z'), 'quota épuisé');
+
+  it('sortie : échec immédiat avec le message de la pause, sans réessai (la recherche manuelle s’affiche tout de suite)', async () => {
+    const h = harness({ visionError: paused });
+    h.photo.purpose = 'EXIT';
+    // Premier essai sur deux : la pause ne consomme pas le second.
+    await expect(h.processor.process('p1', false)).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(h.photo.status).toBe('FAILED');
+    expect(h.photo.errorMessage).toBe(`Gemini en pause jusqu'à 14:05 (quota épuisé)`);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(1);
   });
 });

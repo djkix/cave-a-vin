@@ -58,7 +58,7 @@ describeIfDb('analyse par lot — réservation (base réelle)', () => {
       if (overShare.has(id)) throw new CaveBudgetShareExceededError();
     },
   };
-  const processor = new EntryBatchProcessor(prisma as never, photos as never, vision as never, budget as never);
+  const processor = new EntryBatchProcessor(prisma as never, photos as never, vision as never, budget as never, { currentPause: async () => null } as never);
 
   async function photo(data: {
     createdAt: Date;
