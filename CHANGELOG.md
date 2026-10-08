@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.4.1](https://github.com/djkix/cave-a-vin/compare/v2.4.0...v2.4.1) (2026-10-08)
+
+
+### Corrections
+
+* **image:** chaque recherche d'image journalisée, coupure du proxy signalée ([4c68588](https://github.com/djkix/cave-a-vin/commit/4c6858881dc1c035966ce746fbae6375df790f9a))
+
 ## [2.4.0](https://github.com/djkix/cave-a-vin/compare/v2.3.0...v2.4.0) (2026-10-08)
 
 ### Résumé
