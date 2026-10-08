@@ -69,18 +69,23 @@ Chaque zone a :
   casse (« Une zone porte déjà ce nom ») ;
 - une **indication** facultative, 300 caractères au plus (« à gauche en
   entrant, au fond derrière l'escalier ») ;
-- une **photo** facultative, prise au téléphone (réduite à 1600 px, en JPEG ;
-  *Retirer la photo* l'enlève).
+- une **photo** facultative, prise au téléphone (15 Mo au plus, réduite à
+  1600 px, en JPEG ; *Retirer la photo* l'enlève).
 
 Renommer une zone change son nom partout : fiche, journal, filtre de la cave,
 « À boire prochainement » et export. Supprimer une zone est
 refusé tant que des bouteilles y sont rangées (« Des bouteilles sont encore
 rangées dans cette zone ») ; une zone qui a servi dans l'historique est
 **archivée** : elle disparaît de la liste et du choix de la zone, et
-l'historique garde son libellé ; une zone jamais utilisée est supprimée. Un
+l'historique garde son libellé ; une zone jamais utilisée est supprimée
+(*Ma cave* affiche « Zone supprimée » ou « Zone archivée (elle reste dans
+l'historique) »). Si des bouteilles reviennent ensuite dans une zone archivée
+(annulation d'une sortie, inventaire en hausse à cet emplacement), la zone est
+rétablie en fin de liste ; si son nom a été repris par une autre zone, c'est
+refusé : « Cette zone a été supprimée ; rangez ces bouteilles ailleurs ». Un
 membre en lecture seule voit les zones, leurs indications et leurs photos,
 sans pouvoir les changer. API : `GET`, `POST /api/caves/current/zones`,
-`PATCH`, `DELETE /api/caves/current/zones/:id`, `POST
+`PATCH`, `DELETE /api/caves/current/zones/:id` (réponse `{ archived }`), `POST
 /api/caves/current/zones/order` (`{ ids }` : nouvel ordre), `PUT`, `DELETE
 /api/caves/current/zones/:id/photo` et `GET /api/caves/zones/:id/photo`
 (toute cave du compte).
@@ -770,10 +775,29 @@ sont **converties automatiquement** : une zone par cave et par nom distinct
 (espaces autour et casse ignorés : « Cave 1 » et « cave 1 » deviennent une
 seule zone, sous l'une des graphies saisies), rangées par nom ; chaque
 bouteille garde le même emplacement et le même stock. Les indications et les
-photos se renseignent ensuite dans *Ma cave*. La migration supprime l'ancien
-texte de zone des emplacements (le nom vient désormais de la zone) : **retour
-arrière** seulement en restaurant cette sauvegarde (procédure du retour arrière
-de la 2.0.0).
+photos se renseignent ensuite dans *Ma cave*.
+
+**Retour arrière** : seulement en restaurant cette sauvegarde (procédure du
+retour arrière de la 2.0.0), ce qui **perd tout ce qui a été saisi depuis la
+mise à jour** (entrées, sorties, déplacements, zones, notes, cotes). Une image
+2.5.x **ne peut pas tourner sur la base migrée** : la migration supprime la
+colonne `location.zone` (le nom vient désormais de la zone) que la 2.5.x lit.
+
+**Si la migration échoue** (par exemple « l'emplacement … n'a ni zone, ni
+casier, ni position »), elle est annulée en entier : la base reste au format
+2.5.x. Mais `_prisma_migrations` garde une ligne en échec et l'api refuse de
+démarrer tant qu'elle y est. Après avoir corrigé les données (ou en revenant à
+l'image 2.5.x, qui fonctionne sur la base inchangée), marquer la migration
+comme annulée, puis redémarrer :
+
+```bash
+cd /opt/stacks/cave-a-vin
+docker compose run --rm api npx prisma migrate resolve --rolled-back 20261015000000_zones
+docker compose up -d
+```
+
+(`run` et non `exec` : le conteneur de l'api, qui applique les migrations au
+démarrage, s'arrête tant que la migration échoue.)
 
 ### Passage à la 2.2.0 (emplacements et cote)
 
@@ -915,8 +939,15 @@ Tests : `cd api && npm test` (les suites qui touchent la base s'activent quand
 
 Les index uniques partiels (`idx_movement_reverses_id`,
 `idx_movement_photo_in`, `idx_movement_photo_out`, `idx_guard_override_all_colors`,
-`idx_guard_override_color`) et la fonction de déclencheur
-`check_stock_non_negative` ne sont pas exprimables dans le schéma Prisma :
+`idx_guard_override_color`, `cave_member_one_owner_idx`,
+`cave_zone_cave_id_name_key` sur `(cave_id, lower(name))` des zones non
+archivées), l'index unique sur expressions `location_place_key` (cave, zone,
+casier et position en minuscules), les contraintes CHECK
+(`location_not_empty_check`, `cave_zone_name_length_check`,
+`cave_zone_indication_length_check`, `price_quote_cote_cents_check`,
+`price_quote_n_transactions_check`, celles de `gemini_call`) et la fonction de
+déclencheur `check_stock_non_negative` ne sont pas exprimables dans le schéma
+Prisma :
 créer les futures migrations avec `npx prisma migrate dev --create-only` et
 conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 

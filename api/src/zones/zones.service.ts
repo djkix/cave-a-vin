@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CaveZone, Prisma } from '@prisma/client';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CaveContextService } from '../caves/cave-context.service';
 import { ImageNormalizationService } from '../photos/image-normalization.service';
@@ -106,12 +107,11 @@ export class ZonesService {
    * libellé) ; sinon supprimée, avec ses emplacements jamais utilisés et sa
    * photo. Sous verrou de la zone : une entrée simultanée dans cette zone
    * (LocationsService.resolve la lit FOR SHARE) passe avant ou après, jamais entre.
+   * `archived` dit ce qui s'est passé.
    */
-  async remove(caveId: string, id: string): Promise<void> {
+  async remove(caveId: string, id: string): Promise<{ archived: boolean }> {
     const deleted = await this.prisma.$transaction(async (tx) => {
-      const [zone] = await tx.$queryRaw<{ photoPath: string | null }[]>`
-        SELECT photo_path AS "photoPath" FROM cave_zone WHERE id = ${id} AND cave_id = ${caveId} AND archived_at IS NULL FOR UPDATE`;
-      if (!zone) throw new NotFoundException(ZONE_NOT_FOUND);
+      const zone = await this.lockOwn(tx, caveId, id);
       const [{ stocked, used }] = await tx.$queryRaw<{ stocked: boolean; used: boolean }[]>`
         SELECT
           EXISTS (
@@ -124,16 +124,31 @@ export class ZonesService {
       if (stocked) throw new ConflictException(ZONE_STOCKED);
       if (used) {
         await tx.caveZone.update({ where: { id }, data: { archivedAt: new Date() } });
-        return null;
+        return { archived: true, photoPath: null };
       }
       await tx.location.deleteMany({ where: { zoneId: id } });
       await tx.caveZone.delete({ where: { id } });
-      return zone;
+      return { archived: false, photoPath: zone.photoPath };
     });
-    if (deleted?.photoPath) await unlinkIgnoringMissing(join(this.dir, deleted.photoPath));
+    if (deleted.photoPath) await unlinkIgnoringMissing(join(this.dir, deleted.photoPath));
+    return { archived: deleted.archived };
   }
 
-  /** Photo de la zone (remplace la précédente) : normalisée comme les photos d'étiquette, 1600 px au plus, JPEG. */
+  /** Zone non archivée de la cave, verrouillée (FOR UPDATE) jusqu'à la fin de la transaction ; sinon 404. */
+  private async lockOwn(tx: Prisma.TransactionClient, caveId: string, id: string): Promise<{ photoPath: string | null }> {
+    const [zone] = await tx.$queryRaw<{ photoPath: string | null }[]>`
+      SELECT photo_path AS "photoPath" FROM cave_zone WHERE id = ${id} AND cave_id = ${caveId} AND archived_at IS NULL FOR UPDATE`;
+    if (!zone) throw new NotFoundException(ZONE_NOT_FOUND);
+    return zone;
+  }
+
+  /**
+   * Photo de la zone (remplace la précédente) : normalisée comme les photos
+   * d'étiquette, 1600 px au plus, JPEG. Écrite dans un fichier temporaire, puis
+   * mise en place (rename, atomique) et enregistrée sous verrou de la zone : une
+   * suppression simultanée passe avant (404, fichier temporaire effacé) ou après
+   * (elle voit la photo et l'efface), jamais de fichier orphelin ni à moitié écrit.
+   */
   async setPhoto(caveId: string, id: string, input: Buffer): Promise<ZoneView> {
     await this.findOwn(caveId, id);
     let buffer: Buffer;
@@ -143,17 +158,29 @@ export class ZonesService {
       throw new BadRequestException('Image illisible ou format non pris en charge');
     }
     const path = zonePhotoPath(id);
+    const tmp = join(this.dir, 'zones', `${id}.${randomUUID()}.tmp`);
     await mkdir(join(this.dir, 'zones'), { recursive: true });
-    await writeFile(join(this.dir, path), buffer);
-    await this.prisma.caveZone.updateMany({ where: { id, caveId }, data: { photoPath: path } });
+    await writeFile(tmp, buffer);
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.lockOwn(tx, caveId, id);
+        await rename(tmp, join(this.dir, path));
+        await tx.caveZone.update({ where: { id }, data: { photoPath: path } });
+      });
+    } finally {
+      await unlinkIgnoringMissing(tmp);
+    }
     return zoneView(await this.findOwn(caveId, id));
   }
 
+  /** Retire la photo, sous verrou de la zone : un envoi simultané passe entièrement avant ou après. */
   async removePhoto(caveId: string, id: string): Promise<ZoneView> {
-    const zone = await this.findOwn(caveId, id);
-    await this.prisma.caveZone.updateMany({ where: { id, caveId }, data: { photoPath: null } });
-    if (zone.photoPath) await unlinkIgnoringMissing(join(this.dir, zone.photoPath));
-    return { ...zoneView(zone), hasPhoto: false };
+    await this.prisma.$transaction(async (tx) => {
+      const zone = await this.lockOwn(tx, caveId, id);
+      await tx.caveZone.update({ where: { id }, data: { photoPath: null } });
+      if (zone.photoPath) await unlinkIgnoringMissing(join(this.dir, zone.photoPath));
+    });
+    return zoneView(await this.findOwn(caveId, id));
   }
 
   /**

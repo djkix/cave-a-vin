@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Location, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { ZONE_NOT_FOUND } from '../zones/zone';
+import { ZONE_ARCHIVED_TAKEN, ZONE_NOT_FOUND } from '../zones/zone';
 import {
   LocatedParts, LOCATION_NOT_FOUND, LocationInput, labelOf, normalizeLocation, NOT_ENOUGH_AT_LOCATION, Place, placesOf,
 } from './location';
@@ -71,6 +71,35 @@ export class LocationsService {
       DO UPDATE SET cave_id = EXCLUDED.cave_id
       RETURNING id, cave_id AS "caveId", zone_id AS "zoneId", casier, position, created_at AS "createdAt"`;
     return row;
+  }
+
+  /**
+   * Avant d'ajouter des bouteilles à un emplacement existant (annulation d'une
+   * sortie, hausse d'inventaire par `locationId`) : sa zone est verrouillée
+   * (FOR UPDATE, dans la transaction de l'écriture), ce qui sérialise l'écriture
+   * avec une suppression de zone (ZonesService.remove). Une zone archivée entre-
+   * temps est rétablie en fin de liste si aucune zone active de la cave ne porte
+   * son nom ; sinon 409 : les bouteilles ne reviennent jamais dans une zone archivée.
+   */
+  async reopenZoneOf(caveId: string, locationId: string | null, db: Db): Promise<void> {
+    if (!locationId) return;
+    const [zone] = await db.$queryRaw<{ id: string; name: string; archived: boolean }[]>`
+      SELECT z.id, z.name, z.archived_at IS NOT NULL AS archived
+      FROM location l JOIN cave_zone z ON z.id = l.zone_id
+      WHERE l.id = ${locationId} AND l.cave_id = ${caveId}
+      FOR UPDATE OF z`;
+    if (!zone?.archived) return;
+    const taken = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM cave_zone WHERE cave_id = ${caveId} AND archived_at IS NULL AND lower(name) = lower(${zone.name}) LIMIT 1`;
+    if (taken.length > 0) throw new ConflictException(ZONE_ARCHIVED_TAKEN);
+    const last = await db.caveZone.aggregate({ where: { caveId, archivedAt: null }, _max: { sortOrder: true } });
+    try {
+      await db.caveZone.update({ where: { id: zone.id }, data: { archivedAt: null, sortOrder: (last._max.sortOrder ?? -1) + 1 } });
+    } catch (e) {
+      // Une zone du même nom créée à l'instant (index cave_zone_cave_id_name_key).
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException(ZONE_ARCHIVED_TAKEN);
+      throw e;
+    }
   }
 
   /** Zone non archivée de la cave, sinon 404 « Zone introuvable » : vérifiée avant de créer le moindre vin. */

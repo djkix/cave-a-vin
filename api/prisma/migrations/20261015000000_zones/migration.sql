@@ -7,6 +7,20 @@
 -- Sauvegarder la base avant d'appliquer cette migration : elle supprime les
 -- colonnes location.zone et location.label_key une fois les zones reprises.
 
+-- 0. Contrôle préalable : un emplacement sans zone, casier ni position (champs
+-- vides ou faits d'espaces) ne pourrait pas être repris. La migration s'arrête
+-- alors en le nommant, avant toute modification (elle est annulée en entier).
+DO $$
+DECLARE bad TEXT;
+BEGIN
+  SELECT "id" INTO bad FROM "location"
+  WHERE btrim(coalesce("zone", '')) = '' AND btrim(coalesce("casier", '')) = '' AND btrim(coalesce("position", '')) = ''
+  ORDER BY "id" LIMIT 1;
+  IF bad IS NOT NULL THEN
+    RAISE EXCEPTION 'Migration zones : l''emplacement % n''a ni zone, ni casier, ni position ; le corriger (ou le supprimer s''il ne sert à aucun mouvement) avant de relancer', bad;
+  END IF;
+END $$;
+
 -- 1. Zones, propres à chaque cave. Nom unique par cave sans tenir compte de la
 -- casse, parmi les zones non archivées : une zone archivée (elle a servi dans
 -- l'historique) libère son nom. L'index commence par cave_id et sert aussi de

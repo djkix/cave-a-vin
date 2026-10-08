@@ -8,7 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import supertest from 'supertest';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { createTestCave, deleteTestCaves } from '../test-utils/cave';
+import { CurrentCaveZonesController } from './zones.controller';
 
 // Zones de la cave, en HTTP contre le vrai AppModule : deux caves A et B, un
 // propriétaire de A, un membre (VIEWER) de A, un propriétaire de B, et un compte
@@ -291,7 +293,7 @@ describeIfInfra('zones de la cave (HTTP)', () => {
       expectStatus(await viewerA.delete(`/api/caves/current/zones/${z.id}`), 403, 'Lecture seule');
 
       expect((await ownerA.post('/api/movements/out').send({ idempotencyKey: randomUUID(), wineId, quantity: 1, locationId: place.id })).status).toBe(201);
-      expect((await ownerA.delete(`/api/caves/current/zones/${z.id}`)).status).toBe(204);
+      expect((await ownerA.delete(`/api/caves/current/zones/${z.id}`)).body).toEqual({ archived: true });
 
       expect(await prisma.caveZone.findUnique({ where: { id: z.id } })).toMatchObject({ archivedAt: expect.any(Date) });
       expect((await zones()).some((x) => x.id === z.id)).toBe(false);
@@ -307,18 +309,81 @@ describeIfInfra('zones de la cave (HTTP)', () => {
       expect(reused.body.id).not.toBe(z.id);
     });
 
+    /** Zone `name` archivée : une bouteille entrée puis sortie (rien n'y reste), puis « Supprimer ». */
+    async function archivedWithExit(name: string) {
+      const z = await newZone(name);
+      const wineId = (await entry({ zoneId: z.id }, 1)).body.wine.id;
+      const [place] = (await wine(wineId)).body.locations;
+      const exit = await ownerA.post('/api/movements/out').send({ idempotencyKey: randomUUID(), wineId, quantity: 1, locationId: place.id });
+      expect(exit.status).toBe(201);
+      expect((await ownerA.delete(`/api/caves/current/zones/${z.id}`)).body).toEqual({ archived: true });
+      return { z, wineId, place, exitId: exit.body.movement.id as string };
+    }
+
+    it('annuler une sortie d’une zone archivée la rétablit, en fin de liste, avec la bouteille', async () => {
+      const { z, wineId, place, exitId } = await archivedWithExit(`Rétablie ${run}`);
+      const cancel = await ownerA.post(`/api/movements/${exitId}/cancel`).send({ idempotencyKey: randomUUID() });
+      expect(cancel.status).toBe(201);
+      const listed = await zones();
+      expect(listed[listed.length - 1]).toMatchObject({ id: z.id, name: `Rétablie ${run}` });
+      expect((await wine(wineId)).body.locations).toEqual([expect.objectContaining({ id: place.id, quantity: 1, zoneId: z.id })]);
+    });
+
+    it('hausse d’inventaire vers un emplacement d’une zone archivée : la zone est rétablie', async () => {
+      const { z, wineId, place } = await archivedWithExit(`Inventaire ${run}`);
+      const counted = await ownerA.post(`/api/wines/${wineId}/inventory`).send({ idempotencyKey: randomUUID(), counted: 2, locationId: place.id });
+      expect(counted.status).toBe(201);
+      expect((await zones()).some((x) => x.id === z.id)).toBe(true);
+    });
+
+    it('zone archivée dont le nom a été repris : 409, rien n’est écrit, elle reste archivée', async () => {
+      const { z, wineId, place, exitId } = await archivedWithExit(`Reprise ${run}`);
+      await newZone(`REPRISE ${run}`);
+      const refused = 'Cette zone a été supprimée ; rangez ces bouteilles ailleurs';
+      const count = await prisma.movement.count({ where: { wineId } });
+      expectStatus(await ownerA.post(`/api/movements/${exitId}/cancel`).send({ idempotencyKey: randomUUID() }), 409, refused);
+      expectStatus(await ownerA.post(`/api/wines/${wineId}/inventory`).send({ idempotencyKey: randomUUID(), counted: 1, locationId: place.id }), 409, refused);
+      expect(await prisma.movement.count({ where: { wineId } })).toBe(count);
+      expect((await prisma.caveZone.findUniqueOrThrow({ where: { id: z.id } })).archivedAt).not.toBeNull();
+      // Un déplacement ne vise qu'une zone active.
+      expectStatus(await ownerA.post(`/api/wines/${wineId}/move`).send({ from: null, to: { zoneId: z.id }, quantity: 1 }), 404, 'Zone introuvable');
+    });
+
+    it('annulation et suppression simultanées : jamais de bouteille dans une zone archivée', async () => {
+      for (let i = 0; i < 5; i++) {
+        const z = await newZone(`Course ${run} ${i}`);
+        const wineId = (await entry({ zoneId: z.id }, 1)).body.wine.id;
+        const [place] = (await wine(wineId)).body.locations;
+        const exit = (await ownerA.post('/api/movements/out').send({ idempotencyKey: randomUUID(), wineId, quantity: 1, locationId: place.id })).body.movement.id;
+        const [cancel, del] = await Promise.all([
+          ownerA.post(`/api/movements/${exit}/cancel`).send({ idempotencyKey: randomUUID() }),
+          ownerA.delete(`/api/caves/current/zones/${z.id}`),
+        ]);
+        expect(cancel.status).toBe(201);
+        expect([200, 409]).toContain(del.status);
+        const zone = await prisma.caveZone.findUniqueOrThrow({ where: { id: z.id } });
+        const stock = (await wine(wineId)).body.locations.find((p: { id: string }) => p.id === place.id)?.quantity ?? 0;
+        expect({ archived: zone.archivedAt != null, stock }).toEqual({ archived: false, stock: 1 });
+      }
+    });
+
     it('jamais utilisée : supprimée de la base, avec sa photo', async () => {
       const z = await newZone(`Jamais ${run}`);
       const png = await sharp({ create: { width: 40, height: 40, channels: 3, background: '#123456' } }).png().toBuffer();
       expect((await ownerA.put(`/api/caves/current/zones/${z.id}/photo`).attach('file', png, { filename: 'z.png', contentType: 'image/png' })).status).toBe(200);
       expect(existsSync(join(storage, 'zones', `${z.id}.jpg`))).toBe(true);
-      expect((await ownerA.delete(`/api/caves/current/zones/${z.id}`)).status).toBe(204);
+      expect((await ownerA.delete(`/api/caves/current/zones/${z.id}`)).body).toEqual({ archived: false });
       expect(await prisma.caveZone.findUnique({ where: { id: z.id } })).toBeNull();
       expect(existsSync(join(storage, 'zones', `${z.id}.jpg`))).toBe(false);
     });
   });
 
   describe('photo', () => {
+    it('l’envoi est limité comme celui d’une photo d’étiquette (ThrottlerGuard)', () => {
+      const guards: unknown[] = Reflect.getMetadata('__guards__', CurrentCaveZonesController.prototype.setPhoto) ?? [];
+      expect(guards).toContain(ThrottlerGuard);
+    });
+
     it('le propriétaire la pose (JPEG de 1600 px au plus), le membre la lit, même hors de sa cave courante ; 404 pour un étranger', async () => {
       const z = await newZone(`Photo ${run}`);
       const big = await sharp({ create: { width: 2400, height: 1200, channels: 3, background: '#a0b0c0' } }).png().toBuffer();
@@ -345,6 +410,10 @@ describeIfInfra('zones de la cave (HTTP)', () => {
       expectStatus(await ownerA.put(`/api/caves/current/zones/${z.id}/photo`).attach('file', Buffer.from('pas une image'), { filename: 'z.jpg', contentType: 'image/jpeg' }), 400, 'Image illisible ou format non pris en charge');
       expectStatus(await ownerA.put(`/api/caves/current/zones/${z.id}/photo`).attach('file', Buffer.from('x'), { filename: 'z.gif', contentType: 'image/gif' }), 400, 'Format d’image non pris en charge');
       expectStatus(await ownerA.put(`/api/caves/current/zones/${z.id}/photo`), 400, 'Fichier « file » manquant');
+
+      // Au-delà de 15 Mo : 413 en français.
+      const huge = Buffer.alloc(15 * 1024 * 1024 + 1);
+      expectStatus(await ownerA.put(`/api/caves/current/zones/${z.id}/photo`).attach('file', huge, { filename: 'z.jpg', contentType: 'image/jpeg' }), 413, 'Photo trop lourde (15 Mo au plus)');
 
       const removed = await ownerA.delete(`/api/caves/current/zones/${z.id}/photo`);
       expect(removed.status).toBe(200);

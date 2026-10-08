@@ -226,6 +226,8 @@ export class MovementsService {
     try {
       const movement = await this.prisma.$transaction(async (tx) => {
         await lockWine(tx, caveId, original.wineId);
+        // Les bouteilles qui reviennent à un emplacement : sa zone ne doit pas être archivée.
+        for (const half of halves) if (half.delta < 0) await this.locations.reopenZoneOf(caveId, half.locationId, tx);
         const reversals = [];
         // La moitié qui rend des bouteilles d'abord (annulation du −N) : le total du vin ne passe
         // jamais sous zéro en cours de route, et un manque est signalé par emplacement (409) plutôt
@@ -417,6 +419,8 @@ export class MovementsService {
       const locationId =
         input.location ? (await this.locations.resolve(caveId, input.location, tx)).id
           : input.locationId !== undefined ? input.locationId : delta > 0 ? null : await this.legacyExitPlace(caveId, wineId, -delta, tx);
+      // Une hausse vers un emplacement existant : sa zone ne doit pas être archivée.
+      if (delta > 0 && !input.location) await this.locations.reopenZoneOf(caveId, locationId, tx);
       const movement = await tx.movement.create({
         data: { wineId, delta, type: 'ADJUST', note: `Inventaire : ${input.counted} comptées`, idempotencyKey: input.idempotencyKey, locationId },
       });

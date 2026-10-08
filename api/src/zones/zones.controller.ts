@@ -1,7 +1,9 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Res, UploadedFile, UseGuards, UseInterceptors,
+  ArgumentsHost, BadRequestException, Body, Catch, Controller, Delete, ExceptionFilter, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch,
+  PayloadTooLargeException, Post, Put, Res, UploadedFile, UseFilters, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AppUser } from '@prisma/client';
 import { Response } from 'express';
 import { ZodSchema } from 'zod';
@@ -10,7 +12,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { CaveRole, CurrentCave } from '../caves/cave-access.decorators';
 import { CaveAccessGuard } from '../caves/cave-access.guard';
 import type { CaveAccess } from '../caves/cave-context.service';
-import { createZoneSchema, updateZoneSchema, ZONE_NOT_FOUND, zoneOrderSchema } from './zone';
+import { createZoneSchema, PHOTO_TOO_LARGE, updateZoneSchema, ZONE_NOT_FOUND, zoneOrderSchema } from './zone';
 import { ZonesService } from './zones.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -20,6 +22,14 @@ function parse<T>(schema: ZodSchema<T>, body: unknown): T {
   const parsed = schema.safeParse(body ?? {});
   if (!parsed.success) throw new BadRequestException(parsed.error.issues[0].message);
   return parsed.data;
+}
+
+/** Fichier au-delà de la limite de multer (413 « File too large ») : message en français. */
+@Catch(PayloadTooLargeException)
+class PhotoTooLargeFilter implements ExceptionFilter {
+  catch(_e: PayloadTooLargeException, host: ArgumentsHost) {
+    host.switchToHttp().getResponse<Response>().status(413).json({ statusCode: 413, message: PHOTO_TOO_LARGE, error: 'Payload Too Large' });
+  }
 }
 
 /** Une zone se désigne par un UUID : tout autre identifiant est « introuvable », comme une zone d'une autre cave. */
@@ -60,15 +70,20 @@ export class CurrentCaveZonesController {
     return this.zones.update(cave.caveId, id, parse(updateZoneSchema, body));
   }
 
+  /** 200 `{ archived }` : true si la zone a servi (archivée), false si elle a été supprimée. */
   @Delete(':id')
   @CaveRole('OWNER')
-  @HttpCode(204)
-  async remove(@CurrentCave() cave: CaveAccess, @Param('id', zoneId) id: string): Promise<void> {
-    await this.zones.remove(cave.caveId, id);
+  @HttpCode(200)
+  remove(@CurrentCave() cave: CaveAccess, @Param('id', zoneId) id: string) {
+    return this.zones.remove(cave.caveId, id);
   }
 
+  // Même plafond que l'envoi d'une photo d'étiquette (POST /api/photos).
   @Put(':id/photo')
   @CaveRole('OWNER')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseFilters(PhotoTooLargeFilter)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PHOTO_BYTES } }))
   setPhoto(@CurrentCave() cave: CaveAccess, @Param('id', zoneId) id: string, @UploadedFile() file?: Express.Multer.File) {
     if (!file) throw new BadRequestException('Fichier « file » manquant');

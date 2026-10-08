@@ -219,6 +219,16 @@ describeIfDb('migration zones (base au format précédent)', () => {
     });
   });
 
+  it('emplacement sans zone, casier ni position (champs blancs) : la migration s’arrête en le nommant, sans rien changer', async () => {
+    const s = await previousFormat();
+    await run(s, `INSERT INTO "${s}".cave (id, name) VALUES ('cave-x', 'Cave X')`);
+    await run(s, `INSERT INTO "${s}".location (id, cave_id, zone, casier, label_key) VALUES ('loc-blanc', 'cave-x', '  ', '', '["",""]')`);
+    expect(() => migrate(s)).toThrow(/emplacement loc-blanc n'a ni zone, ni casier, ni position/);
+    // Annulée en entier : ni table de zones, ni colonne retirée.
+    expect(await q(`SELECT to_regclass('"${s}".cave_zone')::text AS t`)).toEqual([{ t: null }]);
+    expect(await q(`SELECT zone FROM "${s}".location WHERE id = 'loc-blanc'`)).toEqual([{ zone: '  ' }]);
+  }, 120_000);
+
   it('installation neuve (base vide) : la migration passe', async () => {
     const s = await previousFormat();
     migrate(s);
