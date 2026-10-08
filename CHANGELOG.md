@@ -9,6 +9,19 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.5.0](https://github.com/djkix/cave-a-vin/compare/v2.4.2...v2.5.0) (2026-10-08)
+
+
+### Fonctionnalités
+
+* **gemini:** journal des appels et pause commune après un refus ([cbbb44e](https://github.com/djkix/cave-a-vin/commit/cbbb44e69d3e7b7c86b7f35acb2258d17f06a613))
+* **web:** consommation Gemini dans l'Administration ([1e3e0ec](https://github.com/djkix/cave-a-vin/commit/1e3e0ec5daac41669a606457777f48f89c629c3f))
+
+
+### Corrections
+
+* **gemini:** motif de pause affiché à la sortie, coûts et reprises affinés ([7582df5](https://github.com/djkix/cave-a-vin/commit/7582df5cc3b3da7a1f724a10094b43ae5ab6d305))
+
 ## [2.4.2](https://github.com/djkix/cave-a-vin/compare/v2.4.1...v2.4.2) (2026-10-08)
 
 ### Résumé
