@@ -70,9 +70,14 @@ export const createQuoteSchema = z.object({
 
 export type CreateQuoteInput = z.infer<typeof createQuoteSchema>;
 
-/** Recherche iDealwine sur « producteur cuvée millésime » : minuscules, sans accents, mots joints par `-`. */
+/**
+ * Recherche iDealwine sur « producteur cuvée » (forme de leur recherche :
+ * `/fr/acheter-du-vin/recherche-mot_mot`), minuscules, sans accents. Sans le
+ * millésime : la recherche montre tous les millésimes, on choisit le sien
+ * (avec l'année, un millésime absent de leur catalogue ne donnerait rien).
+ */
 export function idealwineSearchUrl(wine: { producer: string; cuvee: string | null; vintage: number | null }): string {
-  const slug = [wine.producer, wine.cuvee, wine.vintage]
+  const slug = [wine.producer, wine.cuvee]
     .filter((p) => p != null && p !== '')
     .join(' ')
     // NFD ne décompose pas les ligatures : « Œuvre » donnerait « uvre ».
@@ -80,9 +85,9 @@ export function idealwineSearchUrl(wine: { producer: string; cuvee: string | nul
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return `https://${IDEALWINE_HOST}/fr/prix-vin/${slug}/le_marche_search/ok_results.jsp`;
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return `https://${IDEALWINE_HOST}/fr/acheter-du-vin/recherche-${slug}`;
 }
 
 interface Dated { quotedOn: Date; createdAt: Date }

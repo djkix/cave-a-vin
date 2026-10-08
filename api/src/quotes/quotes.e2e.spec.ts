@@ -101,7 +101,7 @@ describeIfInfra('cote iDealwine (HTTP)', () => {
       const res = await ownerA.get(`/api/wines/${wineA}`);
       expect(res.status).toBe(200);
       expect(res.body.quote).toBeNull();
-      expect(res.body.idealwineUrl).toBe(`https://www.idealwine.com/fr/prix-vin/chateau-cote-a-hommage-a-jacques-2016/le_marche_search/ok_results.jsp`);
+      expect(res.body.idealwineUrl).toBe(`https://www.idealwine.com/fr/acheter-du-vin/recherche-chateau_cote_a_hommage_a_jacques`);
     });
   });
 

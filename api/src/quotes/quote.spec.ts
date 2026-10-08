@@ -73,19 +73,18 @@ describe('isIdealwineUrl', () => {
 });
 
 describe('idealwineSearchUrl', () => {
-  const base = 'https://www.idealwine.com/fr/prix-vin/';
-  const tail = '/le_marche_search/ok_results.jsp';
-  it('« producteur cuvée millésime » sans accents, en minuscules, joints par -', () => {
+  const base = 'https://www.idealwine.com/fr/acheter-du-vin/recherche-';
+  it('« producteur cuvée » sans accents, en minuscules, joints par _, sans le millésime', () => {
     expect(idealwineSearchUrl({ producer: 'Château de Beaucastel', cuvee: 'Hommage à Jacques Perrin', vintage: 2016 }))
-      .toBe(`${base}chateau-de-beaucastel-hommage-a-jacques-perrin-2016${tail}`);
+      .toBe(`${base}chateau_de_beaucastel_hommage_a_jacques_perrin`);
   });
-  it('omet cuvée et millésime absents, écrase la ponctuation', () => {
-    expect(idealwineSearchUrl({ producer: "  Domaine d'Élise — Œuvre ! ", cuvee: null, vintage: null })).toBe(`${base}domaine-d-elise-oeuvre${tail}`);
-    expect(idealwineSearchUrl({ producer: 'Leflaive', cuvee: '', vintage: 2020 })).toBe(`${base}leflaive-2020${tail}`);
+  it('omet une cuvée absente, écrase la ponctuation', () => {
+    expect(idealwineSearchUrl({ producer: "  Domaine d'Élise — Œuvre ! ", cuvee: null, vintage: null })).toBe(`${base}domaine_d_elise_oeuvre`);
+    expect(idealwineSearchUrl({ producer: 'Leflaive', cuvee: '', vintage: 2020 })).toBe(`${base}leflaive`);
   });
   it('ligatures œ / æ (minuscules et majuscules) écrites oe / ae', () => {
-    expect(idealwineSearchUrl({ producer: 'Clos du Cœur', cuvee: 'ŒNOTHÈQUE Æther', vintage: 2015 })).toBe(`${base}clos-du-coeur-oenotheque-aether-2015${tail}`);
-    expect(idealwineSearchUrl({ producer: 'Lætitia', cuvee: null, vintage: null })).toBe(`${base}laetitia${tail}`);
+    expect(idealwineSearchUrl({ producer: 'Clos du Cœur', cuvee: 'ŒNOTHÈQUE Æther', vintage: 2015 })).toBe(`${base}clos_du_coeur_oenotheque_aether`);
+    expect(idealwineSearchUrl({ producer: 'Lætitia', cuvee: null, vintage: null })).toBe(`${base}laetitia`);
   });
 });
 
