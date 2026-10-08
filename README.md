@@ -362,8 +362,9 @@ des vins en stock cotés) : « Valeur à la cote : X € sur N références cot�
 **Cote iDealwine, saisie à la main.** Sur la fiche d'un vin, le bloc *Cote
 iDealwine* (propriétaire seulement) propose un lien *Voir sur iDealwine* qui
 ouvre, dans un nouvel onglet, la page de recherche du vin sur
-`www.idealwine.com` (ou, si une cote a déjà été saisie avec un lien, la page
-qui a servi) — **l'application ne contacte jamais iDealwine elle-même** (voir
+`www.idealwine.com` — producteur et cuvée, mots séparés par des espaces, sans
+millésime ni guillemets (leur moteur n'en tient pas compte) — (ou, si une cote
+a déjà été saisie avec un lien, la page qui a servi) — **l'application ne contacte jamais iDealwine elle-même** (voir
 *Limites*). Le propriétaire reporte alors à la main la cote lue sur cette
 page : montant en euros, nombre de transactions (facultatif), date du relevé
 et, facultatif, le lien exact de la page consultée. La fiche affiche ensuite
