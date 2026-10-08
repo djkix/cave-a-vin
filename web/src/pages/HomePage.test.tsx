@@ -99,17 +99,3 @@ it('montre l’administration seulement à un administrateur', async () => {
   expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument();
 });
 
-it('propose « Se déconnecter » sur l’accueil, au propriétaire comme au membre', async () => {
-  vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
-  vi.spyOn(api, 'getEntryInbox').mockResolvedValue({ toConfirm: [], inProgress: [], failed: [] });
-  const out = vi.spyOn(api, 'logout').mockResolvedValue({ ok: true });
-  mount();
-  (await screen.findByRole('button', { name: 'Se déconnecter' })).click();
-  await waitFor(() => expect(out).toHaveBeenCalled());
-});
-
-it('propose aussi « Se déconnecter » à un membre en lecture seule', async () => {
-  vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
-  mount();
-  expect(await screen.findByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
-});

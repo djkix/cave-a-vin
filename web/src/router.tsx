@@ -3,6 +3,7 @@ import { RequireAuth, RequireOwner } from './components/RequireAuth';
 import { AdminPage } from './pages/AdminPage';
 import { AConfirmerPage } from './pages/AConfirmerPage';
 import { CavePage } from './pages/CavePage';
+import { ComptePage } from './pages/ComptePage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
 import { NotFoundPage, RouteErrorPage } from './pages/ErrorPages';
@@ -28,6 +29,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <HomePage /> },
           { path: '/stats', element: <StatsPage /> },
+          { path: '/compte', element: <ComptePage /> },
           { path: '/cave', element: <CavePage /> },
           { path: '/cave/:wineId', element: <WinePage /> },
           {

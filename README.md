@@ -223,11 +223,17 @@ compté 2 ct (une recherche, estimation), car il a pu être facturé. Une fois l
 minute. API : `POST /api/wines/:id/image-search`, `GET
 /api/image-candidates/:id`, `POST`/`DELETE /api/wines/:id/reference-image`.
 
-**Version affichée en permanence.** Le numéro de version est visible en haut à
-droite de chaque écran, et sur l'écran de connexion avant même de s'identifier —
-indispensable dans une PWA installée, où aucune barre d'adresse ne dit ce qui
-tourne. Une image publiée affiche son numéro (`1.0.0`) ; une image `latest`
-construite depuis `main` affiche ce numéro suivi de l'empreinte du commit
+**Mon compte.** L'icône en haut à droite de chaque écran ouvre « Mon compte »,
+ouvert à tout compte connecté : **installer l'application** sur le téléphone
+(bouton « Installer l'application » quand le navigateur le propose, sur
+Android ; sur iPhone, l'indication *Safari → Partager → Sur l'écran
+d'accueil*), **mes caves** (la sienne et celles où l'on est invité, avec
+« Afficher » pour en changer), **sauvegarde Excel** de la cave affichée
+(propriétaire seulement), lien vers l'Administration (administrateur), **numéro
+de version** et **« Se déconnecter »**. La version n'apparaît plus dans l'en-tête
+des écrans, seulement là et sur l'écran de connexion (avant de s'identifier).
+Une image publiée affiche son numéro (`1.0.0`) ; une image `latest` construite
+depuis `main` affiche ce numéro suivi de l'empreinte du commit
 (`1.0.0+ab12cd3`), pour ne jamais faire passer des changements non publiés pour
 la dernière version ; une construction locale affiche `dev`.
 
@@ -650,8 +656,9 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
    minute.
 3. **Journal → Exporter le classeur** : la bouteille figure dans la feuille
    `Stock`.
-4. Sur iPhone : *Partager → Sur l'écran d'accueil*. Sur Android : bannière
-   d'installation. L'icône est un verre de vin sur fond bordeaux
+4. **Mon compte → Application sur le téléphone** : bouton « Installer
+   l'application » sur Android, indication *Partager → Sur l'écran d'accueil*
+   sur iPhone. L'icône est un verre de vin sur fond bordeaux
    (`web/public/icons/icon.svg`, déclinée en PNG 192, 512, « maskable » pour
    Android et 180 pour iOS). Un raccourci installé avant la 1.9.0 garde l'ancien
    carré brun : le supprimer de l'écran d'accueil puis le réinstaller.
@@ -698,7 +705,7 @@ votre adresse Google.
 administrateur n'existait : la cave a été créée sans propriétaire et votre
 compte en est devenu membre. Ajoutez `ADMIN_EMAILS=votre.adresse@gmail.com` au
 `.env`, relancez `docker compose up -d --force-recreate api worker`, puis
-reconnectez-vous avec Google (bouton « Se déconnecter » de l'accueil, ou
+reconnectez-vous avec Google (« Se déconnecter » dans Mon compte, ou
 directement `https://votre-domaine/api/auth/google`) : le premier
 administrateur qui se connecte reçoit la cave sans propriétaire.
 
