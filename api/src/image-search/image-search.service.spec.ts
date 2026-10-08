@@ -1,4 +1,4 @@
-import { GoneException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { GoneException, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -158,6 +158,27 @@ describe('ImageSearchService.search', () => {
     const e = await service.search('c1', 'nope').catch((x) => x);
     expect(e).toBeInstanceOf(NotFoundException);
     expect(e.message).toBe('Vin introuvable');
+  });
+});
+
+describe('ImageSearchService.search — journal', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('note l’arrivée de chaque recherche et son issue', async () => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service } = setup({ off: OFF_HIT });
+    await service.search('c1', 'w1');
+    expect(log).toHaveBeenCalledWith('Recherche d\'image demandée pour le vin w1');
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^Recherche d'image du vin w1 : 1 image\(s\) en \d+ ms$/));
+  });
+
+  it('un refus pour budget n’est jamais muet : la raison est notée', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const { service } = setup({ budgetError: new VisionBudgetExceededError() });
+    await expect(service.search('c1', 'w1')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Recherche du site officiel refusée pour le vin w1 : Plafond mensuel'));
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^Recherche d'image du vin w1 refusée en \d+ ms : Recherche d’image indisponible pour le moment$/));
   });
 });
 

@@ -268,7 +268,7 @@ describe('recherche d’image depuis la fiche', () => {
     expect(await screen.findByText('Proposition expirée, relancez la recherche')).toBeInTheDocument();
   });
 
-  it('502 et 504 (passerelle, délai) valent aussi « indisponible pour le moment »', async () => {
+  it('502 et 504 (passerelle, délai) : « indisponible », en précisant que le serveur n’a pas répondu', async () => {
     for (const status of [502, 504]) {
       // La session par défaut est restaurée à la fin de chaque tour : on la remet.
       vi.spyOn(api, 'getMe').mockResolvedValue(meFixture());
@@ -276,7 +276,7 @@ describe('recherche d’image depuis la fiche', () => {
       vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(status, 'Bad Gateway'));
       const { unmount } = mount();
       await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
-      expect(await screen.findByText('Recherche d’image indisponible pour le moment')).toBeInTheDocument();
+      expect(await screen.findByText('Recherche d’image indisponible pour le moment (le serveur n’a pas répondu)')).toBeInTheDocument();
       unmount();
       vi.restoreAllMocks();
     }

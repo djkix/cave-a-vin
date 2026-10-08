@@ -21,12 +21,14 @@ function messageOf(e: unknown, overrides: Partial<Record<number, string>>): stri
 }
 
 const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
-// 502 et 504 : le proxy devant l'api (passerelle en panne, délai dépassé) ; pour
-// l'utilisateur, c'est la même indisponibilité passagère que le 503 de l'api.
+// 502 et 504 : le proxy devant l'api (passerelle en panne, délai dépassé), la
+// requête n'a pas reçu de réponse de l'application : dit à part du 503 de l'api,
+// pour savoir où chercher.
+const NO_ANSWER = 'Recherche d’image indisponible pour le moment (le serveur n’a pas répondu)';
 const SEARCH_ERRORS = {
-  502: UNAVAILABLE,
+  502: NO_ANSWER,
   503: UNAVAILABLE,
-  504: UNAVAILABLE,
+  504: NO_ANSWER,
   429: 'Trop de recherches, réessayez dans une minute',
 };
 const CHOOSE_ERRORS = { 410: 'Proposition expirée, relancez la recherche' };
