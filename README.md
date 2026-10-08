@@ -957,6 +957,14 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.4.0 — 8 octobre 2026
+
+Publiée ([v2.4.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.4.0` et `-web:2.4.0`.
+
+**À boire prochainement.** Carte sur l'accueil et page `/a-boire` : les vins à
+boire au plus tard l'an prochain, regroupés par emplacement.
+
 ### 2.3.0 — 8 octobre 2026
 
 Publiée ([v2.3.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.3.0)),

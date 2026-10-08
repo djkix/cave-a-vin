@@ -11,6 +11,21 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.4.0](https://github.com/djkix/cave-a-vin/compare/v2.3.0...v2.4.0) (2026-10-08)
 
+### Résumé
+
+**À boire prochainement.** Sur l'accueil, une carte montre les trois vins les
+plus urgents à boire avec leur emplacement, et « Tout voir » ouvre une page qui
+les regroupe par emplacement (« Sans emplacement » en dernier ; dans chaque
+groupe, la fin d'apogée la plus proche d'abord, puis la meilleure note), pour
+savoir où descendre les chercher. Même critère que « À boire en priorité »
+(apogée qui se termine au plus tard l'an prochain) ; visible aussi d'un membre
+en lecture seule. La liste « à boire en priorité » de l'api porte désormais
+les emplacements de chaque vin. Aucune migration, aucune nouvelle variable
+d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
