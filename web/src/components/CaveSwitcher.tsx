@@ -4,7 +4,7 @@ import { Me, setCurrentCave } from '../lib/api-client';
 import { useCurrentCave } from '../lib/use-current-cave';
 
 // Listes qui valent pour n'importe quelle cave : on y reste après un changement.
-const ANY_ROLE = ['/', '/cave', '/stats'];
+const ANY_ROLE = ['/', '/cave', '/stats', '/compte'];
 const OWNER_ONLY = ['/entree', '/sortie', '/journal', '/a-confirmer', '/membres'];
 
 /**
@@ -19,15 +19,14 @@ export function pathAfterCaveSwitch(pathname: string, isOwner: boolean): string 
 }
 
 /**
- * Cave courante dans la barre de titre : un sélecteur s'il y en a plusieurs, et
- * le badge « Lecture seule » quand on n'en est que membre.
+ * Changer de cave courante : vide le cache de l'ancienne cave et, si la page
+ * n'est plus permise au nouveau rôle, revient à l'accueil.
  */
-export function CaveSwitcher() {
+export function useSwitchCave() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { caves, caveId, role } = useCurrentCave();
-  const change = useMutation({
+  return useMutation({
     mutationFn: (id: string) => setCurrentCave(id),
     onSuccess: async (me: Me) => {
       // Tout ce qui est en cache appartient à l'ancienne cave. Ni « relire »
@@ -50,6 +49,15 @@ export function CaveSwitcher() {
       if (target !== pathname) navigate(target, { replace: true });
     },
   });
+}
+
+/**
+ * Cave courante dans la barre de titre : un sélecteur s'il y en a plusieurs, et
+ * le badge « Lecture seule » quand on n'en est que membre.
+ */
+export function CaveSwitcher() {
+  const { caves, caveId, role } = useCurrentCave();
+  const change = useSwitchCave();
 
   if (caves.length === 0) return null;
   const readOnly = role === 'VIEWER';

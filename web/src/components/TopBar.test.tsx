@@ -28,15 +28,11 @@ function mount(props: { title?: string; back?: string } = {}, path = '/') {
   return qc;
 }
 
-it('affiche la version sur l’écran d’accueil', () => {
-  mount();
-  expect(screen.getByLabelText(`Version ${APP_VERSION}`)).toHaveTextContent(`v${APP_VERSION}`);
-});
-
-it('affiche la version aussi sur un écran interne, avec son bouton de retour', () => {
+it('mène à « Mon compte », sans afficher la version dans la barre de titre', () => {
   mount({ title: 'Revue groupée', back: '/entree' });
   expect(screen.getByRole('link', { name: 'Retour' })).toBeInTheDocument();
-  expect(screen.getByLabelText(`Version ${APP_VERSION}`)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Mon compte' })).toHaveAttribute('href', '/compte');
+  expect(screen.queryByLabelText(`Version ${APP_VERSION}`)).not.toBeInTheDocument();
 });
 
 it('annonce « dev » quand aucune version n’a été injectée à la construction', () => {

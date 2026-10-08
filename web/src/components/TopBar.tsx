@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { APP_VERSION } from '../lib/version';
 import { CaveSwitcher } from './CaveSwitcher';
 import { Icon } from './Icon';
 
@@ -15,12 +14,10 @@ export function TopBar({ title, back }: { title?: string; back?: string }) {
       )}
       <h1 className="topbar__title">{title ?? 'Cave & Terroir'}</h1>
       <CaveSwitcher />
-      {/* La barre de titre est présente sur tous les écrans : c'est le seul
-          endroit où la version est visible en permanence, y compris depuis la
-          PWA installée, où aucune barre d'adresse ne dit ce qui tourne. */}
-      <span className="topbar__version" aria-label={`Version ${APP_VERSION}`}>
-        v{APP_VERSION}
-      </span>
+      {/* Mon compte : installation, caves, sauvegarde, version, déconnexion. */}
+      <Link to="/compte" aria-label="Mon compte" className="topbar__account">
+        <Icon name="account_circle" />
+      </Link>
     </header>
   );
 }

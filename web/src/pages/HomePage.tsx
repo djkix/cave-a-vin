@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { LogoutButton } from '../components/AccountScreens';
 import { AnalysisQueueBanner } from '../components/AnalysisQueueBanner';
 import { BottomNav } from '../components/BottomNav';
 import { Icon } from '../components/Icon';
@@ -81,7 +80,6 @@ export function HomePage() {
           </section>
         )}
         {isAdmin && <Link to="/admin" className="btn btn--link">Administration</Link>}
-        <LogoutButton />
       </main>
       <BottomNav />
     </>

@@ -26,7 +26,7 @@ h1, h2, h3, .serif { font-family: var(--font-serif); font-weight: 500; margin: 0
 /* Poussée à droite de la barre, assez discrète pour ne pas concurrencer le titre
    mais toujours lisible : l'empreinte de commit d'une image `latest` peut
    allonger le libellé, d'où le retour à la ligne interdit. */
-.topbar__version { margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--color-secondary); white-space: nowrap; }
+.topbar__account { margin-left: auto; color: var(--color-primary); display: inline-flex; width: var(--size-touch-target); height: var(--size-touch-target); align-items: center; justify-content: center; }
 .topbar__logo, .topbar__back { color: var(--color-primary); display: inline-flex; width: var(--size-touch-target); height: var(--size-touch-target); align-items: center; justify-content: center; }
 
 .bottomnav {
