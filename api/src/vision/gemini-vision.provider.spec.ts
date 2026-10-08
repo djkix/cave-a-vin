@@ -472,6 +472,25 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
     expect(prisma.settings.has(GEMINI_PAUSE_UNTIL_KEY)).toBe(false);
   });
 
+  it('un accord ou un descriptif inexploitable porte son coût, déjà facturé, jusque dans le journal', async () => {
+    const { prisma, journal } = journalOf();
+    const big = { promptTokenCount: 200000, candidatesTokenCount: 50000 };
+    const e1 = await new GeminiVisionProvider(fakeModel('pas du json', big) as any, 'm', journal).suggestPairings(wine).catch((x) => x);
+    expect(e1).toBeInstanceOf(PairingInvalidOutputError);
+    expect(e1.costCents).toBe(4);
+    const e2 = await new GeminiVisionProvider(fakeModel('{"plats":[]}', big) as any, 'm', journal).suggestPairings(wine).catch((x) => x);
+    expect(e2).toBeInstanceOf(PairingInvalidOutputError);
+    const e3 = await new GeminiVisionProvider(fakeModel('{"connu": true, "description": "Bandol."}', big) as any, 'm', journal)
+      .describeProducer({ producer: 'X', appellations: [], region: null })
+      .catch((x) => x);
+    expect(e3).toBeInstanceOf(ProducerInvalidOutputError);
+    expect(prisma.calls.map((c: any) => [c.usage, c.outcome, c.costCents])).toEqual([
+      ['ACCORDS', 'ERREUR', 4],
+      ['ACCORDS', 'ERREUR', 4],
+      ['DESCRIPTIF', 'ERREUR', 4],
+    ]);
+  });
+
   it('pendant une pause, aucun appel n’est envoyé à Google et rien n’est noté', async () => {
     const { prisma, journal } = journalOf();
     prisma.settings.set(GEMINI_PAUSE_UNTIL_KEY, '2026-10-08T12:05:00.000Z');

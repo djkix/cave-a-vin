@@ -773,19 +773,26 @@ describe('EntryBatchProcessor.tick — pause commune de Gemini', () => {
   const PAUSE_MESSAGE = `Gemini en pause jusqu'à 14:05 (modèle saturé)`;
   const paused = () => new GeminiPausedError(UNTIL, 'modèle saturé');
 
-  it('pendant la pause, le passage ne fait rien : aucune réservation, aucune tentative touchée', async () => {
+  it('pendant la pause, le passage ne réserve rien et ne touche pas les tentatives des photos en attente', async () => {
     const h = harness();
     const waiting = h.addMany(10, { createdAt: at(-600_000) });
-    const stuck = h.add({ status: 'PROCESSING', nextAttemptAt: at(-1), attempts: 3 });
     h.pause.currentPause.mockResolvedValue({ until: UNTIL, reason: 'modèle saturé' });
     expect(await h.processor.tick(NOW)).toEqual({ processed: 0 });
     expect(h.prisma.$transaction).not.toHaveBeenCalled();
     expect(h.prisma.photo.update).not.toHaveBeenCalled();
-    expect(h.prisma.photo.updateMany).not.toHaveBeenCalled();
     expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
     expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
     waiting.forEach((r) => expect(r).toMatchObject({ status: 'PENDING', attempts: 0, nextAttemptAt: null }));
-    expect(stuck).toMatchObject({ status: 'PROCESSING', attempts: 3 });
+  });
+
+  it('pendant la pause, les réservations échues sont quand même reprises (aucun appel Gemini)', async () => {
+    const h = harness();
+    const stuck = h.add({ status: 'PROCESSING', nextAttemptAt: at(-1), attempts: 3 });
+    h.pause.currentPause.mockResolvedValue({ until: UNTIL, reason: 'modèle saturé' });
+    await h.processor.tick(NOW);
+    expect(stuck).toMatchObject({ status: 'PENDING', attempts: 4, nextAttemptAt: null });
+    expect(h.prisma.$transaction).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
   });
 
   it('à la fin de la pause, les photos en attente partent ensemble, huit par appel', async () => {

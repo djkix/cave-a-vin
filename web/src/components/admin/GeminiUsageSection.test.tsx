@@ -39,9 +39,17 @@ it('affiche une ligne par jour et par usage, et les totaux', async () => {
 });
 
 it('annonce une pause en cours, heure de Paris', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-10-08T12:00:00.000Z').getTime());
   vi.spyOn(api, 'getGeminiUsage').mockResolvedValue(usage({ pause: { until: '2026-10-08T12:05:00.000Z', reason: 'modèle saturé' } }));
   mount();
   expect(await screen.findByText(`Gemini en pause jusqu'à 14:05 (modèle saturé) : aucun appel n'est envoyé d'ici là.`)).toBeInTheDocument();
+});
+
+it('n’affiche plus une pause échue', async () => {
+  vi.spyOn(api, 'getGeminiUsage').mockResolvedValue(usage({ pause: { until: new Date(Date.now() - 1000).toISOString(), reason: 'modèle saturé' } }));
+  mount();
+  await screen.findByText('Accords');
+  expect(screen.queryByText(/aucun appel n'est envoyé/)).not.toBeInTheDocument();
 });
 
 it('7 jours par défaut, 30 jours au choix', async () => {

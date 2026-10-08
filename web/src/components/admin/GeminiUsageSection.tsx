@@ -28,6 +28,8 @@ export function GeminiUsageSection() {
   const [days, setDays] = useState<(typeof PERIODS)[number]>(7);
   const q = useQuery({ queryKey: ['admin', 'gemini-usage', days], queryFn: () => getGeminiUsage(days) });
   const d = q.data;
+  // Pause échue entre deux chargements : le bandeau disparaît, rien n'est plus suspendu.
+  const pauseUntil = d?.pause.until && Date.parse(d.pause.until) > Date.now() ? d.pause.until : null;
   return (
     <section className="card">
       <h2 style={{ fontSize: 18 }}>Consommation Gemini</h2>
@@ -39,9 +41,9 @@ export function GeminiUsageSection() {
         ))}
       </div>
       {q.isError && <p role="alert" className="text-error">Impossible de charger la consommation Gemini.</p>}
-      {d?.pause.until && (
+      {d && pauseUntil && (
         <p className="badge badge--warn" style={{ whiteSpace: 'normal' }}>
-          {`Gemini en pause jusqu'à ${parisTime.format(new Date(d.pause.until))} (${d.pause.reason ?? 'refus de Google'}) : aucun appel n'est envoyé d'ici là.`}
+          {`Gemini en pause jusqu'à ${parisTime.format(new Date(pauseUntil))} (${d.pause.reason ?? 'refus de Google'}) : aucun appel n'est envoyé d'ici là.`}
         </p>
       )}
       {d && d.rows.length === 0 && <p className="list__meta">Aucun appel à Gemini sur {days} jours.</p>}

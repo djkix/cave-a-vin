@@ -72,6 +72,22 @@ it('bascule tout de suite sur la recherche quand l’analyse échoue', async () 
   expect(screen.getByRole('link', { name: 'Chercher dans la cave' })).toHaveAttribute('href', '/cave');
 });
 
+it('pendant une pause de Gemini, dit jusqu’à quand sous « Lecture impossible » et garde la recherche', async () => {
+  const pause = `Gemini en pause jusqu'à 14:05 (modèle saturé)`;
+  vi.spyOn(api, 'getExitCandidates').mockResolvedValue({ status: 'FAILED', errorMessage: pause });
+  mount();
+  expect(await screen.findByText('Lecture impossible')).toBeInTheDocument();
+  expect(screen.getByText(pause)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Chercher dans la cave' })).toHaveAttribute('href', '/cave');
+});
+
+it('n’affiche pas un autre motif d’échec brut', async () => {
+  vi.spyOn(api, 'getExitCandidates').mockResolvedValue({ status: 'FAILED', errorMessage: 'saturé' });
+  mount();
+  await screen.findByText('Lecture impossible');
+  expect(screen.queryByText('saturé')).not.toBeInTheDocument();
+});
+
 it('propose la recherche au bout de douze secondes sans résultat', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   try {

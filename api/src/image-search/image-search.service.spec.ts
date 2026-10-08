@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { CaveBudgetShareExceededError, VisionBudgetExceededError } from '../queue/vision-budget.service';
-import { GeminiPausedError } from '../vision/gemini-pause';
+import { GeminiPause, GeminiPausedError } from '../vision/gemini-pause';
 import { CandidateStore } from './candidates';
 import { ABORTED_CALL_COST_CENTS, ImageSearchService } from './image-search.service';
 import { OFF_SOURCE } from './open-food-facts';
@@ -31,7 +31,7 @@ function network(off: unknown = { hits: [] }) {
 }
 
 function setup(
-  opts: { off?: unknown; site?: string | null; budgetError?: Error; caveShareError?: Error; providerError?: Error; wine?: typeof WINE | null } = {},
+  opts: { off?: unknown; site?: string | null; budgetError?: Error; caveShareError?: Error; providerError?: Error; wine?: typeof WINE | null; pause?: GeminiPause } = {},
 ) {
   const fetcher = network(opts.off);
   const dir = mkdtempSync(join(tmpdir(), 'cave-image-search-'));
@@ -56,8 +56,9 @@ function setup(
       return { site: opts.site === undefined ? 'https://tempier.fr/' : opts.site, model: 'gemini-test', costCents: 1 };
     }),
   };
-  const service = new ImageSearchService(prisma as any, store, budget as any, provider, dir, fetcher);
-  return { service, prisma, budget, provider, fetcher };
+  const pause = { currentPause: jest.fn(async (): Promise<GeminiPause | null> => opts.pause ?? null) };
+  const service = new ImageSearchService(prisma as any, store, budget as any, provider, dir, fetcher, pause as any);
+  return { service, prisma, budget, provider, fetcher, pause };
 }
 
 describe('ImageSearchService.search', () => {
@@ -162,6 +163,23 @@ describe('ImageSearchService.search', () => {
     expect(e.message).toBe(`Gemini en pause jusqu'à 14:05 (quota épuisé)`);
     expect(provider.findOfficialSite).toHaveBeenCalledTimes(1);
     expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
+  it('pause lue avant le délai global : 503 avec son message, sans appel ni estimation comptée', async () => {
+    const { service, prisma, provider, pause } = setup({ pause: { until: new Date('2026-10-08T12:05:00.000Z'), reason: 'modèle saturé' } });
+    service.deadlineMs = 50;
+    const e = await service.search('c1', 'w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe(`Gemini en pause jusqu'à 14:05 (modèle saturé)`);
+    expect(pause.currentPause).toHaveBeenCalledTimes(1);
+    expect(provider.findOfficialSite).not.toHaveBeenCalled();
+    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
+  it('en pause, Open Food Facts reste proposé', async () => {
+    const { service, provider } = setup({ off: OFF_HIT, pause: { until: new Date('2026-10-08T12:05:00.000Z'), reason: 'modèle saturé' } });
+    expect((await service.search('c1', 'w1')).candidates).toHaveLength(1);
+    expect(provider.findOfficialSite).not.toHaveBeenCalled();
   });
 
   it('Gemini en panne : 503', async () => {

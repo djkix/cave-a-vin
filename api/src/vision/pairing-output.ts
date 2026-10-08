@@ -8,7 +8,12 @@ export const MAX_DISH_LENGTH = 60;
  * invalide » : `isTransientVisionFailure` la classe en échec définitif, et la
  * file ne la rejoue pas.
  */
-export class PairingInvalidOutputError extends Error {}
+export class PairingInvalidOutputError extends Error {
+  /** `costCents` : l'appel a abouti et il est facturé même si sa sortie est inexploitable (posé par le fournisseur). */
+  constructor(message: string, readonly costCents = 0) {
+    super(message);
+  }
+}
 
 const invalid = (why: string) => new PairingInvalidOutputError(`Sortie du modèle invalide : ${why}`);
 

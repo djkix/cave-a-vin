@@ -177,8 +177,9 @@ photo **retourne en attente au lieu d'échouer** et le worker la reprend
 automatiquement — 30 s, 1 min, 2, 4, 8, puis toutes les 15 minutes, pendant une
 dizaine de jours si nécessaire. Un refus de Google (503 modèle saturé, 429
 quota épuisé) ne déclenche plus ces reprises rapprochées : il met Gemini en
-pause commune (5 min, 1 h) et la photo repart à la fin de la pause, sans
-consommer de tentative (voir *Consommation Gemini et pause commune*). Une photo d'entrée est aussi **reportée, et non
+pause commune (5 min, 1 h) : la tentative refusée par Google compte, les
+suivantes attendent la fin de la pause sans en consommer (voir *Consommation
+Gemini et pause commune*). Une photo d'entrée est aussi **reportée, et non
 mise en échec, quand le service de lecture est mal configuré** (clé Gemini
 invalide ou expirée, API non activée, modèle inconnu) : elle affiche « Analyse
 reportée : service de lecture mal configuré (clé Gemini à vérifier), reprise

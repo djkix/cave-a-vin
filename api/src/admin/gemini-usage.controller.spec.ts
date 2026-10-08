@@ -24,3 +24,18 @@ describe('AdminGeminiUsageController', () => {
     expect(usage.report).not.toHaveBeenCalled();
   });
 });
+
+describe('AdminGeminiUsageController — paramètre répété', () => {
+  it('?days=7&days=30 : 400 avec le message en français', () => {
+    const controller = new AdminGeminiUsageController({ report: jest.fn() } as any);
+    const e = (() => {
+      try {
+        controller.get(['7', '30'] as any);
+      } catch (x) {
+        return x as BadRequestException;
+      }
+    })();
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(e!.message).toBe('La période doit être un nombre de jours entre 1 et 90');
+  });
+});

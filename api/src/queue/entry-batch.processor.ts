@@ -63,8 +63,9 @@ export class EntryBatchProcessor {
   ) {}
 
   /**
-   * Pendant une pause commune de Gemini, le passage ne fait rien : aucune
-   * réservation, aucune tentative touchée. À la fin de la pause, les photos
+   * Pendant une pause commune de Gemini, le passage ne réserve rien et ne
+   * touche pas les tentatives des photos en attente (seules les réservations
+   * échues sont reprises, sans appel). À la fin de la pause, les photos
    * arrivées entre-temps partent ensemble, huit par appel : c'est le regroupement.
    *
    * Un lot ne contient que des photos d'une même cave : celle de la plus
@@ -75,8 +76,9 @@ export class EntryBatchProcessor {
    */
   async tick(now = new Date()): Promise<{ processed: number }> {
     try {
-      if (await this.pause.currentPause(now)) return { processed: 0 };
+      // Reprendre une réservation échue ne fait aucun appel Gemini : même en pause.
       await this.reclaimExpired(now);
+      if (await this.pause.currentPause(now)) return { processed: 0 };
     } catch (e) {
       this.logger.error(`Lot d'entrée : préparation impossible : ${messageOf(e)}`);
       return { processed: 0 };

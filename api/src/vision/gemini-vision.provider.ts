@@ -296,13 +296,20 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
       contents: [{ role: 'user', parts: [{ text: pairingPrompt(wine) }] }],
       generationConfig: { responseMimeType: 'application/json' },
     });
+    const costCents = pairingCostCentsOf(result.response.usageMetadata);
     let raw: unknown;
     try {
       raw = JSON.parse(stripFences(result.response.text()));
     } catch {
-      throw new PairingInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
+      throw new PairingInvalidOutputError('Sortie du modèle invalide (JSON illisible)', costCents);
     }
-    return { dishes: parsePairingOutput(raw), model: this.modelName, costCents: pairingCostCentsOf(result.response.usageMetadata) };
+    let dishes: string[];
+    try {
+      dishes = parsePairingOutput(raw);
+    } catch (e) {
+      throw e instanceof PairingInvalidOutputError ? new PairingInvalidOutputError(e.message, costCents) : e;
+    }
+    return { dishes, model: this.modelName, costCents };
   }
 
   describeProducer(query: ProducerQuery): Promise<ProducerResult> {
@@ -314,19 +321,20 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
       contents: [{ role: 'user', parts: [{ text: producerPrompt(query) }] }],
       generationConfig: { responseMimeType: 'application/json' },
     });
+    const costCents = pairingCostCentsOf(result.response.usageMetadata);
     let raw: unknown;
     try {
       raw = JSON.parse(stripFences(result.response.text()));
     } catch {
-      throw new ProducerInvalidOutputError('Sortie du modèle invalide (JSON illisible)');
+      throw new ProducerInvalidOutputError('Sortie du modèle invalide (JSON illisible)', costCents);
     }
-    const output = parseProducerOutput(raw);
-    return {
-      known: output.known,
-      description: output.known ? output.description : null,
-      model: this.modelName,
-      costCents: pairingCostCentsOf(result.response.usageMetadata),
-    };
+    let output;
+    try {
+      output = parseProducerOutput(raw);
+    } catch (e) {
+      throw e instanceof ProducerInvalidOutputError ? new ProducerInvalidOutputError(e.message, costCents) : e;
+    }
+    return { known: output.known, description: output.known ? output.description : null, model: this.modelName, costCents };
   }
 
   /**

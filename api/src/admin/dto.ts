@@ -30,9 +30,9 @@ export const updateBudgetSchema = z
 
 const INVALID_DAYS = 'La période doit être un nombre de jours entre 1 et 90';
 
-/** `?days=` de la consommation Gemini : 1 à 90 jours, 7 si absent. */
+/** `?days=` de la consommation Gemini : 1 à 90 jours, 7 si absent ; répété (tableau), refusé en français. */
 export const geminiUsageDaysSchema = z
-  .string()
+  .string({ invalid_type_error: INVALID_DAYS })
   .regex(/^\d+$/, { message: INVALID_DAYS })
   .transform(Number)
   .pipe(z.number().int().min(1, { message: INVALID_DAYS }).max(90, { message: INVALID_DAYS }))

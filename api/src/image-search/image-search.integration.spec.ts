@@ -24,7 +24,7 @@ describeIfDb('image du web — choix, retour, exclusion des listes (base réelle
   let otherCaveId: string;
   const fetcher = jest.fn(async (url: string) => ({ buffer: jpeg, contentType: 'image/jpeg', finalUrl: url }));
   const store = new CandidateStore(dir, fetcher);
-  const service = new ImageSearchService(prisma as never, store, {} as never, {} as never, dir, fetcher);
+  const service = new ImageSearchService(prisma as never, store, {} as never, {} as never, dir, fetcher, { currentPause: async () => null } as never);
 
   beforeAll(async () => {
     jpeg = await sharp({ create: { width: 300, height: 450, channels: 3, background: '#5b1a26' } }).jpeg().toBuffer();

@@ -6,7 +6,12 @@ export const MAX_PRODUCER_DESCRIPTION = 1200;
  * commence par « Sortie du modèle invalide » : `isTransientVisionFailure` la
  * classe en échec définitif, et la file ne la rejoue pas.
  */
-export class ProducerInvalidOutputError extends Error {}
+export class ProducerInvalidOutputError extends Error {
+  /** `costCents` : l'appel a abouti et il est facturé même si sa sortie est inexploitable (posé par le fournisseur). */
+  constructor(message: string, readonly costCents = 0) {
+    super(message);
+  }
+}
 
 const invalid = (why: string) => new ProducerInvalidOutputError(`Sortie du modèle invalide : ${why}`);
 
