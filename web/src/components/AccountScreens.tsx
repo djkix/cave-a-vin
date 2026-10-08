@@ -5,7 +5,7 @@ import { APP_VERSION } from '../lib/version';
 import { Button } from './Button';
 import { Icon } from './Icon';
 
-function LogoutButton() {
+export function LogoutButton() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   async function run() {
