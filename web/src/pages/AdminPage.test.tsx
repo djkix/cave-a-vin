@@ -20,6 +20,7 @@ beforeEach(() => {
   vi.spyOn(api, 'getRegistrations').mockResolvedValue([]);
   vi.spyOn(api, 'getAdminBudget').mockResolvedValue(budget);
   vi.spyOn(api, 'getReadingQuality').mockResolvedValue({ days: 30, entries: 0, rate: null, fields: [] });
+  vi.spyOn(api, 'getGeminiUsage').mockResolvedValue({ rows: [], totals: { ok: 0, refused: 0, errors: 0, costCents: 0 }, pause: { until: null, reason: null } });
   vi.spyOn(api, 'getVintages').mockResolvedValue({ regions: [], qualities: [] });
   vi.spyOn(api, 'searchGuards').mockResolvedValue([]);
 });
