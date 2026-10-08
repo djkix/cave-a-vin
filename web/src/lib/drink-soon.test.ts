@@ -26,7 +26,14 @@ it('dans un groupe, la fin d’apogée la plus proche d’abord, puis la meilleu
 
 it('un vin sans endroit connu compte comme « Sans emplacement »', () => {
   const w = { ...wine('x', 2026, undefined), quantity: 2 };
-  expect(groupByPlace([w])).toEqual([{ label: 'Sans emplacement', wines: [{ wine: w, quantity: 2 }] }]);
+  expect(groupByPlace([w])).toEqual([{ label: 'Sans emplacement', zoneId: null, wines: [{ wine: w, quantity: 2 }] }]);
   expect(whereLabel(w)).toBe('Sans emplacement');
   expect(whereLabel(wine('y', 2026, [{ id: 'g', label: 'Garage', quantity: 1 }, { id: 'c', label: 'Cave 1 / A', quantity: 1 }]))).toBe('Garage, Cave 1 / A');
+});
+
+it('chaque groupe porte la zone de son emplacement (indication et photo dans l’en-tête)', () => {
+  const groups = groupByPlace([
+    wine('a', 2026, [{ id: 'g', label: 'Garage', quantity: 1, zoneId: 'z-garage' }, { id: 'b', label: 'B', quantity: 1, zoneId: null }]),
+  ]);
+  expect(groups.map((g) => [g.label, g.zoneId])).toEqual([['B', null], ['Garage', 'z-garage']]);
 });

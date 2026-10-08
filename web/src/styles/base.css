@@ -194,3 +194,24 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 .move-form select, .move-form input { width: 100%; min-width: 0; }
 .cave-filters select { max-width: 100%; }
 .move-form__to { border: 0; padding: 0; margin: var(--space-sm) 0 0; min-width: 0; }
+/* Zone : indication et vignette (saisie d'un emplacement, fiche, « À boire », « Ma cave »). */
+.zone-details { display: flex; align-items: flex-start; gap: var(--space-sm); min-width: 0; }
+.zone-details__photo { width: 72px; height: 54px; object-fit: cover; border-radius: var(--radius-lg); flex-shrink: 0; }
+.zone-details__text { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--color-secondary); font-size: 14px; }
+.location-fields select { width: 100%; min-width: 0; }
+.locations-list__item--zone { flex-direction: column; }
+.locations-list__toggle {
+  display: flex; justify-content: space-between; gap: var(--space-sm); width: 100%; min-height: var(--size-touch-target);
+  padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.locations-list__toggle .locations-list__label { text-decoration: underline dotted; text-underline-offset: 3px; }
+.page section > .zone-details { margin-bottom: var(--space-sm); }
+/* « Ma cave » : zones. */
+.zone-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
+.zone-row { display: grid; gap: var(--space-xs); padding: var(--space-sm) 0; border-top: 1px solid var(--color-outline-subtle); min-width: 0; }
+.zone-row__head { display: flex; align-items: center; gap: var(--space-xs); min-width: 0; }
+.zone-row__arrow { padding: 0; width: var(--size-touch-target); flex-shrink: 0; }
+.zone-row__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); min-width: 0; }
+.zone-row__actions input[type="file"] { max-width: 100%; min-width: 0; }
+.zone-form { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
+.zone-form textarea { width: 100%; min-width: 0; font: inherit; }

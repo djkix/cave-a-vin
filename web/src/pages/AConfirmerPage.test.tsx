@@ -265,19 +265,20 @@ it('pré-remplit l’emplacement de chaque fiche et l’envoie avec la fiche', a
   vi.spyOn(api, 'getEntryInbox').mockResolvedValue(inbox({
     toConfirm: [done('p-a', ext('Domaine A', 0.95, 6)), done('p-b', ext('Domaine B', 0.95, 12))],
   }));
-  vi.spyOn(api, 'getLocations').mockResolvedValue([{ id: 'l1', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: true }]);
+  vi.spyOn(api, 'getLocations').mockResolvedValue([{ id: 'l1', zoneId: 'z1', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: true }]);
+  vi.spyOn(api, 'getZones').mockResolvedValue([{ id: 'z1', name: 'Garage', indication: null, hasPhoto: false, sortOrder: 0 }]);
   const bulk = vi.spyOn(api, 'createMovementsBulk').mockImplementation(async (items) => items.map((i) => okResult(i.idempotencyKey)));
   renderPage();
   await screen.findAllByRole('article');
-  await waitFor(() => expect(screen.getAllByText('Garage')).toHaveLength(2));
+  await waitFor(() => expect(screen.getAllByText('Garage', { selector: '.location-block__current' })).toHaveLength(2));
   const cardB = screen.getAllByRole('article').find((a) => within(a).queryByDisplayValue('Domaine B'))!;
   await userEvent.click(within(cardB).getByText('Emplacement'));
-  await userEvent.clear(within(cardB).getByLabelText('Zone'));
+  await userEvent.selectOptions(within(cardB).getByLabelText('Zone'), 'Sans zone');
   await userEvent.type(within(cardB).getByLabelText('Casier'), 'C');
   await userEvent.click(screen.getByRole('button', { name: /Tout valider/ }));
   await waitFor(() => expect(bulk).toHaveBeenCalledTimes(1));
   const byPhoto = Object.fromEntries(bulk.mock.calls[0][0].map((i) => [i.photoId, i.location]));
-  expect(byPhoto).toEqual({ 'p-a': { zone: 'Garage', casier: null, position: null }, 'p-b': { zone: null, casier: 'C', position: null } });
+  expect(byPhoto).toEqual({ 'p-a': { zoneId: 'z1', casier: null, position: null }, 'p-b': { zoneId: null, casier: 'C', position: null } });
 });
 
 it('ne laisse pas valider tant que les emplacements ne sont pas lus', async () => {

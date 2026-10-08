@@ -8,7 +8,7 @@ it('garde les listes valables pour tout rôle et l’administration', () => {
 });
 
 it('garde une page réservée pour un propriétaire, la quitte pour un membre', () => {
-  for (const p of ['/entree', '/sortie', '/journal', '/a-confirmer', '/membres']) {
+  for (const p of ['/entree', '/sortie', '/journal', '/a-confirmer', '/ma-cave']) {
     expect(pathAfterCaveSwitch(p, true)).toBe(p);
     expect(pathAfterCaveSwitch(p, false)).toBe('/');
   }

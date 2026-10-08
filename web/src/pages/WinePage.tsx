@@ -6,7 +6,7 @@ import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { DomaineBlock, producerPollInterval } from '../components/DomaineBlock';
 import { ImageSearchBlock } from '../components/ImageSearchBlock';
-import { PlacePicker } from '../components/LocationFields';
+import { LocationFields, PlacePicker } from '../components/LocationFields';
 import { LocationsBlock } from '../components/LocationsBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
 import { QuoteBlock } from '../components/QuoteBlock';
@@ -14,8 +14,8 @@ import { RatingBlock } from '../components/RatingBlock';
 import { SortieConfirmation } from '../components/SortieConfirmation';
 import { TopBar } from '../components/TopBar';
 import { WineThumb } from '../components/WineThumb';
-import { ApiError, getWine, postInventory } from '../lib/api-client';
-import { NO_LOCATION, useLocations } from '../lib/locations';
+import { ApiError, getWine, LocationInput, postInventory } from '../lib/api-client';
+import { EMPTY_LOCATION, NO_LOCATION, toLocationInput, useLocations, useZones } from '../lib/locations';
 import { useCurrentCave } from '../lib/use-current-cave';
 
 const fmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -49,10 +49,12 @@ export function WinePage() {
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // Endroit de l'inventaire : choisi à l'écran, sinon la pré-sélection (baisse) ou « Sans emplacement » (hausse).
+  // Baisse : endroit choisi à l'écran, sinon la pré-sélection. Hausse : emplacement saisi, sinon « Sans emplacement ».
   const [inventoryPlace, setInventoryPlace] = useState<{ id: string | null } | null>(null);
-  // Hausse : tous les emplacements de la cave, lus seulement quand le propriétaire compte.
+  const [increaseTo, setIncreaseTo] = useState<LocationInput>(EMPTY_LOCATION);
+  // Hausse : suggestions et zones de la cave, lues seulement quand le propriétaire compte.
   const cellar = useLocations(isOwner && counting);
+  const zones = useZones(isOwner && counting);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const inventoryKey = useMemo(() => crypto.randomUUID(), [wineId, counting]);
 
@@ -82,11 +84,12 @@ export function WinePage() {
     inventoryPlace && decreasePlaceIds.includes(inventoryPlace.id) ? inventoryPlace.id
       : detail.data.exitDefault !== undefined && decreasePlaceIds.includes(detail.data.exitDefault) ? detail.data.exitDefault
         : places?.[0]?.id ?? null;
-  const increasePlace = inventoryPlace && (inventoryPlace.id === null || cellar.data?.some((l) => l.id === inventoryPlace.id)) ? inventoryPlace.id : null;
+  const increaseInput = toLocationInput(increaseTo);
   // Fiche sans endroits (ancienne api) : pas de champ, l'api applique sa règle.
   const inventoryLocation = places === undefined || delta === null || delta === 0
     ? {}
-    : { locationId: delta < 0 ? (places.length > 0 ? decreasePlace : null) : increasePlace };
+    : delta < 0 ? { locationId: places.length > 0 ? decreasePlace : null }
+      : increaseInput ? { location: increaseInput } : { locationId: null };
 
   async function saveInventory() {
     if (parsed === null || delta === 0) return;
@@ -96,7 +99,7 @@ export function WinePage() {
       const r = await postInventory(wine.id, { idempotencyKey: inventoryKey, counted: parsed, ...inventoryLocation });
       setInventoryMessage(`Stock corrigé : ${r.stock} en stock`);
       setCounting(false);
-      void qc.invalidateQueries({ predicate: (q) => ['cave', 'wine', 'movements'].includes(String(q.queryKey[0])) });
+      void qc.invalidateQueries({ predicate: (q) => ['cave', 'wine', 'movements', 'locations'].includes(String(q.queryKey[0])) });
     } catch (e) {
       setInventoryError(e instanceof Error ? e.message : 'Correction impossible');
     } finally {
@@ -146,7 +149,7 @@ export function WinePage() {
         {!readOnly && <section className="card">
           {inventoryMessage && <p role="status">{inventoryMessage}</p>}
           {!counting ? (
-            <Button variant="outline" onClick={() => { setCounting(true); setCounted(String(wine.quantity)); setInventoryMessage(null); setInventoryPlace(null); }}>
+            <Button variant="outline" onClick={() => { setCounting(true); setCounted(String(wine.quantity)); setInventoryMessage(null); setInventoryPlace(null); setIncreaseTo(EMPTY_LOCATION); }}>
               Corriger le stock
             </Button>
           ) : (
@@ -159,13 +162,10 @@ export function WinePage() {
                 <PlacePicker legend="D'où sortent-elles ?" places={places} value={decreasePlace} onChange={(id) => setInventoryPlace({ id })} />
               )}
               {places && delta !== null && delta > 0 && (
-                <>
-                  <label htmlFor="inventory-location" className="field__label">Emplacement</label>
-                  <select id="inventory-location" value={increasePlace ?? ''} onChange={(e) => setInventoryPlace({ id: e.target.value || null })}>
-                    <option value="">{NO_LOCATION}</option>
-                    {cellar.data?.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-                  </select>
-                </>
+                <fieldset className="move-form__to">
+                  <legend className="field__label">Emplacement</legend>
+                  <LocationFields value={increaseTo} onChange={setIncreaseTo} locations={cellar.data ?? []} zones={zones.data ?? []} />
+                </fieldset>
               )}
               <p>{tooMany ? 'Nombre de bouteilles trop élevé' : delta === null ? 'Saisis un nombre entier' : delta === 0 ? 'Stock déjà juste' : `${delta > 0 ? '+' : '−'}${plural(Math.abs(delta))}`}</p>
               {inventoryError && <p role="alert" className="text-error">{inventoryError}</p>}

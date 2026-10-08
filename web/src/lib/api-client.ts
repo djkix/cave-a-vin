@@ -114,16 +114,40 @@ export interface WineExtraction {
 }
 export interface PhotoDto { id: string; status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED'; rawExtraction?: unknown; extraction?: WineExtraction | null; errorMessage?: string | null; createdAt: string }
 export interface WineDraft { producer: string; cuvee?: string | null; appellationRaw: string; vintage?: number | null; color: WineColor; formatCl: number }
-/** Trois champs facultatifs d'un emplacement (au moins un renseigné côté api). */
-export interface LocationParts { zone: string | null; casier: string | null; position: string | null }
-/** Emplacement de la cave (`GET /locations`), trié par libellé ; `lastUsed` : celui de la dernière entrée rangée (un au plus). */
-export interface Location extends LocationParts { id: string; label: string; lastUsed: boolean }
-/** Un endroit où se trouve un vin : un emplacement, ou « Sans emplacement » (id null). */
-export interface Place { id: string | null; label: string; quantity: number }
+/** Emplacement saisi : une zone de la cave (null = « Sans zone ») et deux champs texte facultatifs (au moins un renseigné côté api). */
+export interface LocationInput { zoneId: string | null; casier: string | null; position: string | null }
+/**
+ * Emplacement de la cave (`GET /locations`), trié par libellé ; `zone` : nom
+ * actuel de sa zone ; `lastUsed` : celui de la dernière entrée rangée (un au plus).
+ */
+export interface Location extends LocationInput { id: string; zone: string | null; label: string; lastUsed: boolean }
+/** Un endroit où se trouve un vin : un emplacement, ou « Sans emplacement » (id null) ; `zoneId` : sa zone (indication, photo). */
+export interface Place { id: string | null; label: string; quantity: number; zoneId?: string | null }
 export const getLocations = () => apiFetch<Location[]>('/locations');
 
+/** Zone de la cave (« Ma cave »), dans l'ordre d'affichage ; la photo se lit à `zonePhotoUrl(id)`. */
+export interface Zone { id: string; name: string; indication: string | null; hasPhoto: boolean; sortOrder: number }
+export const getZones = () => apiFetch<Zone[]>('/caves/current/zones');
+export const createZone = (input: { name: string; indication?: string | null }) =>
+  apiFetch<Zone>('/caves/current/zones', { method: 'POST', body: JSON.stringify(input) });
+export const updateZone = (id: string, patch: { name?: string; indication?: string | null }) =>
+  apiFetch<Zone>(`/caves/current/zones/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+/** Supprime la zone, ou l'archive si elle a servi ; 409 si des bouteilles y sont encore rangées. */
+export const deleteZone = (id: string) => apiFetch<void>(`/caves/current/zones/${id}`, { method: 'DELETE' });
+/** Nouvel ordre d'affichage (les zones absentes de la liste suivent dans leur ordre). */
+export const reorderZones = (ids: string[]) =>
+  apiFetch<Zone[]>('/caves/current/zones/order', { method: 'POST', body: JSON.stringify({ ids }) });
+export function uploadZonePhoto(id: string, file: File | Blob) {
+  const form = new FormData();
+  form.append('file', file, 'zone.jpg');
+  return apiFetch<Zone>(`/caves/current/zones/${id}/photo`, { method: 'PUT', body: form });
+}
+export const removeZonePhoto = (id: string) => apiFetch<Zone>(`/caves/current/zones/${id}/photo`, { method: 'DELETE' });
+/** Adresse de la photo d'une zone ; `version` force la relecture après un remplacement. */
+export const zonePhotoUrl = (id: string, version?: number) => `/api/caves/zones/${id}/photo${version ? `?v=${version}` : ''}`;
+
 /** `location` absent ou null : « Sans emplacement » ; sinon créé à la volée s'il n'existe pas. */
-export interface CreateMovementInput { idempotencyKey: string; photoId?: string | null; wine: WineDraft; quantity: number; priceUnitCents?: number | null; note?: string | null; location?: LocationParts | null }
+export interface CreateMovementInput { idempotencyKey: string; photoId?: string | null; wine: WineDraft; quantity: number; priceUnitCents?: number | null; note?: string | null; location?: LocationInput | null }
 export interface MovementResult { movement: { id: string; delta: number; type: string; occurredAt: string }; wine: WineDraft & { id: string }; stock: number; created: boolean }
 export interface PhotoEvent { status: PhotoDto['status']; extraction?: WineExtraction; errorMessage?: string | null }
 
@@ -274,11 +298,12 @@ export const createOut = (input: { idempotencyKey: string; wineId: string; quant
   apiFetch<MovementResult>('/movements/out', { method: 'POST', body: JSON.stringify(input) });
 
 export interface InventoryResult { movement: { id: string } | null; stock: number; delta: number; created: boolean }
-export const postInventory = (wineId: string, input: { idempotencyKey: string; counted: number; locationId?: string | null }) =>
+/** Hausse : `locationId` (endroit existant) ou `location` (emplacement saisi, créé à la volée), l'un ou l'autre. */
+export const postInventory = (wineId: string, input: { idempotencyKey: string; counted: number; locationId?: string | null; location?: LocationInput }) =>
   apiFetch<InventoryResult>(`/wines/${wineId}/inventory`, { method: 'POST', body: JSON.stringify(input) });
 
 /** Déplacement de `quantity` bouteilles de `from` (null = « Sans emplacement ») vers `to`. */
-export interface MoveInput { idempotencyKey: string; from: string | null; to: LocationParts; quantity: number }
+export interface MoveInput { idempotencyKey: string; from: string | null; to: LocationInput; quantity: number }
 export const moveWine = (wineId: string, input: MoveInput) =>
   apiFetch<{ locations: Place[] }>(`/wines/${wineId}/move`, { method: 'POST', body: JSON.stringify(input) });
 

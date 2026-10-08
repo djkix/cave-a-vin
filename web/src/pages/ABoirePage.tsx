@@ -1,12 +1,15 @@
 import { Link } from 'react-router-dom';
 import { BottomNav } from '../components/BottomNav';
+import { ZoneDetails } from '../components/LocationFields';
 import { TopBar } from '../components/TopBar';
 import { apogeeShortLabel } from '../lib/apogee';
 import { groupByPlace, useDrinkSoon } from '../lib/drink-soon';
+import { useZones } from '../lib/locations';
 
-/** À boire prochainement, regroupé par emplacement : où descendre chercher les bouteilles. */
+/** À boire prochainement, regroupé par emplacement : où descendre chercher les bouteilles (indication et photo de la zone). */
 export function ABoirePage() {
   const soon = useDrinkSoon();
+  const zones = useZones();
   const groups = soon.data ? groupByPlace(soon.data) : [];
   return (
     <>
@@ -18,6 +21,7 @@ export function ABoirePage() {
         {groups.map((g) => (
           <section key={g.label} aria-label={g.label}>
             <h2 style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)' }}>{g.label.toUpperCase()}</h2>
+            <ZoneDetails zone={zones.data?.find((z) => z.id === g.zoneId)} />
             <div className="list">
               {g.wines.map(({ wine: w, quantity }) => (
                 <Link key={w.id} to={`/cave/${w.id}`} className="cave-row">

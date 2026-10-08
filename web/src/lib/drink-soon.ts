@@ -7,7 +7,8 @@ export function useDrinkSoon() {
   return useQuery({ queryKey: ['cave', { drinkSoon: true }], queryFn: () => getCave({ drinkSoon: true }) });
 }
 
-export interface PlaceGroup { label: string; wines: Array<{ wine: CaveRow; quantity: number }> }
+/** `zoneId` : zone de l'emplacement du groupe (indication et photo dans l'en-tête), null sans zone. */
+export interface PlaceGroup { label: string; zoneId: string | null; wines: Array<{ wine: CaveRow; quantity: number }> }
 
 /** Fin d'apogée la plus proche d'abord, puis la meilleure note. */
 const urgency = (a: CaveRow, b: CaveRow) =>
@@ -23,7 +24,7 @@ export function groupByPlace(wines: CaveRow[]): PlaceGroup[] {
   for (const wine of wines) {
     const places = wine.places?.length ? wine.places : [{ id: null, label: NO_LOCATION, quantity: wine.quantity }];
     for (const p of places) {
-      const g = groups.get(p.label) ?? { label: p.label, wines: [] };
+      const g = groups.get(p.label) ?? { label: p.label, zoneId: p.zoneId ?? null, wines: [] };
       g.wines.push({ wine, quantity: p.quantity });
       groups.set(p.label, g);
     }

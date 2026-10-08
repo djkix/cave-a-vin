@@ -8,7 +8,7 @@ import { EntryLocationBlock } from '../components/LocationFields';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { QuantityPicker } from '../components/QuantityPicker';
 import { TopBar } from '../components/TopBar';
-import { ApiError, BulkResult, createMovementsBulk, dismissPhoto, getEntryInbox, LocationParts, PhotoDto, WineDraft } from '../lib/api-client';
+import { ApiError, BulkResult, createMovementsBulk, dismissPhoto, getEntryInbox, LocationInput, PhotoDto, WineDraft } from '../lib/api-client';
 import { extractionToDraft } from '../lib/extraction-to-draft';
 import { EMPTY_LOCATION, toLocationInput, useLastLocation } from '../lib/locations';
 
@@ -22,7 +22,7 @@ interface Row {
   detected: number | null;
   ignored: boolean;
   /** Emplacement saisi ; absent tant qu'on n'y touche pas (pré-rempli avec la dernière entrée rangée). */
-  location?: LocationParts;
+  location?: LocationInput;
 }
 
 function toRow(p: PhotoDto): Row | null {
@@ -72,7 +72,7 @@ export function AConfirmerPage() {
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { locations, last, loading: locationsLoading } = useLastLocation();
+  const { locations, zones, last, loading: locationsLoading } = useLastLocation();
   const locationOf = (r: Row) => r.location ?? last ?? EMPTY_LOCATION;
 
   useEffect(() => {
@@ -202,7 +202,7 @@ export function AConfirmerPage() {
                       <EditableField label="Appellation" serif value={r.draft.appellationRaw} confidence={r.confidences.appellationRaw} onChange={(v) => update(r.photoId, { draft: { ...r.draft, appellationRaw: v } })} />
                       <EditableField label="Millésime" type="number" value={r.draft.vintage?.toString() ?? ''} confidence={r.confidences.vintage} onChange={(v) => update(r.photoId, { draft: { ...r.draft, vintage: v ? Number(v) : null } })} />
                       <QuantityPicker value={r.quantity} detected={r.detected} onChange={(n) => update(r.photoId, { quantity: n })} />
-                      <EntryLocationBlock value={locationOf(r)} onChange={(v) => update(r.photoId, { location: v })} locations={locations} />
+                      <EntryLocationBlock value={locationOf(r)} onChange={(v) => update(r.photoId, { location: v })} locations={locations} zones={zones} />
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end' }}>

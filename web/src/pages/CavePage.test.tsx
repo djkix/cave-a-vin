@@ -162,8 +162,8 @@ it('filtre par emplacement, « Sans emplacement » compris', async () => {
   const withPlaces = rows.map((r) => ({ ...r, locations: [{ id: 'l1', label: 'Cave 2 / B / 3', quantity: r.quantity }], locationLabel: 'Cave 2 / B / 3' }));
   const getCave = vi.spyOn(api, 'getCave').mockResolvedValue(withPlaces);
   vi.spyOn(api, 'getLocations').mockResolvedValue([
-    { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: false },
-    { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: true },
+    { id: 'l1', zoneId: 'z1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: false },
+    { id: 'l2', zoneId: 'z2', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: true },
   ]);
   mount();
   await screen.findByText(/Domaine Tempier/);
