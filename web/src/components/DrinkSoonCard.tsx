@@ -17,7 +17,7 @@ export function DrinkSoonCard() {
         <>
           <div className="list">
             {soon.data.slice(0, SHOWN).map((w) => (
-              <Link key={w.id} to={`/cave/${w.id}`} className="list__row" style={{ display: 'block' }}>
+              <Link key={w.id} to={`/cave/${w.id}`} className="list__row" style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
                 <span className="list__title" style={{ display: 'block' }}>
                   {w.producer}{w.cuvee ? ` — ${w.cuvee}` : ''} {w.vintage ?? 'NV'}
                 </span>
