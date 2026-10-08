@@ -7,7 +7,7 @@ import { WinePage } from './WinePage';
 
 afterEach(() => vi.restoreAllMocks());
 
-const SEARCH = 'https://www.idealwine.com/fr/prix-vin/domaine-tempier-la-tourtine-2019/le_marche_search/ok_results.jsp';
+const SEARCH = 'https://www.idealwine.com/fr/acheter-du-vin/recherche-domaine_tempier_la_tourtine';
 const base: api.WineDetail = {
   wine: {
     id: 'w1', producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75, referencePhotoId: null, quantity: 6,

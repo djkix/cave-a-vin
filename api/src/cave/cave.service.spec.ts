@@ -73,7 +73,7 @@ describe('CaveService.detail', () => {
       wineId: 'w19', coteCents, nTransactions: 12, quotedOn: new Date(`${quotedOn}T00:00:00Z`), sourceUrl, createdAt: new Date(createdAt),
       enteredBy: { displayName: null, email: 'franck@example.com' },
     });
-    const search = 'https://www.idealwine.com/fr/prix-vin/domaine-tempier-la-tourtine-2019/le_marche_search/ok_results.jsp';
+    const search = 'https://www.idealwine.com/fr/acheter-du-vin/recherche-domaine_tempier_la_tourtine';
 
     it('propriétaire sans cote : quote null et lien de recherche', async () => {
       const s = service(null);

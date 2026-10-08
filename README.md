@@ -691,7 +691,16 @@ cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$PO
 Votre adresse Google doit apparaître avec `is_admin` = `t` et le statut
 `ACTIVE`. Sinon, connectez-vous une fois avec Google avant de mettre à jour
 (`ADMIN_EMAILS` pose `is_admin` à la connexion) : c'est ce compte qui recevra
-la cave existante.
+la cave existante. **`ADMIN_EMAILS` doit donc être rempli dans le `.env`** avec
+votre adresse Google.
+
+**Déjà mis à jour et la cave est en lecture seule ?** C'est qu'aucun compte
+administrateur n'existait : la cave a été créée sans propriétaire et votre
+compte en est devenu membre. Ajoutez `ADMIN_EMAILS=votre.adresse@gmail.com` au
+`.env`, relancez `docker compose up -d --force-recreate api worker`, puis
+reconnectez-vous avec Google (bouton « Se déconnecter » de l'accueil, ou
+directement `https://votre-domaine/api/auth/google`) : le premier
+administrateur qui se connecte reçoit la cave sans propriétaire.
 
 **Faire ensuite une sauvegarde de la base**, juste avant la mise à jour, sans
 attendre le dump quotidien de `db-backup` :
