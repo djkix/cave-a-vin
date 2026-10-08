@@ -68,7 +68,7 @@ export function isConfigurationError(error: unknown): boolean {
  * experiencing high demand. » On prend donc le premier groupe de trois chiffres
  * entre crochets, et non un préfixe de message.
  */
-function statusFromMessage(message: string): number | null {
+export function statusFromMessage(message: string): number | null {
   const match = /\[(\d{3})\b/.exec(message);
   return match ? Number(match[1]) : null;
 }

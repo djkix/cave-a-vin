@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { DISPLAY_FILE_NAMES } from '../photos/display-image';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { statusFromMessage } from '../queue/transient-failure';
 import { CaveBudgetShareExceededError, PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
 import { OFFICIAL_SITE_PROVIDER, OfficialSiteProvider } from '../vision/official-site-provider.interface';
 import { CandidateExpiredError, CandidateMeta, CandidateStore } from './candidates';
@@ -18,6 +19,8 @@ export const IMAGE_SEARCH_FETCHER = 'IMAGE_SEARCH_FETCHER';
 
 const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
 const CAVE_SHARE_REACHED = 'Part mensuelle de cette cave atteinte — recherche possible le mois prochain';
+/** Google refuse l'appel (429) : quota de la clé Gemini épuisé, souvent faute de facturation activée. */
+const QUOTA_EXHAUSTED = 'Recherche d’image impossible : quota Gemini épuisé';
 
 /** Délai global d'une recherche : Open Food Facts, Gemini, page du site et téléchargements compris. */
 export const SEARCH_DEADLINE_MS = 30_000;
@@ -215,6 +218,9 @@ export class ImageSearchService {
     } catch (e) {
       const reason = e instanceof DeadlineError ? `pas de réponse en ${this.deadlineMs} ms` : (e as Error).message;
       this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
+      if (!(e instanceof DeadlineError) && statusFromMessage((e as Error).message) === 429) {
+        throw new ServiceUnavailableException(QUOTA_EXHAUSTED);
+      }
       // Abandonné au délai, l'appel a pu être facturé : on compte l'estimation
       // d'une recherche (le plafond ne doit jamais sous-estimer la dépense).
       if (e instanceof DeadlineError) {
