@@ -1085,6 +1085,16 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.6.0 — 8 octobre 2026
+
+Publiée ([v2.6.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.6.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.6.0` et `-web:2.6.0`.
+
+**Zones de la cave et page « Ma cave ».** Zones avec indication et photo,
+choisies dans une liste à la saisie d'un emplacement (casier et position
+libres) ; recherche iDealwine avec des espaces. **Sauvegarder la base avant**
+et suivre « Passage à la 2.6.0 ». Migration `20261015000000_zones`.
+
 ### 2.5.0 — 8 octobre 2026
 
 Publiée ([v2.5.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.5.0)),

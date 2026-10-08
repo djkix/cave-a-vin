@@ -11,6 +11,36 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.6.0](https://github.com/djkix/cave-a-vin/compare/v2.5.0...v2.6.0) (2026-10-08)
 
+### Résumé
+
+**Zones de la cave.** Une nouvelle page « Ma cave » (propriétaire, depuis
+l'accueil et « Mon compte ») réunit le nom de la cave, ses **zones** et ses
+membres (l'ancienne page Membres y est intégrée). Une zone a un nom, une
+indication facultative (« à gauche en entrant, au fond derrière l'escalier »),
+une photo facultative pour la reconnaître et un ordre d'affichage. À la saisie
+d'un emplacement, la zone se choisit désormais dans cette liste (plus « Sans
+zone »), avec son indication et sa vignette sous la liste ; casier et position
+restent libres. Une zone renommée l'est partout ; une zone qui contient encore
+des bouteilles ne peut pas être supprimée, et une zone qui a servi est archivée
+(elle reste dans l'historique). Sur la fiche d'un vin, toucher un emplacement
+montre l'indication et la photo de sa zone, comme en tête de chaque groupe
+d'« À boire prochainement ». Les membres en lecture seule les voient sans
+pouvoir les modifier.
+
+**Recherche iDealwine corrigée** (prévue en 2.5.1, incluse ici) : les mots sont
+séparés par des espaces ; avec des « _ », leur moteur affichait le terme avec
+des tirets, qui ne donnait plus rien quand on relançait la recherche. Pas de
+guillemets : essais faits, leur moteur n'en tient pas compte.
+
+**Mise à jour** (voir « Passage à la 2.6.0 » dans le README) : une migration
+(`20261015000000_zones`) convertit automatiquement les zones déjà saisies en
+zones de la liste, sans rien perdre ; **sauvegarder la base avant**. Le retour
+à la 2.5.x n'est pas possible sans restaurer cette sauvegarde. Aucune nouvelle
+variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
