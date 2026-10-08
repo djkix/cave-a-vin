@@ -78,6 +78,21 @@ export class LocationsService {
     return placesOf((await this.groups(caveId, wineId, db)).map(toPlaceGroup));
   }
 
+  /** Endroits de plusieurs vins de la cave en une requête (même règle que stockByLocation). */
+  async placesByWine(caveId: string, wineIds: string[]): Promise<Map<string, Place[]>> {
+    if (wineIds.length === 0) return new Map();
+    const rows = await this.prisma.$queryRaw<Array<Group & { wineId: string }>>`
+      SELECT m.wine_id AS "wineId", m.location_id AS "locationId", l.zone, l.casier, l.position, SUM(m.delta)::INTEGER AS quantity
+      FROM movement m
+      JOIN wine w ON w.id = m.wine_id
+      LEFT JOIN location l ON l.id = m.location_id
+      WHERE w.cave_id = ${caveId} AND m.wine_id IN (${Prisma.join(wineIds)})
+      GROUP BY m.wine_id, m.location_id, l.zone, l.casier, l.position`;
+    const byWine = new Map<string, Group[]>();
+    for (const r of rows) byWine.set(r.wineId, [...(byWine.get(r.wineId) ?? []), r]);
+    return new Map([...byWine].map(([id, groups]) => [id, placesOf(groups.map(toPlaceGroup))]));
+  }
+
   /**
    * Après écriture, dans la transaction qui tient le verrou du vin : aucun des
    * endroits touchés ne doit être passé sous zéro. Sinon 409 et la transaction

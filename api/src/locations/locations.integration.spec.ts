@@ -71,6 +71,22 @@ describeIfDb('emplacements (base réelle)', () => {
     });
   });
 
+  describe('placesByWine (« à boire prochainement »)', () => {
+    it('rend les endroits de plusieurs vins en une requête, comme stockByLocation, et rien pour une autre cave', async () => {
+      const a = await newWine();
+      await entry(2, { zone: 'Prochain', casier: 'A' });
+      await entry(1);
+      const b = await newWine();
+      await entry(3, { zone: 'Prochain', casier: 'B' });
+      const byWine = await locations.placesByWine(caveId, [a.id, b.id]);
+      expect(byWine.get(a.id)).toEqual(await places(a.id));
+      expect(byWine.get(b.id)).toEqual(await places(b.id));
+      expect(byWine.get(a.id)?.map((p) => [p.label, p.quantity])).toEqual([['Prochain / A', 2], ['Sans emplacement', 1]]);
+      expect((await locations.placesByWine(otherCaveId, [a.id])).size).toBe(0);
+      expect((await locations.placesByWine(caveId, [])).size).toBe(0);
+    });
+  });
+
   describe('stock par emplacement', () => {
     it('entrée, sortie, inventaire et « Sans emplacement »', async () => {
       const w = await newWine();

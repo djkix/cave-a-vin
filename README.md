@@ -283,6 +283,17 @@ deux cases s'excluent ; elles se combinent avec la recherche, la couleur et les
 vins épuisés. Côté API : `GET /api/cave?drinkSoon=true` et
 `GET /api/cave?noApogee=true`.
 
+**À boire prochainement.** Même critère, présenté pour savoir où descendre :
+sur l'accueil, une carte « À boire prochainement » montre les trois vins les
+plus urgents avec leur emplacement (« Cave 1 / A ») et mène, par « Tout voir »,
+à la page `/a-boire`, qui liste ces vins **regroupés par emplacement**
+(« Sans emplacement » en dernier ; dans chaque groupe, la fin d'apogée la plus
+proche d'abord, puis la meilleure note). Un vin rangé à deux endroits figure
+dans les deux groupes, avec la quantité de chacun ; rien d'urgent : « Rien
+d'urgent à boire. ». Visible aussi d'un membre en lecture seule. Dans la
+réponse de `GET /api/cave?drinkSoon=true`, chaque vin porte `places` (ses
+endroits et leur quantité).
+
 **Mesure « zéro saisie ».** Chaque entrée par photo (en rafale, ou saisie à la
 main après une lecture impossible) garde la fiche telle qu'elle a été
 confirmée. L'espace

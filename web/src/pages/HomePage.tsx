@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AnalysisQueueBanner } from '../components/AnalysisQueueBanner';
 import { BottomNav } from '../components/BottomNav';
+import { DrinkSoonCard } from '../components/DrinkSoonCard';
 import { Icon } from '../components/Icon';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { TopBar } from '../components/TopBar';
@@ -50,6 +51,7 @@ export function HomePage() {
                 <span className="num">{toConfirm}</span> vin{toConfirm > 1 ? 's' : ''} à confirmer
               </Link>
             )}
+            <DrinkSoonCard />
             <h2 style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)' }}>DERNIERS MOUVEMENTS</h2>
             <div className="list">
               {movements.data?.map((m) => <MovementRow key={m.id} m={m} />)}
@@ -79,6 +81,7 @@ export function HomePage() {
             </Link>
           </section>
         )}
+        {role === 'VIEWER' && <DrinkSoonCard />}
         {isAdmin && <Link to="/admin" className="btn btn--link">Administration</Link>}
       </main>
       <BottomNav />

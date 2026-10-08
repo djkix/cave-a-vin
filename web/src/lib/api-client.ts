@@ -185,6 +185,8 @@ export interface CaveRow {
   rating?: Rating | null;
   /** Plat demandé en filtre, uniquement présent quand `GET /cave?dish=` l'a retenu. */
   matchedDish?: string;
+  /** Endroits du vin : seulement dans la liste « à boire en priorité » (`drinkSoon`). */
+  places?: Place[];
 }
 /** `location` : id d'emplacement, ou `none` pour « Sans emplacement ». */
 export interface CaveFilter { q?: string; color?: WineColor; includeEmpty?: boolean; drinkSoon?: boolean; noApogee?: boolean; dish?: string; location?: string }

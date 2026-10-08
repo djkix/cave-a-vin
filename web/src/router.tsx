@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, RouteObject } from 'react-router-dom';
 import { RequireAuth, RequireOwner } from './components/RequireAuth';
+import { ABoirePage } from './pages/ABoirePage';
 import { AdminPage } from './pages/AdminPage';
 import { AConfirmerPage } from './pages/AConfirmerPage';
 import { CavePage } from './pages/CavePage';
@@ -30,6 +31,7 @@ export const routes: RouteObject[] = [
           { path: '/', element: <HomePage /> },
           { path: '/stats', element: <StatsPage /> },
           { path: '/compte', element: <ComptePage /> },
+          { path: '/a-boire', element: <ABoirePage /> },
           { path: '/cave', element: <CavePage /> },
           { path: '/cave/:wineId', element: <WinePage /> },
           {
