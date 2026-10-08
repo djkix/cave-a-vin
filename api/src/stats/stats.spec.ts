@@ -58,6 +58,25 @@ describe('computeStats — valeur et volume', () => {
   });
 });
 
+describe('computeStats — valeur à la cote', () => {
+  it('somme cote × stock des vins en stock cotés, compte les références cotées sur les références en stock, valeur de cession', () => {
+    const wines = [wine('w1', { quantity: 6 }), wine('w2', { quantity: 2 }), wine('w3', { quantity: 0 }), wine('w4', { quantity: 1 })];
+    const quotes = [{ wineId: 'w1', coteCents: 8500 }, { wineId: 'w3', coteCents: 99999 }, { wineId: 'w4', coteCents: 333 }];
+    const s = computeStats({ wines, movements: [], quotes }, NOW);
+    expect(s).toMatchObject({ quotedValueCents: 6 * 8500 + 333, quotedReferences: 2, quotableReferences: 3 });
+    expect(s.cessionValueCents).toBe(Math.round((6 * 8500 + 333) / 1.16));
+  });
+
+  it("sans cote : aucune valeur, 0 référence cotée", () => {
+    const s = computeStats({ wines: [wine('w1', { quantity: 3 })], movements: [] }, NOW);
+    expect(s).toMatchObject({ quotedValueCents: null, cessionValueCents: null, quotedReferences: 0, quotableReferences: 1 });
+  });
+
+  it('toutes ces clés sont des clés de prix (retirées au membre)', () => {
+    for (const k of ['quotedValueCents', 'quotedReferences', 'quotableReferences', 'cessionValueCents']) expect(PRICE_KEYS).toContain(k);
+  });
+});
+
 describe('computeStats — répartition', () => {
   const wines = [
     wine('a', { quantity: 6, color: 'ROUGE', region: 'Rhône', vintage: 2016, apogee: ap('A_BOIRE') }),
@@ -123,6 +142,22 @@ describe('computeStats — mouvements sur 12 mois', () => {
     const s = computeStats({ wines: [wine('w1', { quantity: 5 })], movements: [mv('w1', 'IN', 5, '2026-05-01T10:00:00Z')] }, NOW);
     expect(s.drinkRate).toBe(0);
     expect(s.yearsLeft).toBeNull();
+  });
+});
+
+describe('computeStats — déplacements', () => {
+  it('un déplacement (MOVE) n’est ni une entrée ni une sortie : flux, rythme, durée et « les plus bus »', () => {
+    const wines = [wine('w1', { quantity: 4 })];
+    const movements = [
+      mv('w1', 'IN', 4, '2026-09-01T10:00:00Z'),
+      mv('w1', 'MOVE', -3, '2026-09-05T10:00:00Z'),
+      mv('w1', 'MOVE', 3, '2026-09-05T10:00:00Z'),
+    ];
+    const s = computeStats({ wines, movements }, NOW);
+    expect(s.months.find((f) => f.month === '2026-09')).toEqual({ month: '2026-09', in: 4, out: 0 });
+    expect(s.drinkRate).toBe(0);
+    expect(s.yearsLeft).toBeNull();
+    expect(s.mostDrunk).toEqual([]);
   });
 });
 

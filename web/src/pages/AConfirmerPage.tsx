@@ -4,11 +4,13 @@ import { Link } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { LOW_CONFIDENCE } from '../components/ConfidenceBadge';
 import { EditableField } from '../components/EditableField';
+import { EntryLocationBlock } from '../components/LocationFields';
 import { OfflineQueueBanner } from '../components/OfflineQueueBanner';
 import { QuantityPicker } from '../components/QuantityPicker';
 import { TopBar } from '../components/TopBar';
-import { ApiError, BulkResult, createMovementsBulk, dismissPhoto, getEntryInbox, PhotoDto, WineDraft } from '../lib/api-client';
+import { ApiError, BulkResult, createMovementsBulk, dismissPhoto, getEntryInbox, LocationParts, PhotoDto, WineDraft } from '../lib/api-client';
 import { extractionToDraft } from '../lib/extraction-to-draft';
+import { EMPTY_LOCATION, toLocationInput, useLastLocation } from '../lib/locations';
 
 interface Row {
   photoId: string;
@@ -19,6 +21,8 @@ interface Row {
   quantity: number;
   detected: number | null;
   ignored: boolean;
+  /** Emplacement saisi ; absent tant qu'on n'y touche pas (pré-rempli avec la dernière entrée rangée). */
+  location?: LocationParts;
 }
 
 function toRow(p: PhotoDto): Row | null {
@@ -68,6 +72,8 @@ export function AConfirmerPage() {
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { locations, last, loading: locationsLoading } = useLastLocation();
+  const locationOf = (r: Row) => r.location ?? last ?? EMPTY_LOCATION;
 
   useEffect(() => {
     if (!inbox.data) return;
@@ -89,7 +95,7 @@ export function AConfirmerPage() {
   };
 
   const refreshAfterChange = () => {
-    for (const queryKey of [['entry-inbox'], ['cave'], ['movements'], ['stats']]) void qc.invalidateQueries({ queryKey });
+    for (const queryKey of [['entry-inbox'], ['cave'], ['movements'], ['stats'], ['locations']]) void qc.invalidateQueries({ queryKey });
   };
 
   const update = (id: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.photoId === id ? { ...r, ...patch } : r)));
@@ -107,7 +113,10 @@ export function AConfirmerPage() {
     setItemErrors({});
     try {
       const res = await createMovementsBulk(
-        selection.map((r) => ({ idempotencyKey: r.idempotencyKey, photoId: r.photoId, wine: { ...r.draft, cuvee: r.draft.cuvee || null, vintage: r.draft.vintage ?? null }, quantity: r.quantity })),
+        selection.map((r) => ({
+          idempotencyKey: r.idempotencyKey, photoId: r.photoId, wine: { ...r.draft, cuvee: r.draft.cuvee || null, vintage: r.draft.vintage ?? null },
+          quantity: r.quantity, location: toLocationInput(locationOf(r)),
+        })),
       );
       setResult(res);
       const okKeys = new Set(res.filter((x) => x.ok).map((x) => x.idempotencyKey));
@@ -193,12 +202,13 @@ export function AConfirmerPage() {
                       <EditableField label="Appellation" serif value={r.draft.appellationRaw} confidence={r.confidences.appellationRaw} onChange={(v) => update(r.photoId, { draft: { ...r.draft, appellationRaw: v } })} />
                       <EditableField label="Millésime" type="number" value={r.draft.vintage?.toString() ?? ''} confidence={r.confidences.vintage} onChange={(v) => update(r.photoId, { draft: { ...r.draft, vintage: v ? Number(v) : null } })} />
                       <QuantityPicker value={r.quantity} detected={r.detected} onChange={(n) => update(r.photoId, { quantity: n })} />
+                      <EntryLocationBlock value={locationOf(r)} onChange={(v) => update(r.photoId, { location: v })} locations={locations} />
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end' }}>
                     <Button variant="outline" onClick={() => dismiss(r.photoId)} disabled={busy} aria-label={dismissLabel(r.draft)}>Écarter</Button>
                     {!r.ignored && (
-                      <Button variant="primary" onClick={() => validate([r])} disabled={busy || problem !== null}>Valider</Button>
+                      <Button variant="primary" onClick={() => validate([r])} disabled={busy || locationsLoading || problem !== null}>Valider</Button>
                     )}
                   </div>
                 </article>
@@ -239,7 +249,7 @@ export function AConfirmerPage() {
 
         {rows.length > 0 && (
           <div className="dock">
-            <Button variant="dark" onClick={() => validate(kept)} disabled={busy || kept.length === 0}>
+            <Button variant="dark" onClick={() => validate(kept)} disabled={busy || locationsLoading || kept.length === 0}>
               Tout valider ({kept.length})
             </Button>
             <span className="dock__hint">

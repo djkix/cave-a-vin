@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { compileApogeeRules } from '../apogee/apogee';
 import { CaveRow } from './cave-filter';
+import { LocationsService } from '../locations/locations.service';
 import { CaveService } from './cave.service';
 
 const tempier19: CaveRow = {
@@ -14,15 +15,16 @@ const raw = (vintage: number | null) => ({
   pays_region: { value: null, confidence: 0 }, nb_cols_carton: { value: null, confidence: 0 }, confiance_globale: 0.9,
 });
 
-function service(photo: any, rows: any[] = [tempier19], rules = compileApogeeRules({ guardOverrides: [], vintageQualities: [] }), profile: unknown = null) {
+function service(photo: any, rows: any[] = [tempier19], rules = compileApogeeRules({ guardOverrides: [], vintageQualities: [] }), profile: unknown = null, quotes: any[] = []) {
   const prisma = {
     producerProfile: { findUnique: jest.fn(async () => profile) },
     $queryRaw: jest.fn(async () => rows),
     photo: { findFirst: jest.fn(async () => photo) },
     movement: { findMany: jest.fn(async () => []) },
+    priceQuote: { findMany: jest.fn(async () => quotes) },
     wine: { updateMany: jest.fn(async ({ where }: any) => ({ count: rows.some((r) => r.id === where.id && where.caveId === 'c1') ? 1 : 0 })) },
   };
-  return Object.assign(new CaveService(prisma as any, { load: async () => rules } as any), { mockPrisma: prisma });
+  return Object.assign(new CaveService(prisma as any, { load: async () => rules } as any, new LocationsService(prisma as any)), { mockPrisma: prisma });
 }
 
 describe('CaveService.exitCandidates', () => {
@@ -66,6 +68,61 @@ describe('CaveService.exitCandidates', () => {
 });
 
 describe('CaveService.detail', () => {
+  describe('cote iDealwine', () => {
+    const quote = (coteCents: number, quotedOn: string, createdAt: string, sourceUrl: string | null = null) => ({
+      wineId: 'w19', coteCents, nTransactions: 12, quotedOn: new Date(`${quotedOn}T00:00:00Z`), sourceUrl, createdAt: new Date(createdAt),
+      enteredBy: { displayName: null, email: 'franck@example.com' },
+    });
+    const search = 'https://www.idealwine.com/fr/prix-vin/domaine-tempier-la-tourtine-2019/le_marche_search/ok_results.jsp';
+
+    it('propriétaire sans cote : quote null et lien de recherche', async () => {
+      const s = service(null);
+      const r = await s.detail('c1', 'w19', 'OWNER');
+      expect(r).toMatchObject({ quote: null, idealwineUrl: search, savedUrl: null });
+      expect(s.mockPrisma.priceQuote.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { wineId: 'w19' } }));
+    });
+
+    it('propriétaire : cote courante, valeur de cession, lien enregistré de la cote courante', async () => {
+      const page = 'https://www.idealwine.com/fr/acheter-vin/tempier.jsp';
+      const r = await service(null, [tempier19], undefined, null, [
+        quote(9000, '2025-01-01', '2026-01-01T00:00:00Z', 'https://www.idealwine.com/fr/ancienne.jsp'),
+        quote(8500, '2026-03-03', '2026-03-04T00:00:00Z', page),
+      ]).detail('c1', 'w19', 'OWNER');
+      expect(r.quote).toEqual({ coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: page, enteredBy: 'franck@example.com', cessionCents: 7328 });
+      expect(r.idealwineUrl).toBe(page);
+      expect(r.savedUrl).toBe(page);
+      const noUrl = await service(null, [tempier19], undefined, null, [quote(8500, '2026-03-03', '2026-03-04T00:00:00Z')]).detail('c1', 'w19', 'OWNER');
+      expect(noUrl.idealwineUrl).toBe(search);
+      expect(noUrl.savedUrl).toBeNull();
+    });
+
+    it('lien gardé : sans lien sur la cote courante, la plus récente cote qui en a un, sinon la recherche', async () => {
+      const older = 'https://www.idealwine.com/fr/ancienne.jsp';
+      const saved = 'https://www.idealwine.com/fr/acheter-vin/tempier.jsp';
+      const r = await service(null, [tempier19], undefined, null, [
+        quote(7000, '2024-01-01', '2024-01-02T00:00:00Z', older),
+        quote(9000, '2025-01-01', '2026-01-01T00:00:00Z', saved),
+        quote(8500, '2026-03-03', '2026-03-04T00:00:00Z'),
+        // Même date de cote, saisie plus tôt : passe après la courante.
+        quote(8000, '2026-03-03', '2026-03-03T00:00:00Z'),
+      ]).detail('c1', 'w19', 'OWNER');
+      expect(r.quote).toMatchObject({ coteCents: 8500, sourceUrl: null });
+      expect(r.idealwineUrl).toBe(saved);
+      expect(r.savedUrl).toBe(saved);
+    });
+
+    it('membre : ni quote ni idealwineUrl (clés absentes), cotes non lues', async () => {
+      const s = service(null, [tempier19], undefined, null, [quote(8500, '2026-03-03', '2026-03-04T00:00:00Z')]);
+      const r = await s.detail('c1', 'w19', 'VIEWER');
+      expect(r).not.toHaveProperty('quote');
+      expect(r).not.toHaveProperty('idealwineUrl');
+      expect(r).not.toHaveProperty('savedUrl');
+      expect(JSON.stringify(r)).not.toMatch(/quote|cote|idealwine|cession|savedurl/i);
+      expect(s.mockPrisma.priceQuote.findMany).not.toHaveBeenCalled();
+      expect(await s.detail('c1', 'w19')).not.toHaveProperty('quote');
+    });
+  });
+
   it('lit les vins de la cave seulement (cave passée à la requête)', async () => {
     const s = service(null);
     await s.list('c1', {});
@@ -129,7 +186,7 @@ describe('CaveService — apogée', () => {
       $queryRaw: jest.fn(async () => [cdp]), movement: { findMany: jest.fn(async () => []) },
       producerProfile: { findUnique: jest.fn(async () => null) },
     };
-    const s = new CaveService(prisma as any, { load: async () => loads.shift()! } as any);
+    const s = new CaveService(prisma as any, { load: async () => loads.shift()! } as any, new LocationsService(prisma as any));
     expect((await s.detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2024, max: 2036 });
     expect((await s.detail('c1', 'w16')).wine.apogee).toMatchObject({ min: 2026, max: 2040, confidence: 'MOYENNE' });
   });
@@ -245,6 +302,25 @@ describe('CaveService — apogée', () => {
     ];
     const items = await service(null, rows).list('c1', { dish: 'agneau' });
     expect(items.map((i) => [i.id, i.matchedDish])).toEqual([['soon', 'Agneau de sept heures'], ['young', 'Gigot d’agneau']]);
+  });
+});
+
+describe('CaveService — écritures de la fiche sans lecture de cote', () => {
+  const rated = { ...cdp, rating: 16.5, ratedAt: new Date('2026-10-05T10:00:00Z'), ratedBy: 'franck@example.com' };
+  const quotes = [{
+    wineId: 'w16', coteCents: 8500, nTransactions: 12, quotedOn: new Date('2026-03-03T00:00:00Z'), sourceUrl: null,
+    createdAt: new Date('2026-03-04T00:00:00Z'), enteredBy: null,
+  }];
+
+  it('apogée et note : mêmes valeurs que la fiche du propriétaire, cotes non lues', async () => {
+    const ref = await service(null, [rated], undefined, null, quotes).detail('c1', 'w16', 'OWNER');
+    const s = service(null, [rated], undefined, null, quotes);
+    expect(await s.setManualApogee('c1', 'w16', { min: 2030, max: 2035 })).toEqual(ref.wine.apogee);
+    expect(await s.clearManualApogee('c1', 'w16')).toEqual(ref.wine.apogee);
+    expect(await s.setRating('c1', 'w16', 16.5, 'u1')).toEqual(ref.wine.rating);
+    expect(s.mockPrisma.priceQuote.findMany).not.toHaveBeenCalled();
+    // L'auteur de la note reste lu comme pour le propriétaire (e-mail à défaut de nom).
+    expect(JSON.stringify(s.mockPrisma.$queryRaw.mock.calls)).toContain('COALESCE(u.display_name, u.email)');
   });
 });
 

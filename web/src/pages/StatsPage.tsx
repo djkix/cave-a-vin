@@ -4,7 +4,8 @@ import { BottomNav } from '../components/BottomNav';
 import { TopBar } from '../components/TopBar';
 import { BarList, BarRow } from '../components/stats/BarList';
 import { MonthlyChart } from '../components/stats/MonthlyChart';
-import { getStats, StatsRankedWine, StatsShare } from '../lib/api-client';
+import { getStats, Stats, StatsRankedWine, StatsShare } from '../lib/api-client';
+import { CESSION_NOTE, formatEurosRounded } from '../lib/quote';
 import { formatRatingShort } from '../lib/rating';
 
 const COLOR_LABEL: Record<string, string> = { ROUGE: 'Rouge', BLANC: 'Blanc', ROSE: 'Rosé', PETILLANT: 'Pétillant' };
@@ -22,6 +23,31 @@ const REGIONS_SHOWN = 8;
 const EUROS = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const euros = (cents: number) => `~${EUROS.format(Math.round(cents / 100))} €`;
 const wineLabel = (w: StatsRankedWine) => `${w.producer}${w.cuvee ? ` — ${w.cuvee}` : ''} ${w.vintage ?? 'NV'}`;
+const quotedText = (n: number) => `${n} ${n > 1 ? 'références cotées' : 'référence cotée'}`;
+
+/** Valeur à la cote, propriétaire seulement : un membre ne reçoit pas les clés et rien n'est rendu. */
+function QuotedValue({ s }: { s: Stats }) {
+  if (!('quotedValueCents' in s)) return null;
+  const value = s.quotedValueCents ?? null;
+  return (
+    <section className="card">
+      {value == null ? (
+        <>
+          <p style={{ margin: 0 }}>Valeur à la cote : —</p>
+          <p className="list__meta" style={{ margin: 0 }}>Pas encore de cote</p>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: 0 }}>{`Valeur à la cote : ${formatEurosRounded(value)} sur ${quotedText(s.quotedReferences ?? 0)} (sur ${s.quotableReferences ?? 0})`}</p>
+          {s.cessionValueCents != null && (
+            <p className="list__meta" style={{ margin: 0 }}>{`Valeur de cession estimée : ${formatEurosRounded(s.cessionValueCents)} ${CESSION_NOTE}`}</p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 const bottlesText = (n: number) => `${n} ${n > 1 ? 'bouteilles' : 'bouteille'}`;
 
 /** Les `count` premières, puis une ligne « Autres » qui totalise le reste. */
@@ -84,6 +110,7 @@ export function StatsPage() {
                 </>
               )}
             </section>
+            <QuotedValue s={s} />
             <BarList
               title="Apogée"
               rows={s.byApogee.map((r) => ({ ...r, label: APOGEE_LABEL[r.key] ?? r.key, to: r.bottles > 0 ? APOGEE_LINK[r.key] : undefined }))}

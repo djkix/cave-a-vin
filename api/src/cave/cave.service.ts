@@ -3,7 +3,10 @@ import { CaveRole, Prisma } from '@prisma/client';
 import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { ManualApogeeInput } from '../apogee/dto';
+import { labelOf } from '../locations/location';
+import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentQuote, idealwineSearchUrl, QUOTE_SELECT, QuoteView, quoteView, savedSourceUrl } from '../quotes/quote';
 import { producerKeyOf } from '../producers/producer-key';
 import { PRODUCER_PROFILE_INCLUDE, producerProfileOf } from '../producers/producer-profile.view';
 import { parseExtraction } from '../vision/extraction-schema';
@@ -71,11 +74,18 @@ function toItem(row: CaveDbRow, rules: CompiledApogeeRules, currentYear: number)
   return { ...pub, apogee: apogeeOf(row, rules, currentYear), rating: ratingOf(row) };
 }
 
+/**
+ * Écritures qui ne renvoient qu'un champ de `wine` : la cote n'est pas lue. Le
+ * rôle reste OWNER, car l'auteur de la note est alors l'e-mail à défaut de nom.
+ */
+const NO_QUOTE = { withQuote: false } as const;
+
 @Injectable()
 export class CaveService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rules: ApogeeRulesService,
+    private readonly locations: LocationsService,
   ) {}
 
   /**
@@ -109,9 +119,15 @@ export class CaveService {
   }
 
   async list(caveId: string, filter: CaveFilter, role: CaveRole = 'VIEWER'): Promise<CaveItem[]> {
-    const [rows, rules] = await Promise.all([this.allWithStock(caveId, role), this.rules.load()]);
+    // Un emplacement d'une autre cave est « introuvable », comme un identifiant inconnu.
+    if (filter.location && filter.location !== 'none') await this.locations.findOwn(caveId, filter.location);
+    const [rows, rules, atPlace] = await Promise.all([
+      this.allWithStock(caveId, role),
+      this.rules.load(),
+      filter.location ? this.locations.wineIdsAt(caveId, filter.location) : null,
+    ]);
     const year = new Date().getFullYear();
-    const kept = filterCave(rows, filter);
+    const kept = filterCave(atPlace ? rows.filter((r) => atPlace.has(r.id)) : rows, filter);
     let items = kept.map((r) => toItem(r, rules, year));
     if (filter.drinkSoon) items = sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
     else if (filter.noApogee) items = items.filter((i) => i.apogee.max == null);
@@ -130,21 +146,35 @@ export class CaveService {
   }
 
   /** Fiche d'un vin de la cave ; un vin d'une autre cave est « introuvable », comme un identifiant inconnu. */
-  async detail(caveId: string, id: string, role: CaveRole = 'VIEWER') {
+  async detail(caveId: string, id: string, role: CaveRole = 'VIEWER', { withQuote = true }: { withQuote?: boolean } = {}) {
     const [rows, rules] = await Promise.all([this.allWithStock(caveId, role), this.rules.load()]);
     const row = rows.find((r) => r.id === id);
     if (!row) throw new NotFoundException('Vin introuvable');
     const producerKey = producerKeyOf(row.producer);
-    const [movements, profile] = await Promise.all([
+    const locations = await this.locations.stockByLocation(caveId, id);
+    const [movements, profile, exitDefault, quotes] = await Promise.all([
       this.prisma.movement.findMany({
         where: { wineId: id },
         orderBy: { occurredAt: 'desc' },
         take: 10,
-        select: { id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true },
+        select: {
+          id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true, locationId: true,
+          location: { select: { zone: true, casier: true, position: true } },
+        },
       }),
       // Un descriptif par domaine, partagé par tous ses vins : lien par la clé normalisée.
       producerKey ? this.prisma.producerProfile.findUnique({ where: { producerKey }, include: PRODUCER_PROFILE_INCLUDE }) : null,
+      // Emplacements : visibles du membre comme du propriétaire (ce ne sont pas des prix).
+      this.locations.exitDefault(caveId, id, undefined, locations),
+      // Cote : un prix, jamais lue pour un membre.
+      role === 'OWNER' && withQuote ? this.prisma.priceQuote.findMany({ where: { wineId: id }, select: QUOTE_SELECT }) : null,
     ]);
+    let cote: { quote: QuoteView | null; idealwineUrl: string; savedUrl: string | null } | undefined;
+    if (quotes) {
+      const current = currentQuote(quotes);
+      const savedUrl = savedSourceUrl(quotes);
+      cote = { quote: current && quoteView(current), idealwineUrl: savedUrl ?? idealwineSearchUrl(row), savedUrl };
+    }
     return {
       wine: {
         ...toItem(row, rules, new Date().getFullYear()),
@@ -156,7 +186,19 @@ export class CaveService {
         producerKey: producerKey || null,
         producerProfile: producerProfileOf(profile, role),
       },
-      movements,
+      movements: movements.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf(location) : null })),
+      /** Endroits du vin et leur quantité (> 0) ; « Sans emplacement » : id null, en dernier. */
+      locations,
+      /** Endroit pré-sélectionné à la sortie : id, null = « Sans emplacement », absent = plus de stock. */
+      exitDefault,
+      /**
+       * Propriétaire seulement : cote iDealwine courante (null sans cote) et lien
+       * « Voir sur iDealwine » (page enregistrée de la cote courante, sinon de la
+       * plus récente cote qui en a une, sinon la recherche) ; `savedUrl` : ce lien
+       * enregistré seul (null sans lien), pour pré-remplir le formulaire. Pour un
+       * membre, les trois clés sont absentes, pas nulles.
+       */
+      ...cote,
     };
   }
 
@@ -187,17 +229,17 @@ export class CaveService {
 
   async setManualApogee(caveId: string, id: string, input: ManualApogeeInput): Promise<Apogee> {
     await this.updateWine(caveId, id, { apogeeMin: input.min, apogeeMax: input.max, apogeeSource: 'MANUEL' });
-    return (await this.detail(caveId, id, 'OWNER')).wine.apogee;
+    return (await this.detail(caveId, id, 'OWNER', NO_QUOTE)).wine.apogee;
   }
 
   async clearManualApogee(caveId: string, id: string): Promise<Apogee> {
     await this.updateWine(caveId, id, { apogeeMin: null, apogeeMax: null, apogeeSource: null });
-    return (await this.detail(caveId, id, 'OWNER')).wine.apogee;
+    return (await this.detail(caveId, id, 'OWNER', NO_QUOTE)).wine.apogee;
   }
 
   async setRating(caveId: string, id: string, value: number, userId: string): Promise<Rating | null> {
     await this.updateWine(caveId, id, { rating: value, ratedAt: new Date(), ratedById: userId });
-    return (await this.detail(caveId, id, 'OWNER')).wine.rating;
+    return (await this.detail(caveId, id, 'OWNER', NO_QUOTE)).wine.rating;
   }
 
   async clearRating(caveId: string, id: string): Promise<null> {

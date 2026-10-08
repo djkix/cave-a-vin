@@ -12,6 +12,7 @@ const months = (overrides: Record<string, [number, number]> = {}) =>
 
 const base: api.Stats = {
   bottles: 12, references: 2, pricedReferences: 1, purchaseValueCents: 1240000,
+  quotedValueCents: 1_020_000, cessionValueCents: 856_800, quotedReferences: 1, quotableReferences: 2,
   byColor: [{ key: 'ROUGE', bottles: 9, share: 0.75 }, { key: 'BLANC', bottles: 3, share: 0.25 }],
   byRegion: [{ key: 'Rhône', bottles: 9, share: 0.75 }, { key: 'Sans région', bottles: 3, share: 0.25 }],
   byDecade: [{ key: '2010', bottles: 9, share: 0.75 }, { key: 'Non millésimé', bottles: 3, share: 0.25 }],
@@ -117,8 +118,9 @@ it('dit quand les statistiques ne se chargent pas', async () => {
 });
 
 it('affiche les statistiques d’un membre sans aucune section de prix, clés absentes', async () => {
-  const { pricedReferences, purchaseValueCents, mostExpensive, ...viewerStats } = base;
+  const { pricedReferences, purchaseValueCents, mostExpensive, quotedValueCents, cessionValueCents, quotedReferences, quotableReferences, ...viewerStats } = base;
   void pricedReferences; void purchaseValueCents; void mostExpensive;
+  void quotedValueCents; void cessionValueCents; void quotedReferences; void quotableReferences;
   vi.spyOn(api, 'getStats').mockResolvedValue(viewerStats);
   mount();
   expect(await screen.findByText('références')).toBeInTheDocument();
@@ -126,6 +128,31 @@ it('affiche les statistiques d’un membre sans aucune section de prix, clés ab
   expect(screen.queryByText('Aucun prix d’achat saisi')).not.toBeInTheDocument();
   expect(screen.queryByText(/€/)).not.toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Les plus chères' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/cote|cession/i)).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Les plus bus' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Les mieux notés' })).toBeInTheDocument();
+});
+
+describe('valeur à la cote (propriétaire)', () => {
+  it('« Valeur à la cote : X € sur N références cotées (sur M) », la valeur de cession à côté', async () => {
+    vi.spyOn(api, 'getStats').mockResolvedValue({ ...base, quotedValueCents: 1_020_000, cessionValueCents: 856_800, quotedReferences: 2, quotableReferences: 3 });
+    mount();
+    expect(await screen.findByText(/^Valeur à la cote : 10\s200 € sur 2 références cotées \(sur 3\)$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Valeur de cession estimée : 8\s568 € \(cote hors frais acheteur d'environ 16 %\)$/)).toBeInTheDocument();
+  });
+
+  it('une seule référence cotée : au singulier', async () => {
+    vi.spyOn(api, 'getStats').mockResolvedValue(base);
+    mount();
+    expect(await screen.findByText(/^Valeur à la cote : 10\s200 € sur 1 référence cotée \(sur 2\)$/)).toBeInTheDocument();
+  });
+
+  it('aucune référence cotée : « Pas encore de cote », jamais « 0 € »', async () => {
+    vi.spyOn(api, 'getStats').mockResolvedValue({ ...base, quotedValueCents: null, cessionValueCents: null, quotedReferences: 0 });
+    mount();
+    expect(await screen.findByText('Pas encore de cote')).toBeInTheDocument();
+    expect(screen.getByText('Valeur à la cote : —')).toBeInTheDocument();
+    expect(screen.queryByText(/(^|\s)0 €/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Valeur de cession/)).not.toBeInTheDocument();
+  });
 });

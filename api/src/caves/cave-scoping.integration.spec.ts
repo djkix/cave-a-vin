@@ -7,6 +7,7 @@ import { AppellationsService } from '../appellations/appellations.service';
 import { CaveService } from '../cave/cave.service';
 import { ExportService } from '../export/export.service';
 import { MovementsService } from '../movements/movements.service';
+import { LocationsService } from '../locations/locations.service';
 import { StatsService } from '../stats/stats.service';
 import { createTestCave } from '../test-utils/cave';
 import { WineMatchingService } from '../wines/wine-matching.service';
@@ -18,9 +19,10 @@ const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 describeIfDb('services filtrés par cave (base réelle)', () => {
   const prisma = new PrismaClient();
   const rules = new ApogeeRulesService(prisma as never);
-  const cave = new CaveService(prisma as never, rules);
+  const locations = new LocationsService(prisma as never);
+  const cave = new CaveService(prisma as never, rules, locations);
   const matching = new WineMatchingService(prisma as never, new AppellationsService(prisma as never));
-  const movements = new MovementsService(prisma as never, matching);
+  const movements = new MovementsService(prisma as never, matching, locations);
   const stats = new StatsService(prisma as never, cave, rules);
   const exporter = new ExportService(prisma as never, rules);
   const run = randomUUID().slice(0, 8);
@@ -90,7 +92,8 @@ describeIfDb('services filtrés par cave (base réelle)', () => {
     it('auteur de la note : nom affiché ou null pour un VIEWER, jamais l’e-mail ; e-mail à défaut de nom pour l’OWNER', async () => {
       const rater = await prisma.appUser.create({ data: { email: `scope-rater-${run}@example.test` } });
       try {
-        await cave.setRating(caveA, wineA, 15, rater.id);
+        // La réponse de l'écriture (propriétaire) nomme l'auteur comme la fiche du propriétaire.
+        expect((await cave.setRating(caveA, wineA, 15, rater.id))?.ratedBy).toBe(rater.email);
         const ratedBy = async (role: 'OWNER' | 'VIEWER') => [
           (await cave.list(caveA, { includeEmpty: true }, role)).find((w) => w.id === wineA)!.rating?.ratedBy,
           (await cave.detail(caveA, wineA, role)).wine.rating?.ratedBy,

@@ -22,6 +22,8 @@ enum MovementType {
   IN
   OUT
   ADJUST
+  /// Déplacement : une paire (−N à l'origine, +N à la destination) qui laisse le stock inchangé.
+  MOVE
 }
 
 enum PhotoStatus {
@@ -114,6 +116,7 @@ model Wine {
   ratedBy                  AppUser?     @relation(fields: [ratedById], references: [id], onDelete: SetNull)
   pairing                  Pairing?
   movements                Movement[]
+  priceQuotes              PriceQuote[]
 
   /// Rapprochement par cave : le même vin peut exister dans deux caves.
   /// L'index commence par cave_id et sert aussi de filtre par cave.
@@ -135,8 +138,12 @@ model Movement {
   idempotencyKey String       @unique @map("idempotency_key")
   reversesId     String?      @map("reverses_id")
   confirmedWine  Json?        @map("confirmed_wine")
+  /// Emplacement du mouvement ; nul = « Sans emplacement ».
+  locationId     String?      @map("location_id")
+  location       Location?    @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@index([wineId, occurredAt])
+  @@index([locationId])
   @@map("movement")
 }
 
@@ -181,6 +188,7 @@ model AppUser {
   producerProfiles ProducerProfile[]
   ownedCaves       Cave[]            @relation("CaveOwner")
   caveMemberships  CaveMember[]
+  priceQuotes      PriceQuote[]
 
   @@map("app_user")
 }
@@ -200,6 +208,7 @@ model Cave {
   photos           Photo[]
   exportLogs       ExportLog[]
   imageSearchCosts ImageSearchCost[]
+  locations        Location[]
 
   @@index([ownerId])
   @@map("cave")
@@ -329,4 +338,44 @@ model ImageSearchCost {
   /// Dépense du mois par cave (part de budget par cave).
   @@index([caveId, createdAt])
   @@map("image_search_cost")
+}
+
+/// Emplacement dans une cave (zone / casier / position, au moins un des trois).
+/// labelKey = les trois champs nettoyés, en minuscules, en tableau JSON (`["cave 2","b",null]`).
+/// Aucune quantité stockée : le stock d'un emplacement est la somme des delta
+/// des mouvements qui le désignent. Au moins un champ renseigné : CHECK
+/// location_not_empty_check en migration.
+model Location {
+  id        String     @id @default(uuid())
+  caveId    String     @map("cave_id")
+  cave      Cave       @relation(fields: [caveId], references: [id], onDelete: Restrict)
+  zone      String?
+  casier    String?
+  position  String?
+  labelKey  String     @map("label_key")
+  createdAt DateTime   @default(now()) @map("created_at")
+  movements Movement[]
+
+  @@unique([caveId, labelKey])
+  @@map("location")
+}
+
+/// Cote iDealwine saisie à la main, en ajout seulement (historique). La cote
+/// courante d'un vin = la dernière par quotedOn, puis createdAt. CHECK en
+/// migration : coteCents > 0, nTransactions >= 0.
+model PriceQuote {
+  id            String   @id @default(uuid())
+  wineId        String   @map("wine_id")
+  wine          Wine     @relation(fields: [wineId], references: [id], onDelete: Cascade)
+  source        String   @default("IDEALWINE")
+  coteCents     Int      @map("cote_cents")
+  nTransactions Int?     @map("n_transactions")
+  quotedOn      DateTime @map("quoted_on") @db.Date
+  sourceUrl     String?  @map("source_url")
+  enteredById   String?  @map("entered_by")
+  enteredBy     AppUser? @relation(fields: [enteredById], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([wineId, quotedOn])
+  @@map("price_quote")
 }

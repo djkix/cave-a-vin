@@ -5,10 +5,11 @@ import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
 import { TopBar } from '../components/TopBar';
 import { cancelMovement, exportUrl, getRecentMovements, MovementWithWine, WineColor } from '../lib/api-client';
+import { NO_LOCATION } from '../lib/locations';
 
 const fmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export function MovementRow({ m, onCancel, cancelling }: { m: MovementWithWine; onCancel?: (id: string) => void; cancelling?: boolean }) {
+export function MovementRow({ m, onCancel, cancelling, cancelled }: { m: MovementWithWine; onCancel?: (id: string) => void; cancelling?: boolean; cancelled?: boolean }) {
   const isIn = m.delta > 0;
   return (
     <div className="list__row">
@@ -16,12 +17,14 @@ export function MovementRow({ m, onCancel, cancelling }: { m: MovementWithWine; 
       <div style={{ flex: 1, minWidth: 0 }}>
         <span className={`list__delta ${isIn ? 'list__delta--in' : 'list__delta--out'} num`}>{isIn ? `+${m.delta}` : m.delta}</span>
         <span className="list__meta"> · {fmt.format(new Date(m.occurredAt))}</span>
+        {/* Une moitié de déplacement : l'emplacement d'origine (−) ou de destination (+). */}
+        {m.type === 'MOVE' && <span className="list__meta">{` · Déplacé · ${m.locationLabel ?? NO_LOCATION}`}</span>}
         <p className="list__title" style={{ margin: 0 }}>
           {m.wine.producer}{m.wine.cuvee ? ` — ${m.wine.cuvee}` : ''} {m.wine.vintage ?? ''}
         </p>
-        <span className="list__meta">{m.wine.appellationRaw}{m.note ? ` · ${m.note}` : ''}</span>
+        <span className="list__meta">{m.wine.appellationRaw}{m.type !== 'MOVE' && m.locationLabel ? ` · ${m.locationLabel}` : ''}{m.note ? ` · ${m.note}` : ''}</span>
       </div>
-      {onCancel && !m.reversesId && (
+      {onCancel && !m.reversesId && !cancelled && (
         <Button variant="outline" onClick={() => onCancel(m.id)} disabled={cancelling}>Annuler</Button>
       )}
     </div>
@@ -33,6 +36,9 @@ export function JournalPage() {
   const movements = useQuery({ queryKey: ['movements', 'recent'], queryFn: () => getRecentMovements(20) });
   const [color, setColor] = useState<WineColor | ''>('');
   const [drinkSoon, setDrinkSoon] = useState(false);
+  // Mouvements déjà annulés (leur annulation figure dans la liste) : plus de bouton « Annuler ».
+  // Un déplacement annulé l'est par paire, ses deux moitiés ont chacune leur annulation.
+  const reversed = new Set(movements.data?.map((m) => m.reversesId).filter((id): id is string => !!id));
   const cancel = useMutation({
     mutationFn: (id: string) => cancelMovement(id, crypto.randomUUID()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['movements'] }),
@@ -66,7 +72,9 @@ export function JournalPage() {
         <h2 style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)' }}>20 DERNIERS MOUVEMENTS</h2>
         {cancel.isError && <p role="alert" className="text-error">{(cancel.error as Error).message}</p>}
         <div className="list">
-          {movements.data?.map((m) => <MovementRow key={m.id} m={m} onCancel={(id) => cancel.mutate(id)} cancelling={cancel.isPending} />)}
+          {movements.data?.map((m) => (
+            <MovementRow key={m.id} m={m} onCancel={(id) => cancel.mutate(id)} cancelling={cancel.isPending} cancelled={reversed.has(m.id)} />
+          ))}
           {movements.data?.length === 0 && <p className="centered">Aucun mouvement pour l’instant.</p>}
         </div>
       </main>

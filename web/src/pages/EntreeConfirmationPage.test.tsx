@@ -148,3 +148,127 @@ it('pré-remplit la fiche depuis la photo déjà lue, même sans nouvelle du flu
   mount();
   expect(await screen.findByDisplayValue('Domaine Tempier')).toBeInTheDocument();
 });
+
+describe('emplacement à l’entrée', () => {
+  const locations: api.Location[] = [
+    { id: 'l0', zone: 'Armoire', casier: null, position: null, label: 'Armoire', lastUsed: false },
+    { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
+  ];
+  const ok = { movement: { id: 'm1', delta: 6, type: 'IN', occurredAt: '' }, wine: { id: 'w1', producer: 'Domaine Tempier', appellationRaw: 'Bandol', color: 'ROUGE' as const, formatCl: 75 }, stock: 6, created: true };
+
+  function ready() {
+    vi.spyOn(api, 'getPhoto').mockResolvedValue({ id: 'p1', status: 'DONE', extraction, createdAt: '' });
+    vi.spyOn(sse, 'subscribePhotoEvents').mockImplementation(() => () => {});
+  }
+
+  function mountWithClient() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const view = render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/entree/p1']}>
+          <Routes><Route path="/entree/:photoId" element={<EntreeConfirmationPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    return { ...view, invalidate };
+  }
+
+  it('replie le bloc, le pré-remplit avec l’emplacement « lastUsed » du serveur, l’envoie et rafraîchit les emplacements', async () => {
+    ready();
+    vi.spyOn(api, 'getLocations').mockResolvedValue(locations);
+    const recent = vi.spyOn(api, 'getRecentMovements');
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    const { container, invalidate } = mountWithClient();
+    await screen.findByDisplayValue('Domaine Tempier');
+    expect(await screen.findByText('Cave 2 / B / 3')).toBeInTheDocument();
+    const block = [...container.querySelectorAll('details')].find((d) => d.querySelector('summary')?.textContent?.startsWith('Emplacement'))!;
+    expect(block).not.toHaveAttribute('open');
+    expect(recent).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toEqual({ zone: 'Cave 2', casier: 'B', position: '3' });
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['locations'] }));
+  });
+
+  it('ne laisse pas confirmer tant que les emplacements ne sont pas lus', async () => {
+    ready();
+    vi.spyOn(api, 'getLocations').mockImplementation(() => new Promise(() => {}));
+    mount();
+    await screen.findByDisplayValue('Domaine Tempier');
+    expect(screen.getByRole('button', { name: /Confirmer l’entrée/ })).toBeDisabled();
+  });
+
+  // Client aux réglages par défaut (3 nouvelles tentatives, ~7 s) : l'entrée ne doit jamais attendre si longtemps.
+  function mountWithRetries() {
+    return render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/entree/p1']}>
+          <Routes><Route path="/entree/:photoId" element={<EntreeConfirmationPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('emplacements illisibles : « Confirmer » revient dès l’erreur, sans nouvelles tentatives, et l’entrée part sans emplacement', async () => {
+    ready();
+    const list = vi.spyOn(api, 'getLocations').mockRejectedValue(new api.ApiError(500, 'Erreur'));
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    mountWithRetries();
+    await screen.findByDisplayValue('Domaine Tempier');
+    const button = screen.getByRole('button', { name: /Confirmer l’entrée/ });
+    await waitFor(() => expect(button).toBeEnabled(), { timeout: 900 });
+    expect(list).toHaveBeenCalledTimes(1);
+    await userEvent.click(button);
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toBeNull();
+  });
+
+  it('emplacements sans réponse : « Confirmer » revient au bout de 2 s, et l’entrée part sans emplacement', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      ready();
+      vi.spyOn(api, 'getLocations').mockImplementation(() => new Promise(() => {}));
+      const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+      mountWithRetries();
+      await screen.findByDisplayValue('Domaine Tempier');
+      const button = screen.getByRole('button', { name: /Confirmer l’entrée/ });
+      expect(button).toBeDisabled();
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+      expect(create.mock.calls[0][0].location).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('envoie null (« Sans emplacement ») quand les champs sont vidés', async () => {
+    ready();
+    vi.spyOn(api, 'getLocations').mockResolvedValue(locations);
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    mount();
+    await screen.findByText('Cave 2 / B / 3');
+    await userEvent.click(screen.getByText('Emplacement'));
+    for (const label of ['Zone', 'Casier', 'Position']) await userEvent.clear(screen.getByLabelText(label));
+    expect(screen.getByText('Sans emplacement')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toBeNull();
+  });
+
+  it('affiche telle quelle l’erreur de l’API sur l’emplacement', async () => {
+    ready();
+    vi.spyOn(api, 'getLocations').mockResolvedValue([]);
+    vi.spyOn(api, 'createMovement').mockRejectedValue(new api.ApiError(400, '40 caractères au plus par champ d\'emplacement'));
+    mount();
+    await screen.findByDisplayValue('Domaine Tempier');
+    await userEvent.click(screen.getByText('Emplacement'));
+    await userEvent.type(screen.getByLabelText('Zone'), 'Cellier');
+    await userEvent.click(await screen.findByRole('button', { name: /Confirmer l’entrée/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('40 caractères au plus par champ d\'emplacement');
+  });
+});

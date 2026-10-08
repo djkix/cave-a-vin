@@ -1,8 +1,10 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import { cancelMovement, CaveRow, createOut, MovementResult } from '../lib/api-client';
+import { ApiError, cancelMovement, CaveRow, createOut, getWine, MovementResult, Place } from '../lib/api-client';
+import { useBoundedWait } from '../lib/locations';
 import { Button } from './Button';
 import { Icon } from './Icon';
+import { PlacePicker } from './LocationFields';
 import { WineThumb } from './WineThumb';
 
 /**
@@ -10,8 +12,31 @@ import { WineThumb } from './WineThumb';
  * Une clé d'idempotence par affichage, un verrou contre le double tap : une
  * confirmation ne débite qu'une fois.
  */
-export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; photoId?: string | null; onDone?: () => void }) {
+export function SortieConfirmation({ wine, photoId, onDone, places: givenPlaces, exitDefault: givenDefault }: {
+  wine: CaveRow; photoId?: string | null; onDone?: () => void;
+  /** Endroits du vin et pré-sélection, tels que la fiche les donne ; lus sur la fiche s'ils manquent (sortie par photo). */
+  places?: Place[]; exitDefault?: string | null;
+}) {
   const qc = useQueryClient();
+  // Sans nouvelles tentatives, et 2 s d'attente au plus : passé ce délai, la sortie part sans endroit.
+  const detail = useQuery({ queryKey: ['wine', wine.id], queryFn: () => getWine(wine.id), enabled: givenPlaces === undefined, retry: false });
+  const detailWaiting = useBoundedWait(detail.isLoading);
+  const places = givenPlaces ?? detail.data?.locations;
+  const exitDefault = givenPlaces !== undefined ? givenDefault : detail.data?.exitDefault;
+  // Choix fait à l'écran ; sinon la pré-sélection de l'api (le dernier endroit
+  // rangé qui en a encore), sinon le premier endroit. Endroits inconnus (fiche
+  // illisible) : pas de champ, l'api choisit comme pour un ancien client.
+  const [picked, setPicked] = useState<{ id: string | null } | null>(null);
+  const placeIds = places?.map((p) => p.id) ?? [];
+  const locationId: string | null | undefined =
+    places === undefined || places.length === 0
+      ? undefined
+      : picked && placeIds.includes(picked.id)
+        ? picked.id
+        : exitDefault !== undefined && placeIds.includes(exitDefault)
+          ? exitDefault
+          : places[0].id;
+  const place = places?.find((p) => p.id === locationId);
   const [quantity, setQuantity] = useState(1);
   const [result, setResult] = useState<MovementResult | null>(null);
   const [cancelled, setCancelled] = useState<number | null>(null);
@@ -27,7 +52,8 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
   // Le stock peut se réduire sous la quantité choisie après un rafraîchissement
   // (un autre mouvement concurrent, par exemple) : on ne retient jamais plus
   // que ce qu'il reste, à l'affichage comme à l'envoi.
-  const safeQuantity = Math.min(quantity, Math.max(wine.quantity, 1));
+  const max = Math.min(wine.quantity, place?.quantity ?? wine.quantity);
+  const safeQuantity = Math.min(quantity, Math.max(max, 1));
 
   async function sortir() {
     if (sending.current) return;
@@ -35,11 +61,16 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
     setBusy(true);
     setError(null);
     try {
-      setResult(await createOut({ idempotencyKey, wineId: wine.id, quantity: safeQuantity, photoId: photoId ?? null }));
+      setResult(await createOut({
+        idempotencyKey, wineId: wine.id, quantity: safeQuantity, photoId: photoId ?? null,
+        ...(locationId !== undefined ? { locationId } : {}),
+      }));
       void refresh();
       onDone?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sortie impossible');
+      // 409 (endroit vidé entre-temps) : la fiche est relue, le choix montre les quantités à jour.
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: ['wine', wine.id] });
       sending.current = false;
     } finally {
       setBusy(false);
@@ -80,16 +111,19 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
   // reste affiché même quand la sortie vient de vider le stock.
   if (wine.quantity < 1) return null;
 
-  const max = wine.quantity;
   return (
     <section className="card">
       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
         <WineThumb photoId={wine.referencePhotoId} size={64} />
         <div>
           <p className="list__title" style={{ margin: 0 }}>{wine.producer}{wine.cuvee ? ` — ${wine.cuvee}` : ''}</p>
-          <p className="list__meta" style={{ margin: 0 }}>{wine.appellationRaw} · {wine.vintage ?? 'NV'} · {max} en stock</p>
+          <p className="list__meta" style={{ margin: 0 }}>{wine.appellationRaw} · {wine.vintage ?? 'NV'} · {wine.quantity} en stock</p>
         </div>
       </div>
+      {/* Un seul endroit : pas de question, la sortie part de là. */}
+      {places && places.length > 1 && locationId !== undefined && (
+        <PlacePicker places={places} value={locationId} onChange={(id) => setPicked({ id })} />
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-md)', margin: 'var(--space-md) 0' }}>
         <Button variant="outline" onClick={() => setQuantity((n) => Math.max(1, n - 1))} disabled={safeQuantity <= 1} aria-label="Une bouteille de moins">
           <Icon name="remove" />
@@ -100,7 +134,9 @@ export function SortieConfirmation({ wine, photoId, onDone }: { wine: CaveRow; p
         </Button>
       </div>
       {error && <p role="alert" className="text-error">{error}</p>}
-      <Button variant="dark" onClick={sortir} disabled={busy || max < 1}>
+      {/* Sortie par photo : on attend les endroits de la fiche, sinon l'api choisirait sans la pré-sélection.
+          Fiche illisible (erreur) ou lente (plus de 2 s) : la sortie reste possible, l'api applique sa règle. */}
+      <Button variant="dark" onClick={sortir} disabled={busy || detailWaiting || max < 1}>
         <Icon name="remove_circle_outline" />
         {busy ? 'Sortie…' : `Sortir ${safeQuantity} bouteille${safeQuantity > 1 ? 's' : ''}`}
       </Button>

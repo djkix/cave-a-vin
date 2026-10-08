@@ -47,7 +47,7 @@ type Expected = { status: number; message?: string };
 type Ids = {
   caveA: string; caveB: string; wineA: string; wineA2: string; movementA: string; movementCancelA: string;
   photoA: string; photoDismissA: string; memberA: string; candidateA: string; producerKeyA: string;
-  pendingUser: string; noCaveUser: string;
+  pendingUser: string; noCaveUser: string; locationA: string; wineB: string;
 };
 type Request = { url: string; body?: unknown; upload?: boolean };
 
@@ -82,6 +82,7 @@ const ROUTES: Route[] = [
   // ── Lecture de cave (membre compris, sans prix) ─────────────────────────────
   { method: 'GET', path: '/api/cave', kind: 'cave-viewer-read', req: () => ({ url: '/api/cave?includeEmpty=true' }), foreign: 'own', readable: contains('wineA') },
   { method: 'GET', path: '/api/wines/:id', kind: 'cave-viewer-read', req: (i) => ({ url: `/api/wines/${i.wineA}` }), foreign: NOT_FOUND_WINE, readable: contains('wineA') },
+  { method: 'GET', path: '/api/locations', kind: 'cave-viewer-read', req: () => ({ url: '/api/locations' }), foreign: 'own', readable: contains('locationA') },
   {
     method: 'GET', path: '/api/stats', kind: 'cave-viewer-read', req: () => ({ url: '/api/stats' }), foreign: 'own',
     readable: (res) => expect(res.body.bottles).toBeGreaterThan(0),
@@ -92,7 +93,17 @@ const ROUTES: Route[] = [
     method: 'POST', path: '/api/wines/:id/inventory', kind: 'cave-owner',
     req: (i) => ({ url: `/api/wines/${i.wineA}/inventory`, body: { idempotencyKey: uuid(), counted: 12 } }), foreign: NOT_FOUND_WINE, happy: { status: 201 },
   },
+  {
+    method: 'POST', path: '/api/wines/:id/move', kind: 'cave-owner',
+    req: (i) => ({ url: `/api/wines/${i.wineA}/move`, body: { from: null, to: { zone: 'Iso', casier: 'B' }, quantity: 1 } }), foreign: NOT_FOUND_WINE,
+    happy: { status: 201, check: (res) => expect(res.body.locations).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Iso / B', quantity: 1 })])) },
+  },
   { method: 'GET', path: '/api/photos/:id/exit-candidates', kind: 'cave-owner', req: (i) => ({ url: `/api/photos/${i.photoA}/exit-candidates` }), foreign: NOT_FOUND_PHOTO, happy: { status: 200 } },
+  {
+    method: 'POST', path: '/api/wines/:id/quotes', kind: 'cave-owner',
+    req: (i) => ({ url: `/api/wines/${i.wineA}/quotes`, body: { coteCents: 4200, quotedOn: '2026-01-15' } }), foreign: NOT_FOUND_WINE,
+    happy: { status: 201, check: (res) => expect(res.body).toMatchObject({ coteCents: 4200, quotedOn: '2026-01-15', cessionCents: 3621 }) },
+  },
   { method: 'PUT', path: '/api/wines/:id/apogee', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/apogee`, body: { min: 2030, max: 2035 } }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
   { method: 'DELETE', path: '/api/wines/:id/apogee', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/apogee` }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
   { method: 'PUT', path: '/api/wines/:id/rating', kind: 'cave-owner', req: (i) => ({ url: `/api/wines/${i.wineA}/rating`, body: { rating: 15 } }), foreign: NOT_FOUND_WINE, happy: { status: 200 } },
@@ -207,8 +218,8 @@ const ROUTES: Route[] = [
   { method: 'GET', path: '/api/health', kind: 'auth-public' },
 ];
 
-/** Clés de prix d'achat (stats.ts, mouvements) et tout nom qui en évoque un. */
-const PRICE_KEY = new RegExp(['price', 'purchase', 'expensive', 'cost', ...PRICE_KEYS].join('|'), 'i');
+/** Clés de prix d'achat et de cote iDealwine (stats.ts, mouvements, fiche) et tout nom qui en évoque un. */
+const PRICE_KEY = new RegExp(['price', 'purchase', 'expensive', 'cost', 'cote', 'quote', 'idealwine', 'cession', 'savedurl', ...PRICE_KEYS].join('|'), 'i');
 function keysOf(value: unknown, out: string[] = []): string[] {
   if (Array.isArray(value)) value.forEach((v) => keysOf(v, out));
   else if (value && typeof value === 'object') {
@@ -291,6 +302,10 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     ids.movementA = (await prisma.movement.create({ data: { wineId: ids.wineA, delta: 12, type: 'IN', priceUnitCents: 4200, idempotencyKey: `iso-${run}-in-a` } })).id;
     ids.movementCancelA = (await prisma.movement.create({ data: { wineId: ids.wineA2, delta: 1, type: 'IN', priceUnitCents: 900, idempotencyKey: `iso-${run}-in-a2` } })).id;
     await prisma.movement.create({ data: { wineId: wineB, delta: 3, type: 'IN', priceUnitCents: 900, idempotencyKey: `iso-${run}-in-b` } });
+    ids.wineB = wineB;
+    // Cote de A : la fiche du propriétaire en porte une, celle du membre aucune clé.
+    await prisma.priceQuote.create({ data: { wineId: ids.wineA, coteCents: 5000, quotedOn: new Date('2026-02-01'), sourceUrl: 'https://www.idealwine.com/fr/iso.jsp' } });
+    ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zone: 'Cave A', casier: 'Iso', labelKey: '["cave a","iso",null]' } })).id;
 
     // Photo d'entrée lue, sans mouvement : « À confirmer » de A, avec son image sur disque.
     const photo = (name: string) =>
@@ -349,7 +364,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
   /** Ce qu'une requête refusée ne doit jamais changer : la cave A et les comptes de la suite. */
   async function snapshot(): Promise<string> {
     const inA = { caveId: ids.caveA };
-    const [cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile] = await Promise.all([
+    const [cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes] = await Promise.all([
       prisma.cave.findUnique({ where: { id: ids.caveA } }),
       prisma.caveMember.findMany({ where: inA, orderBy: { id: 'asc' } }),
       prisma.wine.findMany({ where: inA, orderBy: { id: 'asc' } }),
@@ -361,8 +376,10 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
       prisma.appUser.findMany({ where: { id: { in: userIds } }, orderBy: { id: 'asc' }, select: { id: true, status: true, isAdmin: true } }),
       prisma.cave.count({ where: { ownerId: { in: userIds } } }),
       prisma.producerProfile.findUnique({ where: { producerKey: ids.producerKeyA } }),
+      prisma.location.findMany({ where: inA, orderBy: { id: 'asc' } }),
+      prisma.priceQuote.findMany({ where: { wine: inA }, orderBy: { id: 'asc' } }),
     ]);
-    return JSON.stringify({ cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile });
+    return JSON.stringify({ cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes });
   }
 
   /** La requête, et la preuve qu'elle n'a rien changé à A. */
@@ -377,7 +394,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
 
   /** Aucun identifiant ni nom de A dans une réponse lue par B. */
   function expectNothingOfA(res: supertest.Response) {
-    for (const marker of [ids.caveA, ids.wineA, ids.wineA2, ids.movementA, ids.photoA, ids.memberA, caveAName, `Domaine Iso ${run} a`]) {
+    for (const marker of [ids.caveA, ids.wineA, ids.wineA2, ids.movementA, ids.photoA, ids.memberA, ids.locationA, caveAName, `Domaine Iso ${run} a`]) {
       expect(res.text ?? '').not.toContain(marker);
     }
   }
@@ -478,11 +495,63 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     });
   }
 
+  describe('emplacements : ceux de A sont introuvables pour B', () => {
+    it('sortie, inventaire, déplacement et filtre de B avec un emplacement de A : 404 « Emplacement introuvable », A inchangée', async () => {
+      const notFound: Expected = { status: 404, message: 'Emplacement introuvable' };
+      const routes: Array<[Method, Request]> = [
+        ['POST', { url: '/api/movements/out', body: { idempotencyKey: uuid(), wineId: ids.wineB, quantity: 1, locationId: ids.locationA } }],
+        ['POST', { url: `/api/wines/${ids.wineB}/inventory`, body: { idempotencyKey: uuid(), counted: 1, locationId: ids.locationA } }],
+        ['POST', { url: `/api/wines/${ids.wineB}/move`, body: { from: ids.locationA, to: { zone: 'B' }, quantity: 1 } }],
+        ['GET', { url: `/api/cave?location=${ids.locationA}` }],
+      ];
+      for (const [method, req] of routes) {
+        expectNothingOfA(await refused(agents.ownerB, { method, path: req.url, kind: 'cave-owner', req: () => req }, notFound));
+      }
+    });
+
+    it('la liste marque au plus un emplacement « lastUsed », celui de la dernière entrée rangée', async () => {
+      // Entrée rangée à locationA, retirée ensuite : A revient à l'état commun aux autres cas.
+      const m = await prisma.movement.create({ data: { wineId: ids.wineA, delta: 1, type: 'IN', locationId: ids.locationA, idempotencyKey: `iso-${run}-in-rangee` } });
+      try {
+        for (const agent of [agents.ownerA, agents.viewerA]) {
+          const res = await agent.get('/api/locations');
+          expect(res.status).toBe(200);
+          expect(res.body.filter((l: { lastUsed: boolean }) => l.lastUsed).map((l: { id: string }) => l.id)).toEqual([ids.locationA]);
+          expect(res.body.every((l: { lastUsed: unknown }) => typeof l.lastUsed === 'boolean')).toBe(true);
+        }
+        const b = await agents.ownerB.get('/api/locations');
+        expect(b.body.some((l: { id: string; lastUsed: boolean }) => l.id === ids.locationA || l.lastUsed)).toBe(false);
+      } finally {
+        await prisma.movement.delete({ where: { id: m.id } });
+      }
+    });
+
+    it('la fiche montre les emplacements au membre comme au propriétaire', async () => {
+      for (const agent of [agents.ownerA, agents.viewerA]) {
+        const res = await agent.get(`/api/wines/${ids.wineA}`);
+        expect(res.status).toBe(200);
+        expect(res.body.locations).toEqual(expect.any(Array));
+        expect(res.body).not.toHaveProperty('lastLocation');
+      }
+    });
+  });
+
   describe('prix : le propriétaire les reçoit, preuve que le contrôle du membre n’est pas vide', () => {
     it('statistiques du propriétaire de A : valeur d’achat et classement des plus chères', async () => {
       const res = await agents.ownerA.get('/api/stats');
       expect(res.status).toBe(200);
       expect(priceKeys(res.body)).toEqual(expect.arrayContaining([...PRICE_KEYS]));
+    });
+
+    it('fiche du propriétaire de A : cote courante et lien iDealwine (absents pour le membre, contrôlé plus haut)', async () => {
+      const res = await agents.ownerA.get(`/api/wines/${ids.wineA}`);
+      expect(res.status).toBe(200);
+      expect(res.body.quote).toEqual(expect.objectContaining({ coteCents: expect.any(Number), cessionCents: expect.any(Number) }));
+      expect(priceKeys(res.body)).toEqual(expect.arrayContaining(['quote', 'idealwineUrl', 'savedUrl', 'coteCents', 'quotedOn', 'cessionCents']));
+      const viewer = await agents.viewerA.get(`/api/wines/${ids.wineA}`);
+      expect(viewer.body).not.toHaveProperty('quote');
+      expect(viewer.body).not.toHaveProperty('idealwineUrl');
+      expect(viewer.body).not.toHaveProperty('savedUrl');
     });
   });
 

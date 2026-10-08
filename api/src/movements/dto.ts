@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { locationIdSchema, locationInputSchema } from '../locations/location';
 
 export const wineDraftSchema = z.object({
   producer: z.string().trim().min(1, 'Producteur requis'),
@@ -16,6 +17,8 @@ export const createMovementSchema = z.object({
   quantity: z.number().int().positive('La quantité doit être positive'),
   priceUnitCents: z.number().int().nonnegative().nullish(),
   note: z.string().trim().max(500).nullish(),
+  /** Emplacement de rangement, créé à la volée ; absent ou null = « Sans emplacement ». */
+  location: locationInputSchema.nullish(),
 });
 
 export type CreateMovementInput = z.infer<typeof createMovementSchema>;
@@ -40,6 +43,12 @@ export const createOutSchema = z.object({
     .int('La quantité doit être positive')
     .positive('La quantité doit être positive'),
   photoId: z.string({ invalid_type_error: 'Photo invalide' }).uuid('Photo invalide').nullish(),
+  /**
+   * D'où sort la bouteille : un emplacement, ou null pour « Sans emplacement ».
+   * Champ absent (ancien client) : « Sans emplacement » s'il en a assez, sinon
+   * la pré-sélection (exitDefault), sinon le premier endroit qui en a assez.
+   */
+  locationId: locationIdSchema.optional(),
 });
 
 export type CreateOutInput = z.infer<typeof createOutSchema>;
@@ -54,6 +63,26 @@ export const inventorySchema = z.object({
     .min(0, 'Le nombre de bouteilles ne peut pas être négatif')
     // Au-delà, la colonne INTEGER déborde et la base répondrait par une erreur 500.
     .max(100000, 'Nombre de bouteilles trop élevé'),
+  /**
+   * Endroit compté : une baisse s'y applique (409 s'il n'y en a pas assez), une
+   * hausse y va. Null = « Sans emplacement ». Champ absent (ancien client) :
+   * hausse à « Sans emplacement », baisse comme une sortie sans emplacement.
+   */
+  locationId: locationIdSchema.optional(),
 });
 
 export type InventoryInput = z.infer<typeof inventorySchema>;
+
+export const moveSchema = z.object({
+  /** Facultative : un rejeu avec la même clé ne déplace rien de plus. */
+  idempotencyKey: z.string({ invalid_type_error: 'idempotencyKey invalide' }).uuid('idempotencyKey invalide').optional(),
+  from: z.string({ required_error: 'Emplacement invalide', invalid_type_error: 'Emplacement invalide' }).uuid('Emplacement invalide').nullable(),
+  to: locationInputSchema,
+  quantity: z
+    .number({ required_error: 'La quantité doit être positive', invalid_type_error: 'La quantité doit être positive' })
+    .int('La quantité doit être positive')
+    .min(1, 'La quantité doit être positive')
+    .max(100000, 'Nombre de bouteilles trop élevé'),
+});
+
+export type MoveInput = z.infer<typeof moveSchema>;

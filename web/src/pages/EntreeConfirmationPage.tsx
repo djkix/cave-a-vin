@@ -1,12 +1,15 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { EditableField } from '../components/EditableField';
+import { EntryLocationBlock } from '../components/LocationFields';
 import { Icon } from '../components/Icon';
 import { QuantityPicker } from '../components/QuantityPicker';
 import { TopBar } from '../components/TopBar';
-import { createMovement, getPhoto, MovementResult, PhotoEvent, WineDraft, WineExtraction } from '../lib/api-client';
+import { createMovement, getPhoto, LocationParts, MovementResult, PhotoEvent, WineDraft, WineExtraction } from '../lib/api-client';
 import { extractionToDraft } from '../lib/extraction-to-draft';
+import { EMPTY_LOCATION, toLocationInput, useLastLocation } from '../lib/locations';
 import { subscribePhotoEvents } from '../lib/sse';
 
 const COLORS = [
@@ -46,6 +49,11 @@ export function EntreeConfirmationPage() {
   const [result, setResult] = useState<MovementResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Emplacement saisi ; tant qu'on n'y touche pas, celui de la dernière entrée rangée de la cave.
+  const [location, setLocation] = useState<LocationParts | null>(null);
+  const qc = useQueryClient();
+  const { locations, last, loading: locationsLoading } = useLastLocation();
+  const effectiveLocation = location ?? last ?? EMPTY_LOCATION;
   // One key per photo, not per value read inside the callback: a fresh photoId must get a fresh key.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const idempotencyKey = useMemo(() => crypto.randomUUID(), [photoId]);
@@ -119,8 +127,11 @@ export function EntreeConfirmationPage() {
         wine: { ...draft, cuvee: draft.cuvee || null, vintage: draft.vintage ?? null },
         quantity,
         priceUnitCents: price ? Math.round(Number(price.replace(',', '.')) * 100) : null,
+        location: toLocationInput(effectiveLocation),
       });
       setResult(r);
+      // Emplacement créé à la volée et nouveau « dernier utilisé » : l'entrée suivante doit le voir.
+      void qc.invalidateQueries({ queryKey: ['locations'] });
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : 'Écriture impossible');
     } finally {
@@ -204,13 +215,14 @@ export function EntreeConfirmationPage() {
               <EditableField label="Format (cl)" type="number" value={String(draft.formatCl)} confidence={confidences.formatCl} onChange={(v) => setDraft({ ...draft, formatCl: Number(v) || 75 })} />
             </section>
             <QuantityPicker value={quantity} detected={detected} onChange={setQuantity} />
+            <EntryLocationBlock value={effectiveLocation} onChange={setLocation} locations={locations} />
             <details className="card">
               <summary>Détails optionnels</summary>
               <EditableField label="Prix d’achat unitaire (€)" type="number" value={price} onChange={setPrice} />
             </details>
             {submitError && <p role="alert" className="text-error">{submitError}</p>}
             <div className="dock">
-              <Button variant="dark" onClick={confirm} disabled={submitting || !draft.producer || !draft.appellationRaw}>
+              <Button variant="dark" onClick={confirm} disabled={submitting || locationsLoading || !draft.producer || !draft.appellationRaw}>
                 <Icon name="check_circle" />
                 {submitting ? 'Enregistrement…' : `Confirmer l’entrée (+${quantity} bouteille${quantity > 1 ? 's' : ''})`}
               </Button>

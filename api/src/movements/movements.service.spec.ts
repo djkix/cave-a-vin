@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { MovementsService } from './movements.service';
+import { LocationsService } from '../locations/locations.service';
+import { movePartnerKey, MovementsService } from './movements.service';
 
 function harness() {
   const movements: any[] = [];
@@ -42,14 +43,14 @@ function harness() {
       strings.join('?').includes('FOR UPDATE') ? (values[0] === wine.id ? [{ id: wine.id }] : []) : [{ quantity: stock() }],
   };
   const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
-  return { movements, wine, prisma, service: new MovementsService(prisma as any, matching as any) };
+  return { movements, wine, prisma, service: new MovementsService(prisma as any, matching as any, new LocationsService(prisma as any)) };
 }
 
 describe('MovementsService — cave courante', () => {
   it('rapproche le vin dans la cave reçue', async () => {
     const h = harness();
     const matchOrCreate = jest.fn(async () => ({ wine: h.wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }));
-    await new MovementsService(h.prisma, { matchOrCreate } as any).createIn('c1', input);
+    await new MovementsService(h.prisma, { matchOrCreate } as any, new LocationsService(h.prisma as any)).createIn('c1', input);
     expect(matchOrCreate).toHaveBeenCalledWith('c1', input.wine);
   });
 
@@ -76,7 +77,7 @@ describe('MovementsService — cave courante', () => {
     const findMany = jest.fn(async () => []);
     h.prisma.movement.findMany = findMany;
     await h.service.recent('c1', 5);
-    expect(findMany).toHaveBeenCalledWith({ where: { wine: { caveId: 'c1' } }, take: 5, orderBy: { occurredAt: 'desc' }, include: { wine: true } });
+    expect(findMany).toHaveBeenCalledWith({ where: { wine: { caveId: 'c1' } }, take: 5, orderBy: { occurredAt: 'desc' }, include: { wine: true, location: true } });
   });
 });
 
@@ -149,7 +150,9 @@ describe('MovementsService', () => {
     let createCalls = 0;
     const prisma = {
       movement: {
-        findUnique: async () => {
+        findUnique: async ({ where }: any) => {
+          // Recherche d'un déplacement sous cette clé (`k1:from`) : aucun.
+          if (where.idempotencyKey.endsWith(':from')) return null;
           findUniqueCalls += 1;
           if (findUniqueCalls === 1) return null;
           return { ...racedMovement, wine };
@@ -164,9 +167,10 @@ describe('MovementsService', () => {
         },
       },
       $queryRaw: async () => [{ quantity: 6 }],
+      $transaction: async (fn: any) => fn(prisma),
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    const service = new MovementsService(prisma as any, matching as any);
+    const service = new MovementsService(prisma as any, matching as any, new LocationsService(prisma as any));
 
     const r = await service.createIn('c1', input);
     expect(r.created).toBe(false);
@@ -212,9 +216,10 @@ describe('MovementsService', () => {
         },
       },
       $queryRaw: async () => [{ quantity: 6 }],
+      $transaction: async (fn: any) => fn(prisma),
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    const service = new MovementsService(prisma as any, matching as any);
+    const service = new MovementsService(prisma as any, matching as any, new LocationsService(prisma as any));
 
     const r = await service.createIn('c1', { ...input, idempotencyKey: 'k-second', photoId: 'ph1' });
     expect(r.created).toBe(false);
@@ -303,9 +308,10 @@ describe('MovementsService', () => {
         },
       },
       $queryRaw: async () => [{ quantity: 0 }],
+      $transaction: async (fn: any) => fn(prisma),
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    const service = new MovementsService(prisma as any, matching as any);
+    const service = new MovementsService(prisma as any, matching as any, new LocationsService(prisma as any));
 
     const r = await service.cancel('c1', 'm1', 'cancel-1');
     expect(r.created).toBe(false);
@@ -341,9 +347,10 @@ describe('MovementsService', () => {
         },
       },
       $queryRaw: async () => [{ quantity: 6 }],
+      $transaction: async (fn: any) => fn(prisma),
     };
     const matching = { matchOrCreate: async () => ({ wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    const service = new MovementsService(prisma as any, matching as any);
+    const service = new MovementsService(prisma as any, matching as any, new LocationsService(prisma as any));
 
     await expect(service.cancel('c1', 'm1', 'cancel-2')).rejects.toBeInstanceOf(ConflictException);
     await expect(service.cancel('c1', 'm1', 'cancel-3')).rejects.toThrow(/déjà été annulé/);
@@ -555,7 +562,7 @@ describe('MovementsService — accords à la création d’un vin', () => {
     const h = harness();
     const schedule = jest.fn(async () => undefined);
     const matching = { matchOrCreate: async () => ({ wine: h.wine, created: true, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn('c1', input);
+    await new MovementsService(h.prisma, matching as any, new LocationsService(h.prisma as any), { schedule } as any).createIn('c1', input);
     expect(schedule).toHaveBeenCalledWith('w1');
   });
 
@@ -563,7 +570,7 @@ describe('MovementsService — accords à la création d’un vin', () => {
     const h = harness();
     const schedule = jest.fn(async () => undefined);
     const matching = { matchOrCreate: async () => ({ wine: h.wine, created: false, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn('c1', input);
+    await new MovementsService(h.prisma, matching as any, new LocationsService(h.prisma as any), { schedule } as any).createIn('c1', input);
     expect(schedule).not.toHaveBeenCalled();
   });
 
@@ -571,7 +578,7 @@ describe('MovementsService — accords à la création d’un vin', () => {
     const h = harness();
     const schedule = jest.fn(async () => { throw new Error('Redis injoignable'); });
     const matching = { matchOrCreate: async () => ({ wine: h.wine, created: true, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    const r = await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn('c1', input);
+    const r = await new MovementsService(h.prisma, matching as any, new LocationsService(h.prisma as any), { schedule } as any).createIn('c1', input);
     expect(r.created).toBe(true);
   });
 
@@ -579,7 +586,7 @@ describe('MovementsService — accords à la création d’un vin', () => {
     const h = harness();
     const schedule = jest.fn(() => new Promise<void>(() => undefined));
     const matching = { matchOrCreate: async () => ({ wine: h.wine, created: true, appellation: { kind: 'none', raw: 'Bandol' } }) };
-    const r = await new MovementsService(h.prisma, matching as any, { schedule } as any).createIn('c1', input);
+    const r = await new MovementsService(h.prisma, matching as any, new LocationsService(h.prisma as any), { schedule } as any).createIn('c1', input);
     expect(r.created).toBe(true);
     expect(schedule).toHaveBeenCalledWith('w1');
   });
@@ -593,24 +600,24 @@ describe('MovementsService — descriptif du domaine à la création d’un vin'
   it('demande le descriptif du domaine d’un vin créé par l’entrée', async () => {
     const h = harness();
     const scheduleIfMissing = jest.fn(async () => undefined);
-    await new MovementsService(h.prisma, created(h) as any, undefined, { scheduleIfMissing } as any).createIn('c1', input);
+    await new MovementsService(h.prisma, created(h) as any, new LocationsService(h.prisma as any), undefined, { scheduleIfMissing } as any).createIn('c1', input);
     expect(scheduleIfMissing).toHaveBeenCalledWith('Domaine Test');
   });
 
   it('ne fait rien pour un vin déjà connu', async () => {
     const h = harness();
     const scheduleIfMissing = jest.fn(async () => undefined);
-    await new MovementsService(h.prisma, created(h, false) as any, undefined, { scheduleIfMissing } as any).createIn('c1', input);
+    await new MovementsService(h.prisma, created(h, false) as any, new LocationsService(h.prisma as any), undefined, { scheduleIfMissing } as any).createIn('c1', input);
     expect(scheduleIfMissing).not.toHaveBeenCalled();
   });
 
   it('n’échoue jamais et n’attend jamais la file des descriptifs', async () => {
     const h = harness();
     const failing = jest.fn(async () => { throw new Error('Redis injoignable'); });
-    expect((await new MovementsService(h.prisma, created(h) as any, undefined, { scheduleIfMissing: failing } as any).createIn('c1', input)).created).toBe(true);
+    expect((await new MovementsService(h.prisma, created(h) as any, new LocationsService(h.prisma as any), undefined, { scheduleIfMissing: failing } as any).createIn('c1', input)).created).toBe(true);
     const h2 = harness();
     const hanging = jest.fn(() => new Promise<void>(() => undefined));
-    expect((await new MovementsService(h2.prisma, created(h2) as any, undefined, { scheduleIfMissing: hanging } as any).createIn('c1', input)).created).toBe(true);
+    expect((await new MovementsService(h2.prisma, created(h2) as any, new LocationsService(h2.prisma as any), undefined, { scheduleIfMissing: hanging } as any).createIn('c1', input)).created).toBe(true);
     expect(hanging).toHaveBeenCalledWith('Domaine Test');
   });
 });
@@ -646,5 +653,13 @@ describe('MovementsService — photo d’une image du web (REFERENCE)', () => {
     await expect(h.service.createIn('c1', { ...input, photoId: 'p-in' })).resolves.toMatchObject({ created: true });
     h.prisma.photo.findFirst = async () => ({ status: 'DONE', purpose: 'EXIT' });
     await expect(h.service.createOut('c1', { idempotencyKey: 'o2', wineId: 'w1', quantity: 1, photoId: 'p-out' })).resolves.toMatchObject({ created: true });
+  });
+});
+
+describe('movePartnerKey', () => {
+  it('relie les deux moitiés d’un déplacement par leur clé', () => {
+    expect(movePartnerKey('k:from')).toBe('k:to');
+    expect(movePartnerKey('k:to')).toBe('k:from');
+    expect(movePartnerKey('3f0c8f1e-2a1b-4c5d-9e8f-0a1b2c3d4e5f')).toBeNull();
   });
 });

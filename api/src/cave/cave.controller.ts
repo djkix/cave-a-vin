@@ -7,7 +7,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { CaveRole, CurrentCave } from '../caves/cave-access.decorators';
 import { CaveAccessGuard } from '../caves/cave-access.guard';
 import type { CaveAccess } from '../caves/cave-context.service';
-import { inventorySchema } from '../movements/dto';
+import { inventorySchema, moveSchema } from '../movements/dto';
 import { MovementsService } from '../movements/movements.service';
 import { CaveService } from './cave.service';
 import { ratingSchema } from './rating.dto';
@@ -19,6 +19,7 @@ const listQuerySchema = z.object({
   drinkSoon: z.enum(['true', 'false']).optional(),
   noApogee: z.enum(['true', 'false']).optional(),
   dish: z.string().trim().max(100).optional(),
+  location: z.union([z.literal('none'), z.string().uuid()]).optional(),
 });
 
 /** Lecture (liste, filtres, recherche par plat, fiche) : VIEWER ; toute écriture : OWNER. */
@@ -35,11 +36,11 @@ export class CaveController {
   list(@CurrentCave() cave: CaveAccess, @Query() query: unknown) {
     const parsed = listQuerySchema.safeParse(query);
     if (!parsed.success) throw new BadRequestException('Filtre de cave invalide');
-    const { q, color, includeEmpty, drinkSoon, noApogee, dish } = parsed.data;
+    const { q, color, includeEmpty, drinkSoon, noApogee, dish, location } = parsed.data;
     if (drinkSoon === 'true' && noApogee === 'true') {
       throw new BadRequestException('Choisis « à boire en priorité » ou « sans apogée », pas les deux');
     }
-    return this.cave.list(cave.caveId, { q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true', dish: dish || undefined }, cave.role);
+    return this.cave.list(cave.caveId, { q, color, includeEmpty: includeEmpty === 'true', drinkSoon: drinkSoon === 'true', noApogee: noApogee === 'true', dish: dish || undefined, location }, cave.role);
   }
 
   @Get('wines/:id')
@@ -54,6 +55,15 @@ export class CaveController {
     const parsed = inventorySchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
     return this.movements.adjustTo(cave.caveId, id, parsed.data);
+  }
+
+  /** Range ou déplace des bouteilles du vin ; renvoie `{ locations }` à jour. */
+  @Post('wines/:id/move')
+  @CaveRole('OWNER')
+  move(@CurrentCave() cave: CaveAccess, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const parsed = moveSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues.map((i) => i.message).join(' ; '));
+    return this.movements.move(cave.caveId, id, parsed.data);
   }
 
   // Étape de la sortie (photo envoyée par le propriétaire) : réservée au propriétaire.

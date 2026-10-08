@@ -8,12 +8,14 @@ import { CaveModule } from './cave/cave.module';
 import { ExportModule } from './export/export.module';
 import { HealthController } from './health/health.controller';
 import { ImageSearchModule } from './image-search/image-search.module';
+import { LocationsModule } from './locations/locations.module';
 import { MovementsModule } from './movements/movements.module';
 import { PairingModule } from './pairing/pairing.module';
 import { PhotosModule } from './photos/photos.module';
 import { ProducersModule } from './producers/producers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
+import { QuotesModule } from './quotes/quotes.module';
 import { ReadingQualityModule } from './reading-quality/reading-quality.module';
 import { StatsModule } from './stats/stats.module';
 import { WinesModule } from './wines/wines.module';
@@ -34,6 +36,8 @@ import { WinesModule } from './wines/wines.module';
     WinesModule,
     PhotosModule,
     QueueModule,
+    LocationsModule,
+    QuotesModule,
     MovementsModule,
     PairingModule,
     ProducersModule,
