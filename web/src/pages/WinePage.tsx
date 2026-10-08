@@ -164,7 +164,7 @@ export function WinePage() {
               {places && delta !== null && delta > 0 && (
                 <fieldset className="move-form__to">
                   <legend className="field__label">Emplacement</legend>
-                  <LocationFields value={increaseTo} onChange={setIncreaseTo} locations={cellar.data ?? []} zones={zones.data ?? []} />
+                  <LocationFields value={increaseTo} onChange={setIncreaseTo} locations={cellar.data ?? []} zones={zones.data} />
                 </fieldset>
               )}
               <p>{tooMany ? 'Nombre de bouteilles trop élevé' : delta === null ? 'Saisis un nombre entier' : delta === 0 ? 'Stock déjà juste' : `${delta > 0 ? '+' : '−'}${plural(Math.abs(delta))}`}</p>

@@ -106,12 +106,15 @@ function ZoneForm({ label, initial, submitLabel, busy, onSubmit, onCancel, idPre
 function ZoneRow({ zone, index, count, busy, photoVersion, onMove, onAction, onPhotoChanged }: {
   zone: Zone; index: number; count: number; busy: boolean; photoVersion?: number;
   onMove: (delta: -1 | 1) => void; onPhotoChanged: () => void;
+  /** `run` peut rendre un message d'état à annoncer (« Zone supprimée »). */
   onAction: (run: () => Promise<unknown>, after?: () => void) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const id = useId();
   function confirmDelete() {
-    if (window.confirm(`Supprimer la zone ${zone.name} ?`)) onAction(() => deleteZone(zone.id));
+    if (window.confirm(`Supprimer la zone ${zone.name} ?`)) {
+      onAction(async () => ((await deleteZone(zone.id)).archived ? 'Zone archivée (elle reste dans l’historique)' : 'Zone supprimée'));
+    }
   }
   async function pickPhoto(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -136,8 +139,8 @@ function ZoneRow({ zone, index, count, busy, photoVersion, onMove, onAction, onP
         </div>
       )}
       <div className="zone-row__actions">
-        <label className="field__label" htmlFor={`${id}-photo`}>{zone.hasPhoto ? 'Changer la photo' : 'Ajouter une photo'}</label>
-        <input id={`${id}-photo`} type="file" accept="image/*" capture="environment" aria-label={`Photo de ${zone.name}`} disabled={busy} onChange={pickPhoto} />
+        <label className="field__label" htmlFor={`${id}-photo`}>{`${zone.hasPhoto ? 'Changer la photo' : 'Ajouter une photo'} de ${zone.name}`}</label>
+        <input id={`${id}-photo`} type="file" accept="image/*" capture="environment" disabled={busy} onChange={pickPhoto} />
         {zone.hasPhoto && <Button variant="link" disabled={busy} onClick={() => onAction(() => removeZonePhoto(zone.id))}>Retirer la photo</Button>}
       </div>
     </li>
@@ -153,6 +156,7 @@ function ZonesCard() {
   const zones = useZones();
   const titleId = useId();
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Version de la photo de chaque zone remplacée ici : la nouvelle image est relue sous la même adresse.
   const [versions, setVersions] = useState<Record<string, number>>({});
@@ -163,8 +167,10 @@ function ZonesCard() {
   async function act(run: () => Promise<unknown>, after?: () => void) {
     setBusy(true);
     setError(null);
+    setStatus(null);
     try {
-      await run();
+      const result = await run();
+      if (typeof result === 'string') setStatus(result);
       after?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action impossible');
@@ -198,6 +204,7 @@ function ZonesCard() {
         </ul>
       )}
       {error && <p role="alert" className="text-error" style={{ margin: 0 }}>{error}</p>}
+      {status && <p role="status" className="list__meta" style={{ margin: 0 }}>{status}</p>}
       <ZoneForm key={addKey} label="Ajouter une zone" idPrefix={`${titleId}-new`} initial={{ name: '', indication: '' }} submitLabel="Ajouter une zone" busy={busy}
         onSubmit={(v) => void act(() => createZone(v), () => setAddKey((k) => k + 1))} />
     </section>

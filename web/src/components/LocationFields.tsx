@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type Location, type LocationInput, type Place, type Zone, zonePhotoUrl } from '../lib/api-client';
-import { distinctParts, inputLabel, NO_ZONE } from '../lib/locations';
+import { distinctParts, inputLabel, NO_ZONE, zoneNameOf } from '../lib/locations';
 
 const TEXT_FIELDS: Array<{ key: 'casier' | 'position'; label: string }> = [{ key: 'casier', label: 'Casier' }, { key: 'position', label: 'Position' }];
 
@@ -27,26 +27,37 @@ export function ZoneDetails({ zone, version }: { zone: Zone | undefined; version
  * Zone (liste des zones de la cave, dans leur ordre, plus « Sans zone »), puis
  * casier et position en texte libre avec les valeurs déjà utilisées en
  * suggestion (`<datalist>`). La zone choisie montre son indication et sa
- * vignette ; sans aucune zone, un lien mène à « Ma cave » pour en créer.
- * Formulaires réservés au propriétaire : le lien ne s'adresse qu'à lui.
+ * vignette. `zones` indéfini (liste en cours de lecture ou illisible) : le choix
+ * est grisé et montre la zone pré-remplie. Liste lue et vide : un lien mène à
+ * « Ma cave » pour en créer une (formulaires réservés au propriétaire).
  */
 export function LocationFields({ value, onChange, locations, zones }: {
-  value: LocationInput; onChange: (v: LocationInput) => void; locations: Location[]; zones: Zone[];
+  value: LocationInput; onChange: (v: LocationInput) => void; locations: Location[]; zones: Zone[] | undefined;
 }) {
   const id = useId();
   const suggestions = distinctParts(locations);
-  const selected = zones.find((z) => z.id === value.zoneId);
+  const selected = zones?.find((z) => z.id === value.zoneId);
   return (
     <div className="location-fields">
       <label className="field__label">
         Zone
-        <select value={value.zoneId ?? ''} onChange={(e) => onChange({ ...value, zoneId: e.target.value || null })}>
-          <option value="">{NO_ZONE}</option>
-          {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
-        </select>
+        {zones ? (
+          <select value={value.zoneId ?? ''} onChange={(e) => onChange({ ...value, zoneId: e.target.value || null })}>
+            <option value="">{NO_ZONE}</option>
+            {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </select>
+        ) : (
+          <select value={value.zoneId ?? ''} disabled onChange={() => undefined}>
+            <option value={value.zoneId ?? ''}>{value.zoneId ? (zoneNameOf(value.zoneId, zones, locations) ?? 'Zone pré-remplie') : NO_ZONE}</option>
+          </select>
+        )}
       </label>
       <ZoneDetails key={selected?.id} zone={selected} />
-      {zones.length === 0 && <Link to="/ma-cave" className="btn btn--link">Créer une zone</Link>}
+      {zones?.length === 0 && (
+        <p className="list__meta" style={{ margin: 0 }}>
+          <Link to="/ma-cave">Créer une zone</Link> (la saisie en cours sera perdue)
+        </p>
+      )}
       {TEXT_FIELDS.map(({ key, label }) => (
         <label key={key} className="field__label">
           {label}
@@ -68,13 +79,13 @@ export function LocationFields({ value, onChange, locations, zones }: {
 
 /** Bloc replié « Emplacement » de l'entrée : le titre montre l'emplacement retenu, pré-rempli ou saisi. */
 export function EntryLocationBlock({ value, onChange, locations, zones }: {
-  value: LocationInput; onChange: (v: LocationInput) => void; locations: Location[]; zones: Zone[];
+  value: LocationInput; onChange: (v: LocationInput) => void; locations: Location[]; zones: Zone[] | undefined;
 }) {
   return (
     <details className="card location-block">
       <summary>
         Emplacement
-        <span className="list__meta location-block__current">{inputLabel(value, zones)}</span>
+        <span className="list__meta location-block__current">{inputLabel(value, zones, locations)}</span>
       </summary>
       <LocationFields value={value} onChange={onChange} locations={locations} zones={zones} />
     </details>

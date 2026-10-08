@@ -70,7 +70,7 @@ describe('caves, membres et administration', () => {
     expect(await call(() => api.createZone({ name: 'Garage', indication: 'Au fond' }))).toEqual({ url: '/api/caves/current/zones', method: 'POST', body: '{"name":"Garage","indication":"Au fond"}' });
     expect(await call(() => api.updateZone('z1', { name: 'Cellier' }))).toEqual({ url: '/api/caves/current/zones/z1', method: 'PATCH', body: '{"name":"Cellier"}' });
     expect(await call(() => api.reorderZones(['z2', 'z1']), '[]')).toEqual({ url: '/api/caves/current/zones/order', method: 'POST', body: '{"ids":["z2","z1"]}' });
-    expect(await call(() => api.deleteZone('z1'), '', 204)).toEqual({ url: '/api/caves/current/zones/z1', method: 'DELETE', body: undefined });
+    expect(await call(() => api.deleteZone('z1'), '{"archived":true}')).toEqual({ url: '/api/caves/current/zones/z1', method: 'DELETE', body: undefined });
     const upload = await call(() => api.uploadZonePhoto('z1', new Blob(['x'], { type: 'image/jpeg' })));
     expect({ url: upload.url, method: upload.method }).toEqual({ url: '/api/caves/current/zones/z1/photo', method: 'PUT' });
     expect((upload.body as FormData).get('file')).toBeInstanceOf(Blob);

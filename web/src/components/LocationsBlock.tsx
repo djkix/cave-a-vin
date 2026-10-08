@@ -94,7 +94,7 @@ function MoveForm({ wineId, places, onClose }: { wineId: string; places: Place[]
       </select>
       <fieldset className="move-form__to">
         <legend className="field__label">Vers</legend>
-        <LocationFields value={to} onChange={setTo} locations={locations.data ?? []} zones={zones.data ?? []} />
+        <LocationFields value={to} onChange={setTo} locations={locations.data ?? []} zones={zones.data} />
       </fieldset>
       <label htmlFor={qtyId} className="field__label">Quantité</label>
       <input id={qtyId} type="number" inputMode="numeric" min={1} max={max} value={quantity} onChange={(e) => setQuantity(e.target.value.trim())} />

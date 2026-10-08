@@ -13,9 +13,18 @@ export function toLocationInput(value: LocationInput): LocationInput | null {
   return out.zoneId || out.casier || out.position ? out : null;
 }
 
+/**
+ * Nom de la zone choisie : dans la liste des zones, sinon (liste pas encore lue
+ * ou illisible) celui que portent les emplacements de la cave ; null sans zone ou inconnue.
+ */
+export function zoneNameOf(zoneId: string | null, zones: Zone[] | undefined, locations: Location[] = []): string | null {
+  if (!zoneId) return null;
+  return zones?.find((z) => z.id === zoneId)?.name ?? locations.find((l) => l.zoneId === zoneId)?.zone ?? null;
+}
+
 /** Libellé d'une saisie, au format de l'api (« Cave 2 / B / 3 ») : la zone par son nom. */
-export function inputLabel(value: LocationInput, zones: Zone[]): string {
-  const zone = zones.find((z) => z.id === value.zoneId)?.name ?? null;
+export function inputLabel(value: LocationInput, zones: Zone[] | undefined, locations: Location[] = []): string {
+  const zone = zoneNameOf(value.zoneId, zones, locations);
   return [zone, value.casier, value.position].map((v) => v?.trim()).filter(Boolean).join(' / ') || NO_LOCATION;
 }
 
@@ -63,10 +72,11 @@ export function useBoundedWait(waiting: boolean, ms = MAX_WAIT_MS): boolean {
  * erreur, elle part sans pré-remplissage (« Sans emplacement »). Les zones de la
  * cave, pour le choix de la zone, ne retiennent jamais l'entrée.
  */
-export function useLastLocation(): { locations: Location[]; zones: Zone[]; last: LocationInput | null; loading: boolean } {
+export function useLastLocation(): { locations: Location[]; zones: Zone[] | undefined; last: LocationInput | null; loading: boolean } {
   const query = useLocations();
   const zones = useZones();
   const last = useMemo(() => lastUsedInput(query.data), [query.data]);
   const loading = useBoundedWait(query.isLoading);
-  return { locations: query.data ?? [], zones: zones.data ?? [], last, loading };
+  // `zones` indéfini tant que la liste n'est pas lue (ou illisible) : le choix de la zone attend.
+  return { locations: query.data ?? [], zones: zones.data, last, loading };
 }

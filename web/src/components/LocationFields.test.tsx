@@ -15,13 +15,13 @@ const zones: Zone[] = [
   { id: 'z2', name: 'Cave 2', indication: null, hasPhoto: false, sortOrder: 1 },
 ];
 
-function Harness({ initial, zoneList = zones, block = true }: { initial: LocationInput; zoneList?: Zone[]; block?: boolean }) {
+function Harness({ initial, zoneList = zones, block = true }: { initial: LocationInput; zoneList?: Zone[] | null; block?: boolean }) {
   const [v, setV] = useState(initial);
   return (
     <MemoryRouter>
       {block
-        ? <EntryLocationBlock value={v} onChange={setV} locations={locations} zones={zoneList} />
-        : <LocationFields value={v} onChange={setV} locations={locations} zones={zoneList} />}
+        ? <EntryLocationBlock value={v} onChange={setV} locations={locations} zones={zoneList ?? undefined} />
+        : <LocationFields value={v} onChange={setV} locations={locations} zones={zoneList ?? undefined} />}
     </MemoryRouter>
   );
 }
@@ -76,10 +76,21 @@ it('casier et position restent libres, avec les valeurs déjà saisies en sugges
   expect(screen.getByText('Haut')).toBeInTheDocument();
 });
 
-it('sans aucune zone : lien « Créer une zone » vers « Ma cave »', () => {
+it('sans aucune zone (liste lue) : lien « Créer une zone » vers « Ma cave », la saisie en cours sera perdue', () => {
   render(<Harness initial={{ zoneId: null, casier: null, position: null }} zoneList={[]} block={false} />);
   expect(screen.getByRole('link', { name: 'Créer une zone' })).toHaveAttribute('href', '/ma-cave');
+  expect(screen.getByText(/la saisie en cours sera perdue/)).toBeInTheDocument();
   expect(within(screen.getByLabelText('Zone')).getAllByRole('option').map((o) => o.textContent)).toEqual(['Sans zone']);
+});
+
+it('zones pas encore lues ou illisibles : choix grisé, zone pré-remplie affichée, pas de lien', () => {
+  render(<Harness initial={{ zoneId: 'z2', casier: 'B', position: '3' }} zoneList={null} />);
+  const select = screen.getByLabelText('Zone');
+  expect(select).toBeDisabled();
+  expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Cave 2']);
+  // Le titre du bloc garde le libellé pré-rempli, nom de la zone compris.
+  expect(screen.getByText('Cave 2 / B / 3')).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Créer une zone' })).not.toBeInTheDocument();
 });
 
 it('avec des zones : pas de lien « Créer une zone »', () => {

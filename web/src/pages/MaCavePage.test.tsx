@@ -64,7 +64,10 @@ describe('zones', () => {
     expect(zoneRow('Garage').queryByRole('img')).not.toBeInTheDocument();
     expect(zoneRow('Cave 1').getByRole('button', { name: 'Retirer la photo' })).toBeInTheDocument();
     expect(zoneRow('Garage').queryByRole('button', { name: 'Retirer la photo' })).not.toBeInTheDocument();
-    const input = zoneRow('Garage').getByLabelText('Photo de Garage');
+    // Libellé visible, nom de la zone compris, sans aria-label qui le remplacerait.
+    expect(zoneRow('Cave 1').getByLabelText('Changer la photo de Cave 1')).toBeInTheDocument();
+    const input = zoneRow('Garage').getByLabelText('Ajouter une photo de Garage');
+    expect(input).not.toHaveAttribute('aria-label');
     expect(input).toHaveAttribute('type', 'file');
     expect(input).toHaveAttribute('accept', 'image/*');
     expect(input).toHaveAttribute('capture', 'environment');
@@ -142,6 +145,20 @@ describe('zones', () => {
     expect(await zonesCard().findByRole('alert')).toHaveTextContent('Des bouteilles sont encore rangées dans cette zone');
   });
 
+  it.each([
+    [false, 'Zone supprimée'],
+    [true, 'Zone archivée (elle reste dans l’historique)'],
+  ])('après « Supprimer » (archived: %s) : « %s »', async (archived, message) => {
+    vi.spyOn(api, 'getZones').mockResolvedValue(zones);
+    const remove = vi.spyOn(api, 'deleteZone').mockResolvedValue({ archived });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mount();
+    await zonesCard().findByText('Garage');
+    await userEvent.click(zoneRow('Garage').getByRole('button', { name: 'Supprimer' }));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('z2'));
+    expect(await zonesCard().findByRole('status')).toHaveTextContent(message);
+  });
+
   it('envoie la photo choisie et retire la photo', async () => {
     const list = vi.spyOn(api, 'getZones').mockResolvedValue(zones);
     const upload = vi.spyOn(api, 'uploadZonePhoto').mockResolvedValue({ ...zones[1], hasPhoto: true });
@@ -149,7 +166,7 @@ describe('zones', () => {
     mount();
     await zonesCard().findByText('Garage');
     const file = new File(['jpeg'], 'garage.jpg', { type: 'image/jpeg' });
-    await userEvent.upload(zoneRow('Garage').getByLabelText('Photo de Garage'), file);
+    await userEvent.upload(zoneRow('Garage').getByLabelText('Ajouter une photo de Garage'), file);
     await waitFor(() => expect(upload).toHaveBeenCalledWith('z2', expect.any(Blob)));
     await userEvent.click(zoneRow('Cave 1').getByRole('button', { name: 'Retirer la photo' }));
     await waitFor(() => expect(removePhoto).toHaveBeenCalledWith('z1'));
