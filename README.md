@@ -22,6 +22,8 @@ utilisée depuis un téléphone (PWA installable).
   également livré : emplacements dans la cave (zone / casier / position,
   déplacement, filtre) et cote iDealwine saisie à la main (le relevé
   automatique prévu au cahier des charges a été abandonné, voir *Limites*).
+  Depuis la 2.6.0 : page « Ma cave » et zones de la cave (nom, indication,
+  photo, ordre).
 - **Reporté** : aucune alerte hors de l'application (notification ou e-mail) :
   la liste « à boire en priorité » se consulte dans l'application. Voir
   `cahier-des-charges.md`.
@@ -52,8 +54,39 @@ elle, entre directement, sans validation. Un identifiant (vin, photo,
 mouvement, membre) d'une autre cave répond comme un identifiant inconnu (404),
 et une cave à laquelle le compte n'a pas accès répond « Cave introuvable ».
 
-**Membres en lecture seule.** Depuis l'accueil, *Membres de la cave*
-(propriétaire seulement) liste les membres, invite une adresse Google (« Cette
+**Ma cave.** Depuis l'accueil ou *Mon compte*, le lien *Ma cave* (page
+`/ma-cave`, propriétaire seulement ; l'ancienne adresse `/membres` y mène)
+regroupe, dans cet ordre, le **nom de la cave**, ses **zones** et ses
+**membres**.
+
+**Zones de la cave.** Une zone est un endroit de la cave où l'on range des
+bouteilles (« Cave 1 », « Garage »). Dans *Ma cave*, le propriétaire en ajoute
+(*Ajouter une zone*), les range dans l'ordre voulu avec ↑ et ↓, les modifie
+(*Modifier*, dans la ligne) et les supprime (*Supprimer*, après confirmation).
+Chaque zone a :
+
+- un **nom**, de 1 à 40 caractères, unique dans la cave sans tenir compte de la
+  casse (« Une zone porte déjà ce nom ») ;
+- une **indication** facultative, 300 caractères au plus (« à gauche en
+  entrant, au fond derrière l'escalier ») ;
+- une **photo** facultative, prise au téléphone (réduite à 1600 px, en JPEG ;
+  *Retirer la photo* l'enlève).
+
+Renommer une zone change son nom partout : fiche, journal, filtre de la cave,
+« À boire prochainement » et export. Supprimer une zone est
+refusé tant que des bouteilles y sont rangées (« Des bouteilles sont encore
+rangées dans cette zone ») ; une zone qui a servi dans l'historique est
+**archivée** : elle disparaît de la liste et du choix de la zone, et
+l'historique garde son libellé ; une zone jamais utilisée est supprimée. Un
+membre en lecture seule voit les zones, leurs indications et leurs photos,
+sans pouvoir les changer. API : `GET`, `POST /api/caves/current/zones`,
+`PATCH`, `DELETE /api/caves/current/zones/:id`, `POST
+/api/caves/current/zones/order` (`{ ids }` : nouvel ordre), `PUT`, `DELETE
+/api/caves/current/zones/:id/photo` et `GET /api/caves/zones/:id/photo`
+(toute cave du compte).
+
+**Membres en lecture seule.** Dans *Ma cave* (propriétaire seulement), la
+section *Membres* liste les membres, invite une adresse Google (« Cette
 adresse est déjà membre » si elle l'est déjà), retire un membre (jamais le
 propriétaire) et renomme la cave (1 à 80 caractères). Un membre voit la cave
 qui l'a invité : la liste et ses filtres, la recherche par plat, la fiche vin
@@ -147,13 +180,18 @@ n'apparaissent ni dans « À confirmer » ni dans le bandeau « en attente
 d'analyse », et ne sont pas remises en file au démarrage du worker.
 
 **Emplacements dans la cave.** Chaque bouteille peut être rangée à un endroit
-décrit librement par une zone, un casier et une position (un seul champ
-suffit ; tous vides vaut « Sans emplacement »), propre à la cave courante. Le
-bloc, replié par défaut, est proposé à l'entrée (unitaire et « À confirmer »),
-pré-rempli avec le dernier emplacement d'entrée de la cave ; les champs
-suggèrent, par une liste déroulante, les valeurs déjà utilisées dans la cave.
-La fiche vin affiche la répartition du stock par emplacement (« Cave 2 / B / 3
-× 4 ; Sans emplacement × 2 ») et propose au propriétaire *Ranger / déplacer*
+décrit par une zone, un casier et une position (un seul des trois suffit ;
+rien vaut « Sans emplacement »), propre à la cave courante. La **zone** se
+choisit dans la liste des zones de la cave, dans leur ordre, ou « Sans zone » ;
+la zone choisie montre dessous son indication et sa vignette, et, tant que la
+cave n'a aucune zone, un lien *Créer une zone* mène à *Ma cave*. Le **casier**
+et la **position** restent du texte libre, avec les valeurs déjà utilisées en
+suggestion. Ce choix est proposé à l'entrée (unitaire et « À confirmer », bloc
+replié par défaut, pré-rempli avec le dernier emplacement d'entrée de la cave),
+au déplacement et à l'inventaire en hausse. La fiche vin affiche la
+répartition du stock par emplacement (« Cave 2 / B / 3 × 4 ; Sans emplacement
+× 2 ») ; toucher un emplacement montre ou cache l'indication et la photo de sa
+zone (membre compris). Elle propose au propriétaire *Ranger / déplacer*
 pour transférer tout ou partie du stock d'un endroit vers un autre ; la
 sortie et l'inventaire en baisse demandent d'où sortent les bouteilles dès
 que le vin est réparti sur plus d'un endroit, avec l'emplacement le plus
@@ -164,10 +202,14 @@ dans les statistiques. Comme pour les mouvements, rien n'est jamais déplacé
 sans confirmation, et annuler un mouvement rend ses bouteilles à leur
 emplacement d'origine (annuler un déplacement annule les deux moitiés de la
 paire). Un membre (lecture seule) voit la section et le filtre, sans aucun
-bouton. API : `GET /api/locations`, `POST /api/wines/:id/move`, et un champ
-d'emplacement facultatif sur l'entrée (`POST /api/movements`,
-`/api/movements/bulk`), la sortie (`POST /api/movements/out`) et l'inventaire
-(`POST /api/wines/:id/inventory`).
+bouton. API : `GET /api/locations` (chaque emplacement porte `zoneId`), `POST
+/api/wines/:id/move`, et un champ d'emplacement facultatif sur l'entrée (`POST
+/api/movements`, `/api/movements/bulk`), la sortie (`POST /api/movements/out`)
+et l'inventaire (`POST /api/wines/:id/inventory`). Un emplacement saisi s'écrit
+`{ zoneId, casier, position }` (`zoneId` : une zone non archivée de la cave,
+sinon 404 « Zone introuvable ») ; les endroits d'un vin portent eux aussi
+`zoneId`. Une application restée en cache qui envoie encore `{ zone: "texte" }`
+est acceptée : la zone de même nom est retrouvée, ou créée en fin de liste.
 
 **Analyse différée, jamais bloquante.** L'analyse ne dépend pas de la
 disponibilité de l'API de vision. Dès qu'une photo est reçue, elle est stockée
@@ -320,7 +362,8 @@ plus urgents avec leur emplacement (« Cave 1 / A ») et mène, par « Tout voir
 (« Sans emplacement » en dernier ; dans chaque groupe, la fin d'apogée la plus
 proche d'abord, puis la meilleure note). Un vin rangé à deux endroits figure
 dans les deux groupes, avec la quantité de chacun ; rien d'urgent : « Rien
-d'urgent à boire. ». Visible aussi d'un membre en lecture seule. Dans la
+d'urgent à boire. ». Sous chaque en-tête d'emplacement, l'indication et la
+vignette de sa zone, s'il y en a. Visible aussi d'un membre en lecture seule. Dans la
 réponse de `GET /api/cave?drinkSoon=true`, chaque vin porte `places` (ses
 endroits et leur quantité).
 
@@ -491,7 +534,7 @@ l'accueil) réunit, pour les administrateurs :
 - **Qualité de la lecture** et **règles d'apogée** (voir plus haut).
 
 Les **membres** d'une cave se gèrent, eux, par son propriétaire, depuis
-l'écran *Membres de la cave* (voir *Membres en lecture seule*).
+*Ma cave* (voir *Membres en lecture seule*).
 
 `ADMIN_EMAILS` est un **plancher garanti, jamais un plafond** : une adresse qui
 y figure est administratrice même si la base dit le contraire (le propriétaire
@@ -717,6 +760,20 @@ Si les images sont construites localement, remplacer `docker compose pull` par
 `docker compose build`. Pour figer une version plutôt que suivre `latest`,
 fusionner la demande de version proposée par release-please puis renseigner
 `IMAGE_TAG=<version>` dans le `.env`.
+
+### Passage à la 2.6.0 (zones de la cave)
+
+Une migration crée les zones de la cave et y rattache les emplacements.
+**Faire une sauvegarde avant la mise à jour** (même commande qu'au passage à
+la 2.0.0, fichier `backups/cave-avant-2.6.0.sql.gz`). Les zones déjà saisies
+sont **converties automatiquement** : une zone par cave et par nom distinct
+(espaces autour et casse ignorés : « Cave 1 » et « cave 1 » deviennent une
+seule zone, sous l'une des graphies saisies), rangées par nom ; chaque
+bouteille garde le même emplacement et le même stock. Les indications et les
+photos se renseignent ensuite dans *Ma cave*. La migration supprime l'ancien
+texte de zone des emplacements (le nom vient désormais de la zone) : **retour
+arrière** seulement en restaurant cette sauvegarde (procédure du retour arrière
+de la 2.0.0).
 
 ### Passage à la 2.2.0 (emplacements et cote)
 
@@ -951,8 +1008,9 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   l'indique et ne propose que la saisie manuelle.
 - **Pas d'alerte hors de l'application** : la liste « à boire en priorité » se
   consulte, elle ne prévient pas (choix assumé).
-- **Emplacements libres, sans quantité propre** : zone, casier et position
-  sont du texte libre (40 caractères chacun), sans plan de cave ni capacité ;
+- **Emplacements sans quantité propre** : la zone se choisit dans la liste des
+  zones de la cave, casier et position sont du texte libre (40 caractères
+  chacun), sans plan de cave ni capacité ;
   aucune quantité n'est stockée par emplacement, c'est toujours le journal des
   mouvements qui fait foi, le détail par emplacement est recalculé à la
   lecture. Un emplacement est strictement **par cave** : deux caves peuvent
