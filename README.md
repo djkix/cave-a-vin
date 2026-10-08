@@ -175,7 +175,10 @@ sur le serveur ; si le service de lecture est saturé, injoignable ou à quota
 (erreurs 429, 500, 502, 503, 504, coupure réseau, plafond mensuel atteint), la
 photo **retourne en attente au lieu d'échouer** et le worker la reprend
 automatiquement — 30 s, 1 min, 2, 4, 8, puis toutes les 15 minutes, pendant une
-dizaine de jours si nécessaire. Une photo d'entrée est aussi **reportée, et non
+dizaine de jours si nécessaire. Un refus de Google (503 modèle saturé, 429
+quota épuisé) ne déclenche plus ces reprises rapprochées : il met Gemini en
+pause commune (5 min, 1 h) et la photo repart à la fin de la pause, sans
+consommer de tentative (voir *Consommation Gemini et pause commune*). Une photo d'entrée est aussi **reportée, et non
 mise en échec, quand le service de lecture est mal configuré** (clé Gemini
 invalide ou expirée, API non activée, modèle inconnu) : elle affiche « Analyse
 reportée : service de lecture mal configuré (clé Gemini à vérifier), reprise
@@ -192,6 +195,25 @@ file, si bien qu'un redémarrage du worker ou de Redis ne leur fait perdre ni
 leur place ni leur analyse — une réservation interrompue est reprise au bout de
 cinq minutes. Une photo reçue n'est jamais perdue, même après un redémarrage
 de la pile.
+
+**Consommation Gemini et pause commune.** Chaque requête réellement envoyée à
+Gemini (lecture à l'entrée, lecture à la sortie, accords, descriptifs de
+domaine, recherche d'image) laisse une ligne dans un journal (`gemini_call`),
+réussie, refusée par Google ou en erreur, avec son coût et sa durée. Un refus
+de Google (503 « modèle saturé », 429 « quota épuisé ») compte dans ses
+statistiques de requêtes mais n'est pas facturé : au lieu de réessayer aussitôt,
+l'application met Gemini **en pause pour tous** (api et worker) — 5 minutes
+après un 503, une heure après un 429, sans jamais raccourcir une pause plus
+longue déjà en cours. Pendant la pause, aucun appel n'est envoyé : les photos
+d'entrée attendent sans consommer de tentative, puis partent ensemble, huit par
+appel, quand la pause se termine ; une analyse de sortie échoue tout de suite
+avec le message « Gemini en pause jusqu'à HH:MM (motif) » et l'écran propose la
+recherche dans la cave ; les accords et descriptifs sont reportés à la fin de
+la pause ; la recherche d'image répond aussitôt par ce même message. La section
+*Consommation Gemini* de l'Administration montre, sur 7 ou 30 jours, les appels
+par jour et par usage (réussis, refusés saturé ou quota, erreurs, coût), leurs
+totaux et la pause en cours. API : `GET /api/admin/gemini-usage?days=7` (1 à 90
+jours).
 
 **Photos plus nettes.** Une version d'affichage est fabriquée par le serveur,
 sans aucun coût supplémentaire : la lecture Gemini d'une photo renvoie déjà le
@@ -903,9 +925,17 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Réessai borné dans le temps** : une photo reportée est reprise pendant
   environ dix jours (1 000 tentatives au plafond de 15 minutes). Au-delà, elle
   passe en échec et attend une saisie manuelle — un travail qui ne meurt jamais
-  finirait par masquer une panne réelle. Seule exception : un report pour
-  budget (plafond mensuel ou part de la cave atteints) est repris sans limite,
-  toutes les 15 minutes, et ne passe jamais en échec.
+  finirait par masquer une panne réelle. Exceptions : un report pour budget
+  (plafond mensuel ou part de la cave atteints) est repris sans limite, toutes
+  les 15 minutes, et ne passe jamais en échec ; une pause commune de Gemini
+  (après un 503 ou un 429) ne consomme aucune tentative, la reprise attend
+  simplement la fin de la pause. Après un 503 ou un 429, les accords et les
+  descriptifs attendent au moins la durée de la pause (5 min, 1 h) au lieu de
+  repartir au bout de 30 s.
+- **Pause commune grossière** : la pause vaut pour tous les usages à la fois
+  (un quota épuisé sur les lectures suspend aussi les accords), et le journal
+  `gemini_call` n'est pas rattaché à une cave : il est réservé à
+  l'administrateur et sans purge automatique.
 - **Pas de relance manuelle d'une analyse** : il n'y a pas de bouton
   « réanalyser » sur une photo en échec définitif ; la saisie manuelle prend le
   relais, et reprendre la photo crée simplement une nouvelle entrée.
