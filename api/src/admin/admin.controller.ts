@@ -1,11 +1,12 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AppUser } from '@prisma/client';
 import { AdminGuard } from '../auth/admin.guard';
 import { AuthenticatedGuard } from '../auth/authenticated.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { VisionBudgetService } from '../queue/vision-budget.service';
 import { AdminService } from './admin.service';
-import { updateAdminUserSchema, updateBudgetSchema } from './dto';
+import { geminiUsageDaysSchema, updateAdminUserSchema, updateBudgetSchema } from './dto';
+import { GeminiUsageService } from './gemini-usage.service';
 
 @Controller('admin/users')
 @UseGuards(AuthenticatedGuard, AdminGuard)
@@ -78,5 +79,19 @@ export class AdminBudgetController {
       this.budget.spentThisMonthCents(),
     ]);
     return { caveShare, invitedShare, capCents: this.budget.capCents, spentThisMonthCents };
+  }
+}
+
+/** Consommation Gemini par jour et par usage, refus de Google compris, et pause commune en cours. */
+@Controller('admin/gemini-usage')
+@UseGuards(AuthenticatedGuard, AdminGuard)
+export class AdminGeminiUsageController {
+  constructor(private readonly usage: GeminiUsageService) {}
+
+  @Get()
+  get(@Query('days') days: string | undefined) {
+    const parsed = geminiUsageDaysSchema.safeParse(days);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0].message);
+    return this.usage.report(parsed.data);
   }
 }

@@ -242,6 +242,23 @@ model AppSetting {
   @@map("app_setting")
 }
 
+/// Journal des appels Gemini (administration, toutes caves) : une ligne par
+/// requête envoyée à Google. usage ∈ LECTURE_ENTREE | LECTURE_SORTIE | ACCORDS |
+/// DESCRIPTIF | RECHERCHE_IMAGE ; outcome ∈ OK | REFUSE (429, 503) | ERREUR.
+model GeminiCall {
+  id         String   @id @default(uuid())
+  createdAt  DateTime @default(now()) @map("created_at")
+  usage      String
+  outcome    String
+  httpStatus Int?     @map("http_status")
+  reason     String?
+  costCents  Int      @default(0) @map("cost_cents")
+  durationMs Int      @map("duration_ms")
+
+  @@index([createdAt])
+  @@map("gemini_call")
+}
+
 model AllowedEmail {
   email   String   @id
   addedBy String?  @map("added_by")

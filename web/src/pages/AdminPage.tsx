@@ -3,6 +3,7 @@ import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { TopBar } from '../components/TopBar';
 import { BudgetSection } from '../components/admin/BudgetSection';
+import { GeminiUsageSection } from '../components/admin/GeminiUsageSection';
 import { GuardsSection } from '../components/admin/GuardsSection';
 import { ReadingQualitySection } from '../components/admin/ReadingQualitySection';
 import { RegistrationsSection } from '../components/admin/RegistrationsSection';
@@ -95,6 +96,7 @@ export function AdminPage() {
               {users.data?.length === 0 && <p className="centered">Aucun compte.</p>}
             </div>
             <BudgetSection />
+            <GeminiUsageSection />
             <ReadingQualitySection />
             <VintagesSection />
             <GuardsSection />

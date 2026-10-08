@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { deferralReason, isTransientVisionFailure } from '../queue/transient-failure';
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { PAIRING_BUDGET_SHARE, VisionBudgetService } from '../queue/vision-budget.service';
 import { ProducerInvalidOutputError } from '../vision/producer-output';
 import { PRODUCER_PROVIDER, ProducerProvider } from '../vision/producer-provider.interface';
@@ -52,6 +53,13 @@ export class ProducerProcessor {
         generatedAt: new Date(),
       });
     } catch (e) {
+      // Pause commune de Gemini : aucun appel n'est parti. En attente avec le
+      // message de la pause, même au dernier essai ; le travail est reporté
+      // après la pause sans consommer de tentative (wine-pairing-dispatch).
+      if (e instanceof GeminiPausedError) {
+        await save({ status: 'PENDING', errorMessage: deferralReason(e) });
+        throw e;
+      }
       const transient = isTransientVisionFailure(e);
       this.logger.warn(`Descriptif « ${producerKey} » ${transient ? 'reporté' : 'en échec'} : ${e instanceof Error ? e.message : String(e)}`);
       if (transient && !isLastAttempt) {

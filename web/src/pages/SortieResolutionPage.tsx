@@ -58,11 +58,15 @@ export function SortieResolutionPage() {
   const read = data?.status === 'DONE' ? data.read : null;
   const fallback = <Link to={searchHref(read)} className="btn btn--outline">Chercher dans la cave</Link>;
 
+  const pauseReason = data?.status === 'FAILED' && data.errorMessage?.startsWith('Gemini en pause') ? data.errorMessage : null;
+
   let body;
   if ((!pinned && result.isError) || data?.status === 'FAILED') {
     body = (
       <section className="card" role="alert">
         <p className="text-error" style={{ margin: 0 }}>Lecture impossible</p>
+        {/* Pause commune de Gemini : seul motif affiché tel quel, il dit jusqu'à quand. */}
+        {pauseReason && <p className="list__meta" style={{ margin: 'var(--space-xs) 0 0' }}>{pauseReason}</p>}
         <p>Retrouvez la bouteille dans la cave : rien n’a été sorti.</p>
         {fallback}
       </section>

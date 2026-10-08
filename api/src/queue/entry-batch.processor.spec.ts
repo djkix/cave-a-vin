@@ -1,3 +1,4 @@
+import { GeminiPause, GeminiPausedError } from '../vision/gemini-pause';
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { ENTRY_BATCH_CALL_TIMEOUT_MS, RESERVATION_MS } from './entry-batch';
 import { EntryBatchProcessor } from './entry-batch.processor';
@@ -139,7 +140,8 @@ function harness() {
     assertUnderCap: jest.fn(async () => undefined),
     assertCaveUnderShare: jest.fn<Promise<void>, [string]>(async () => undefined),
   };
-  const processor = new EntryBatchProcessor(prisma, photos as any, vision as any, budget as any);
+  const pause = { currentPause: jest.fn(async (): Promise<GeminiPause | null> => null) };
+  const processor = new EntryBatchProcessor(prisma, photos as any, vision as any, budget as any, pause as any);
   let seq = 0;
   const add = (over: Partial<Row> = {}): Row => {
     const row: Row = {
@@ -158,7 +160,7 @@ function harness() {
     return row;
   };
   const addMany = (n: number, over: Partial<Row> = {}) => Array.from({ length: n }, () => add(over));
-  return { rows, prisma, photos, vision, budget, processor, add, addMany, missing };
+  return { rows, prisma, photos, vision, budget, pause, processor, add, addMany, missing };
 }
 
 describe('EntryBatchProcessor.tick — sélection', () => {
@@ -397,7 +399,7 @@ describe('EntryBatchProcessor.tick — lot d’une seule photo', () => {
     expect(await h.processor.tick(NOW)).toEqual({ processed: 1 });
     expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
     expect(h.vision.extractWineLabel).toHaveBeenCalledTimes(1);
-    expect(h.vision.extractWineLabel).toHaveBeenCalledWith(Buffer.from(`img-${p.id}`), 'image/jpeg');
+    expect(h.vision.extractWineLabel).toHaveBeenCalledWith(Buffer.from(`img-${p.id}`), 'image/jpeg', 'ENTRY');
     expect(p.status).toBe('DONE');
     expect(p.rawExtraction).toEqual({ seul: `img-${p.id}` });
     expect(p.model).toBe('gemini-test');
@@ -763,5 +765,76 @@ describe('EntryBatchProcessor.tick — réservation', () => {
       expect(r.nextAttemptAt).toBeNull();
       expect(r.errorMessage).toBe('Analyse interrompue (worker arrêté en plein lot) — abandon après 1000 tentatives');
     }
+  });
+});
+
+describe('EntryBatchProcessor.tick — pause commune de Gemini', () => {
+  const UNTIL = at(5 * 60_000);
+  const PAUSE_MESSAGE = `Gemini en pause jusqu'à 14:05 (modèle saturé)`;
+  const paused = () => new GeminiPausedError(UNTIL, 'modèle saturé');
+
+  it('pendant la pause, le passage ne réserve rien et ne touche pas les tentatives des photos en attente', async () => {
+    const h = harness();
+    const waiting = h.addMany(10, { createdAt: at(-600_000) });
+    h.pause.currentPause.mockResolvedValue({ until: UNTIL, reason: 'modèle saturé' });
+    expect(await h.processor.tick(NOW)).toEqual({ processed: 0 });
+    expect(h.prisma.$transaction).not.toHaveBeenCalled();
+    expect(h.prisma.photo.update).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+    waiting.forEach((r) => expect(r).toMatchObject({ status: 'PENDING', attempts: 0, nextAttemptAt: null }));
+  });
+
+  it('pendant la pause, les réservations échues sont quand même reprises (aucun appel Gemini)', async () => {
+    const h = harness();
+    const stuck = h.add({ status: 'PROCESSING', nextAttemptAt: at(-1), attempts: 3 });
+    h.pause.currentPause.mockResolvedValue({ until: UNTIL, reason: 'modèle saturé' });
+    await h.processor.tick(NOW);
+    expect(stuck).toMatchObject({ status: 'PENDING', attempts: 4, nextAttemptAt: null });
+    expect(h.prisma.$transaction).not.toHaveBeenCalled();
+    expect(h.vision.extractWineLabel).not.toHaveBeenCalled();
+  });
+
+  it('à la fin de la pause, les photos en attente partent ensemble, huit par appel', async () => {
+    const h = harness();
+    h.addMany(10, { createdAt: at(-600_000) });
+    h.pause.currentPause.mockResolvedValueOnce({ until: UNTIL, reason: 'modèle saturé' });
+    await h.processor.tick(NOW);
+    expect(h.vision.extractWineLabels).not.toHaveBeenCalled();
+    await h.processor.tick(new Date(UNTIL.getTime() + 1));
+    expect(h.vision.extractWineLabels).toHaveBeenCalledTimes(1);
+    expect(h.vision.extractWineLabels.mock.calls[0][0]).toHaveLength(8);
+  });
+
+  it('un lot réservé qui tombe sur la pause : reporté à la fin de la pause, sans tentative consommée, jamais en échec', async () => {
+    const h = harness();
+    const all = h.addMany(3, { createdAt: at(-600_000), attempts: 999 });
+    h.vision.extractWineLabels.mockRejectedValue(paused());
+    let now = NOW;
+    for (let i = 0; i < 20; i++) {
+      await h.processor.tick(now);
+      all.forEach((r) => {
+        expect(r.status).toBe('PENDING');
+        expect(r.attempts).toBe(999);
+        expect(r.nextAttemptAt).toEqual(UNTIL);
+        expect(r.errorMessage).toBe(PAUSE_MESSAGE);
+      });
+      now = new Date(UNTIL.getTime() + 1);
+    }
+  });
+
+  it('une photo relue seule qui tombe sur la pause : même report, et les suivantes sans appel', async () => {
+    const h = harness();
+    const p = h.add({ createdAt: at(-600_000), attempts: 2 });
+    h.vision.extractWineLabel.mockRejectedValueOnce(paused());
+    await h.processor.tick(NOW);
+    expect(p).toMatchObject({ status: 'PENDING', attempts: 2, nextAttemptAt: UNTIL, errorMessage: PAUSE_MESSAGE });
+  });
+
+  it('une photo d’entrée relue seule est notée comme lecture d’entrée', async () => {
+    const h = harness();
+    h.add({ createdAt: at(-600_000) });
+    await h.processor.tick(NOW);
+    expect(h.vision.extractWineLabel).toHaveBeenCalledWith(expect.any(Buffer), 'image/jpeg', 'ENTRY');
   });
 });

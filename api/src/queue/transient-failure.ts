@@ -1,3 +1,4 @@
+import { GeminiPausedError } from '../vision/gemini-pause';
 import { VisionBudgetExceededError } from './vision-budget.service';
 
 /**
@@ -85,6 +86,7 @@ export function statusFromMessage(message: string): number | null {
  */
 export function isTransientVisionFailure(error: unknown): boolean {
   if (error instanceof VisionBudgetExceededError) return true; // repart au mois suivant
+  if (error instanceof GeminiPausedError) return true; // aucun appel envoyé : repart à la fin de la pause
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   if (DEFINITIVE.some((needle) => message.includes(needle))) return false;
   const status = statusFromMessage(message);
@@ -101,6 +103,8 @@ export function isTransientVisionFailure(error: unknown): boolean {
  */
 export function deferralReason(error: unknown): string {
   if (error instanceof VisionBudgetExceededError) return error.message;
+  // « Gemini en pause jusqu'à HH:MM (motif) » : l'heure de reprise suffit à l'écran.
+  if (error instanceof GeminiPausedError) return error.message;
   const message = error instanceof Error ? error.message : String(error);
   const status = statusFromMessage(message);
   if (status === 429) return 'Analyse reportée : quota Gemini atteint pour le moment, reprise automatique';

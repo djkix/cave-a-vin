@@ -4,7 +4,7 @@ import { Worker } from 'bullmq';
 import { AppModule } from './app.module';
 import { PairingProcessor } from './pairing/pairing.processor';
 import { requeueMissingPairings } from './pairing/pairing-recovery';
-import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, WinePairingJobData } from './pairing/pairing.queue';
+import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, WinePairingJobData, pairingBackoffDelay } from './pairing/pairing.queue';
 import { processWinePairingJob } from './pairing/wine-pairing-dispatch';
 import { PrismaService } from './prisma/prisma.service';
 import { ProducerProcessor } from './producers/producer.processor';
@@ -39,11 +39,12 @@ async function main() {
   const pairingProcessors = { pairing: app.get(PairingProcessor), producer: app.get(ProducerProcessor) };
   const pairingWorker = new Worker<WinePairingJobData>(
     PAIRING_QUEUE,
-    (job) => processWinePairingJob(job, pairingProcessors),
+    // Le jeton du verrou permet de reporter le travail pendant une pause commune de Gemini.
+    (job, token) => processWinePairingJob(job, pairingProcessors, token),
     {
       connection: redisConnection(),
       concurrency: 1,
-      settings: { backoffStrategy: (attemptsMade: number) => extractionBackoffDelay(attemptsMade) },
+      settings: { backoffStrategy: (attemptsMade: number, _type?: string, err?: Error) => pairingBackoffDelay(attemptsMade, err) },
     },
   );
   pairingWorker.on('failed', (job, err) => console.warn(`${job?.name === PRODUCER_JOB ? 'descriptif' : 'accords'} ${job?.id} : ${err.message}`));

@@ -38,8 +38,11 @@ export interface BatchVisionResult {
   costCents: number;
 }
 
+/** Photo lue seule : entrée (relue hors lot) ou sortie. Par défaut, sortie. */
+export type LabelPurpose = 'ENTRY' | 'EXIT';
+
 export interface VisionProvider {
-  extractWineLabel(image: Buffer, mimeType: string): Promise<VisionResult>;
+  extractWineLabel(image: Buffer, mimeType: string, purpose?: LabelPurpose): Promise<VisionResult>;
   extractWineLabels(images: Array<{ data: Buffer; mimeType: string }>): Promise<BatchVisionResult>;
 }
 

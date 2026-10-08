@@ -82,6 +82,20 @@ export const getAdminBudget = () => apiFetch<AdminBudget>('/admin/budget');
 export const putAdminBudget = (shares: { caveShare: number; invitedShare: number }) =>
   apiFetch<AdminBudget>('/admin/budget', { method: 'PUT', body: JSON.stringify(shares) });
 
+/** Usage d'un appel Gemini, tel que noté dans le journal des appels (api `gemini_call`). */
+export type GeminiUsageKind = 'LECTURE_ENTREE' | 'LECTURE_SORTIE' | 'ACCORDS' | 'DESCRIPTIF' | 'RECHERCHE_IMAGE';
+/** Une ligne par jour (Europe/Paris, AAAA-MM-JJ) et par usage. */
+export interface GeminiUsageRow {
+  day: string; usage: GeminiUsageKind; ok: number; refused503: number; refused429: number; errors: number; costCents: number;
+}
+export interface GeminiUsage {
+  rows: GeminiUsageRow[];
+  totals: { ok: number; refused: number; errors: number; costCents: number };
+  /** Pause commune après un refus de Google : `until` en ISO, null sans pause en cours. */
+  pause: { until: string | null; reason: string | null };
+}
+export const getGeminiUsage = (days: number) => apiFetch<GeminiUsage>(`/admin/gemini-usage?days=${days}`);
+
 /** Membre de la cave courante ; `pending` = invitation pas encore rattachée à un compte. */
 export interface MemberView { id: string; email: string; displayName: string | null; role: CaveRole; pending: boolean }
 export const getMembers = () => apiFetch<MemberView[]>('/caves/current/members');

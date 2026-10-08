@@ -7,6 +7,8 @@ import { DISPLAY_FILE_NAMES } from '../photos/display-image';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { statusFromMessage } from '../queue/transient-failure';
+import { GeminiJournal } from '../vision/gemini-journal';
+import { GeminiPause, GeminiPausedError } from '../vision/gemini-pause';
 import { CaveBudgetShareExceededError, PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
 import { OFFICIAL_SITE_PROVIDER, OfficialSiteProvider } from '../vision/official-site-provider.interface';
 import { CandidateExpiredError, CandidateMeta, CandidateStore } from './candidates';
@@ -106,7 +108,23 @@ export class ImageSearchService {
     @Inject(OFFICIAL_SITE_PROVIDER) private readonly provider: OfficialSiteProvider,
     @Inject(PHOTO_STORAGE_DIR) private readonly dir: string,
     @Inject(IMAGE_SEARCH_FETCHER) private readonly fetcher: Fetcher,
+    private readonly pause: GeminiJournal,
   ) {}
+
+  /**
+   * Pause commune lue avant le délai global : une lecture lente ne peut pas
+   * faire expirer le délai et compter l'estimation d'un appel abandonné alors
+   * qu'aucun appel n'est parti. Base injoignable : pas de pause (le fournisseur
+   * revérifie de toute façon avant d'appeler).
+   */
+  private async pauseBeforeDeadline(): Promise<GeminiPause | null> {
+    try {
+      return await this.pause.currentPause();
+    } catch (e) {
+      this.logger.warn(`Pause Gemini illisible avant la recherche d'image : ${(e as Error).message}`);
+      return null;
+    }
+  }
 
   /** Vin de la cave courante ; celui d'une autre cave est inexistant (404). */
   private async findWine(caveId: string, id: string) {
@@ -137,6 +155,7 @@ export class ImageSearchService {
     const wine = await this.findWine(caveId, wineId);
     await this.store.cleanup();
     const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage };
+    const pause = await this.pauseBeforeDeadline();
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.deadlineMs);
@@ -145,6 +164,8 @@ export class ImageSearchService {
       const kept: CandidateMeta[] = [];
       await this.download(await this.offImages(query, signal), wine.id, signal, kept);
       if (kept.length === 0 && !signal.aborted) {
+        // En pause : Open Food Facts reste proposé, Gemini n'est pas appelé.
+        if (pause) throw new ServiceUnavailableException(new GeminiPausedError(pause.until, pause.reason).message);
         await this.download(await this.officialSiteImages(wine, signal), wine.id, signal, kept);
       }
       if (kept.length === 0 && signal.aborted) {
@@ -218,6 +239,9 @@ export class ImageSearchService {
     } catch (e) {
       const reason = e instanceof DeadlineError ? `pas de réponse en ${this.deadlineMs} ms` : (e as Error).message;
       this.logger.warn(`Recherche du site officiel impossible pour le vin ${wine.id} : ${reason}`);
+      // Pause commune de Gemini : aucun appel n'est parti, rien n'est compté ;
+      // le 503 dit jusqu'à quand (l'écran affiche ce message tel quel).
+      if (e instanceof GeminiPausedError) throw new ServiceUnavailableException(e.message);
       if (!(e instanceof DeadlineError) && statusFromMessage((e as Error).message) === 429) {
         throw new ServiceUnavailableException(QUOTA_EXHAUSTED);
       }

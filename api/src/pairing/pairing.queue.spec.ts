@@ -1,4 +1,5 @@
-import { pairingJobId, schedulePairing } from './pairing.queue';
+import { extractionBackoffDelay } from '../queue/extraction.queue';
+import { pairingBackoffDelay, pairingJobId, schedulePairing } from './pairing.queue';
 
 function fakeQueue(existing?: { state: string }) {
   const remove = jest.fn(async () => undefined);
@@ -41,5 +42,24 @@ describe('schedulePairing', () => {
     await expect(schedulePairing(queue as any, 'w1')).resolves.toBeUndefined();
     expect(remove).toHaveBeenCalled();
     expect(queue.add).toHaveBeenCalledWith('pairing', { wineId: 'w1' }, { jobId: 'pairing-w1' });
+  });
+});
+
+describe('pairingBackoffDelay', () => {
+  const err = (m: string) => new Error(m);
+
+  it('un 503 ne relance plus au bout de 30 s : au moins les 5 min de la pause', () => {
+    expect(pairingBackoffDelay(1, err('[GoogleGenerativeAI Error]: … [503 Service Unavailable] busy'))).toBe(5 * 60_000);
+    expect(pairingBackoffDelay(10, err('[503 Service Unavailable] busy'))).toBe(15 * 60_000);
+  });
+
+  it('un 429 : au moins l’heure de la pause', () => {
+    expect(pairingBackoffDelay(1, err('[429 Too Many Requests] quota'))).toBe(60 * 60_000);
+    expect(pairingBackoffDelay(10, err('[429 Too Many Requests] quota'))).toBe(60 * 60_000);
+  });
+
+  it('les autres pannes gardent la reprise habituelle', () => {
+    expect(pairingBackoffDelay(1, err('fetch failed'))).toBe(extractionBackoffDelay(1));
+    expect(pairingBackoffDelay(3, undefined)).toBe(extractionBackoffDelay(3));
   });
 });
