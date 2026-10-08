@@ -11,6 +11,35 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.2.0](https://github.com/djkix/cave-a-vin/compare/v2.1.1...v2.2.0) (2026-10-08)
 
+### Résumé
+
+**Emplacements et cote iDealwine.** Chaque bouteille peut être rangée : zone,
+casier et position libres, proposés à la saisie ; à l'entrée, l'emplacement est
+pré-rempli avec le dernier utilisé ; à la sortie et à l'inventaire en baisse,
+« D'où sort-elle ? » propose l'endroit le plus probable ; la fiche montre le
+stock par emplacement avec « Ranger / déplacer », la cave se filtre par
+emplacement, le journal note les déplacements « Déplacé » (jamais comptés comme
+sorties) et l'export a une colonne Emplacements. Le stock par emplacement est
+recalculé à partir des mouvements, une annulation rend la bouteille à son
+emplacement. **Cote iDealwine saisie à la main** : les conditions générales
+d'iDealwine interdisent d'en copier les prix sans autorisation, l'application
+ne les contacte donc jamais ; « Voir la cote sur iDealwine » ouvre leur
+recherche, on reporte la cote, le nombre de transactions, la date et, au
+besoin, le lien. La fiche affiche l'âge de la cote, les avertissements « Peu de
+transactions » et « Cote de plus d'un an » et la valeur de cession estimée
+(cote hors frais acheteur d'environ 16 %) ; les statistiques ajoutent « Valeur
+à la cote » et l'export ses colonnes. Un membre en lecture seule voit les
+emplacements mais aucune cote.
+
+**Mise à jour** (voir « Passage à la 2.2.0 » dans le README) : une migration
+(les bouteilles existantes sont « Sans emplacement ») ; **sauvegarder la base
+avant**. Le retour à la 2.1.x n'est possible que tant qu'aucun déplacement n'a
+été enregistré, sinon il faut restaurer la sauvegarde. Aucune nouvelle
+variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 

@@ -930,6 +930,18 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.2.0 — 8 octobre 2026
+
+Publiée ([v2.2.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.2.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.2.0` et `-web:2.2.0`.
+
+**Emplacements et cote iDealwine saisie à la main.** Bouteilles rangées par
+zone, casier et position, avec « D'où sort-elle ? » à la sortie et
+« Ranger / déplacer » ; cote iDealwine reportée à la main depuis un lien
+(l'application ne contacte jamais iDealwine), valeur de cession estimée et
+« Valeur à la cote » dans les statistiques. **Sauvegarder la base avant** et
+suivre « Passage à la 2.2.0 ».
+
 ### 2.1.1 — 7 octobre 2026
 
 Publiée ([v2.1.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.1.1)),
