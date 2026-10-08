@@ -212,9 +212,17 @@ describe('recherche d’image depuis la fiche', () => {
     expect(await screen.findByText('Aucune image trouvée pour ce vin')).toBeInTheDocument();
   });
 
-  it('affiche l’indisponibilité (503) en clair', async () => {
+  it('affiche tel quel le motif d’un 503 de l’api (quota Gemini épuisé)', async () => {
     vi.spyOn(api, 'getWine').mockResolvedValue(detail);
-    vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(503, 'Service indisponible'));
+    vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(503, 'Recherche d’image impossible : quota Gemini épuisé'));
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
+    expect(await screen.findByText('Recherche d’image impossible : quota Gemini épuisé')).toBeInTheDocument();
+  });
+
+  it('un 503 sans motif (page d’erreur d’un proxy) reste « indisponible pour le moment »', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'searchWineImages').mockRejectedValue(new api.ApiError(503, 'Service Unavailable'));
     mount();
     await userEvent.click(await screen.findByRole('button', { name: 'Chercher une image' }));
     expect(await screen.findByText('Recherche d’image indisponible pour le moment')).toBeInTheDocument();

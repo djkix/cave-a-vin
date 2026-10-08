@@ -25,9 +25,10 @@ const UNAVAILABLE = 'Recherche d’image indisponible pour le moment';
 // requête n'a pas reçu de réponse de l'application : dit à part du 503 de l'api,
 // pour savoir où chercher.
 const NO_ANSWER = 'Recherche d’image indisponible pour le moment (le serveur n’a pas répondu)';
+// 503 : l'api donne elle-même la raison (indisponible, part de la cave atteinte,
+// quota Gemini épuisé) : son message est affiché tel quel.
 const SEARCH_ERRORS = {
   502: NO_ANSWER,
-  503: UNAVAILABLE,
   504: NO_ANSWER,
   429: 'Trop de recherches, réessayez dans une minute',
 };
@@ -55,7 +56,9 @@ export function ImageSearchBlock({
       const { candidates } = await searchWineImages(wine.id);
       setState({ phase: 'done', candidates });
     } catch (e) {
-      setState({ phase: 'error', message: messageOf(e, SEARCH_ERRORS) });
+      // Un 503 sans message de l'api (page d'erreur d'un proxy) reste « indisponible ».
+      const bare = e instanceof ApiError && e.status === 503 && /^(Service Unavailable)?$/i.test(e.message);
+      setState({ phase: 'error', message: bare ? UNAVAILABLE : messageOf(e, SEARCH_ERRORS) });
     }
   }
 

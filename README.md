@@ -221,7 +221,11 @@ indisponible pour le moment ». Un appel à Gemini abandonné au délai est
 compté 2 ct (une recherche, estimation), car il a pu être facturé. Chaque
 recherche est notée dans les journaux de l'api (arrivée, nombre d'images et
 durée, ou raison du refus) ; si le proxy devant l'application coupe la requête
-(502 ou 504), l'écran le précise : « … (le serveur n'a pas répondu) ». Une fois l'image choisie, la fiche affiche « Image : {source} » (lien vers la page d'origine) et
+(502 ou 504), l'écran le précise : « … (le serveur n'a pas répondu) ». Si Google
+refuse l'appel faute de quota (429, typiquement une clé Gemini sans facturation
+activée, où la recherche Google intégrée n'est pas disponible), l'écran affiche
+« Recherche d'image impossible : quota Gemini épuisé » ; Open Food Facts, lui,
+continue de fonctionner. Une fois l'image choisie, la fiche affiche « Image : {source} » (lien vers la page d'origine) et
 « Revenir à ma photo » pour annuler à tout moment. Limité à 10 recherches par
 minute. API : `POST /api/wines/:id/image-search`, `GET
 /api/image-candidates/:id`, `POST`/`DELETE /api/wines/:id/reference-image`.

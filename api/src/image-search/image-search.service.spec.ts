@@ -145,6 +145,15 @@ describe('ImageSearchService.search', () => {
     expect(budget.assertCaveUnderShare).not.toHaveBeenCalled();
   });
 
+  it('quota Gemini épuisé (429) : 503 qui le dit, sans dépense comptée', async () => {
+    const quota = new Error('[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota');
+    const { service, prisma } = setup({ providerError: quota });
+    const e = await service.search('c1', 'w1').catch((x) => x);
+    expect(e).toBeInstanceOf(ServiceUnavailableException);
+    expect(e.message).toBe('Recherche d’image impossible : quota Gemini épuisé');
+    expect(prisma.imageSearchCost.create).not.toHaveBeenCalled();
+  });
+
   it('Gemini en panne : 503', async () => {
     const { service, prisma } = setup({ providerError: new Error('500 Internal') });
     const e = await service.search('c1', 'w1').catch((x) => x);
