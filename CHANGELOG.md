@@ -11,6 +11,20 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.2.1](https://github.com/djkix/cave-a-vin/compare/v2.2.0...v2.2.1) (2026-10-08)
 
+### Résumé
+
+Deux corrections après la mise en production de la 2.2.0. « Voir la cote sur
+iDealwine » menait à une page inexistante (404) : le lien ouvre désormais la
+vraie recherche d'iDealwine sur « producteur cuvée », sans le millésime pour
+montrer tous les millésimes du vin. Un bouton « Se déconnecter » est ajouté à
+l'accueil (il n'existait que sur l'écran d'attente). Le README explique aussi
+quoi faire si la cave est en lecture seule après la 2.0.0 : renseigner
+`ADMIN_EMAILS`, relancer l'api et se reconnecter avec Google. Aucune
+migration, aucune nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Corrections
 

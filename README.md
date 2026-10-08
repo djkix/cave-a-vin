@@ -939,6 +939,15 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.2.1 — 8 octobre 2026
+
+Publiée ([v2.2.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.2.1)),
+images `ghcr.io/djkix/cave-a-vin-api:2.2.1` et `-web:2.2.1`.
+
+**Lien iDealwine corrigé et bouton « Se déconnecter ».** « Voir la cote sur
+iDealwine » ouvre leur vraie recherche au lieu d'une page 404 ; l'accueil
+propose « Se déconnecter ».
+
 ### 2.2.0 — 8 octobre 2026
 
 Publiée ([v2.2.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.2.0)),
