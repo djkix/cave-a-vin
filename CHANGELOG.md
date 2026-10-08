@@ -9,6 +9,14 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.2.1](https://github.com/djkix/cave-a-vin/compare/v2.2.0...v2.2.1) (2026-10-08)
+
+
+### Corrections
+
+* **cote:** lien de recherche iDealwine au bon format ([bd4ea25](https://github.com/djkix/cave-a-vin/commit/bd4ea258d16574fa1c0c9d4621049052456d54a4))
+* **web:** bouton « Se déconnecter » sur l'accueil ([588a8ae](https://github.com/djkix/cave-a-vin/commit/588a8aec77b98bb8eb825ac1632079adc1f23ce8))
+
 ## [2.2.0](https://github.com/djkix/cave-a-vin/compare/v2.1.1...v2.2.0) (2026-10-08)
 
 ### Résumé
