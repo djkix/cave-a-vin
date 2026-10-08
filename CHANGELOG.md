@@ -11,6 +11,20 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.4.1](https://github.com/djkix/cave-a-vin/compare/v2.4.0...v2.4.1) (2026-10-08)
 
+### Résumé
+
+Diagnostic de la recherche d'image. Chaque recherche est désormais notée dans
+les journaux de l'api : son arrivée, puis le nombre d'images trouvées et la
+durée, ou la raison du refus — un refus pour budget, jusque-là muet, compris.
+À l'écran, une coupure par le proxy devant l'application (502 ou 504) est
+précisée : « Recherche d'image indisponible pour le moment (le serveur n'a pas
+répondu) ». Pour suivre une recherche : `docker compose logs api --since 5m |
+grep "Recherche d'image"`. Aucune migration, aucune nouvelle variable
+d'environnement.
+
+### Détail par commit
+
+
 
 ### Corrections
 

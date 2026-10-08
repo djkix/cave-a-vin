@@ -960,6 +960,15 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.4.1 — 8 octobre 2026
+
+Publiée ([v2.4.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.1)),
+images `ghcr.io/djkix/cave-a-vin-api:2.4.1` et `-web:2.4.1`.
+
+**Recherche d'image journalisée.** Chaque recherche laisse une trace dans les
+journaux de l'api (issue ou raison du refus), et l'écran distingue une coupure
+du proxy d'un refus de l'application.
+
 ### 2.4.0 — 8 octobre 2026
 
 Publiée ([v2.4.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.0)),
