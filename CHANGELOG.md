@@ -11,6 +11,29 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.5.0](https://github.com/djkix/cave-a-vin/compare/v2.4.2...v2.5.0) (2026-10-08)
 
+### Résumé
+
+**Consommation Gemini et pause commune.** Chaque requête envoyée à Gemini est
+désormais notée (usage, issue, motif d'un refus, coût, durée), et
+l'Administration affiche une section « Consommation Gemini » : par jour et par
+usage (lecture à l'entrée, à la sortie, accords, descriptifs, recherche
+d'image), les appels réussis, refusés pour saturation (503) ou quota (429), en
+erreur, et le coût estimé, sur 7 ou 30 jours. **Fini les reprises en rafale** :
+au premier refus de Google, toute l'application met Gemini en pause (5 min si
+le modèle est saturé, 1 h si le quota est épuisé) au lieu de réessayer chaque
+tâche de son côté ; pendant la pause, aucune requête ne part. Les photos
+d'entrée attendent puis repartent ensemble, jusqu'à 8 par appel, sans jamais
+passer en échec ; accords et descriptifs sont reportés à la fin de la pause ;
+une sortie par photo ou une recherche d'image demandée pendant la pause répond
+aussitôt « Gemini en pause jusqu'à HH:MM (motif) » (la sortie propose alors la
+recherche dans la cave). Rappel : un refus de Google compte dans ses
+statistiques de requêtes mais n'est pas facturé. Une migration
+(`20261014000000_gemini_call`, ajout d'une table) ; aucune nouvelle variable
+d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
