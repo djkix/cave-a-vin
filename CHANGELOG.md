@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.4.2](https://github.com/djkix/cave-a-vin/compare/v2.4.1...v2.4.2) (2026-10-08)
+
+
+### Corrections
+
+* **image:** quota Gemini épuisé signalé en clair ([ce07d52](https://github.com/djkix/cave-a-vin/commit/ce07d5263dba23633c186c8e9ffecd0f5ada4cb0))
+
 ## [2.4.1](https://github.com/djkix/cave-a-vin/compare/v2.4.0...v2.4.1) (2026-10-08)
 
 ### Résumé
