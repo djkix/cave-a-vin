@@ -69,7 +69,12 @@ export const inventorySchema = z.object({
    * hausse à « Sans emplacement », baisse comme une sortie sans emplacement.
    */
   locationId: locationIdSchema.optional(),
-});
+  /**
+   * Hausse rangée à un emplacement saisi (zone, casier, position), créé à la
+   * volée comme à l'entrée ; exclusif de `locationId`.
+   */
+  location: locationInputSchema.optional(),
+}).refine((v) => v.location === undefined || v.locationId === undefined, { message: 'Emplacement invalide' });
 
 export type InventoryInput = z.infer<typeof inventorySchema>;
 

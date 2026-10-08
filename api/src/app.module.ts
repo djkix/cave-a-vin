@@ -19,6 +19,7 @@ import { QuotesModule } from './quotes/quotes.module';
 import { ReadingQualityModule } from './reading-quality/reading-quality.module';
 import { StatsModule } from './stats/stats.module';
 import { WinesModule } from './wines/wines.module';
+import { ZonesModule } from './zones/zones.module';
 
 // Pas de limitation de débit globale : seules les routes coûteuses ou sensibles
 // (upload de photo, connexion locale) portent ThrottlerGuard, avec leur propre
@@ -44,6 +45,7 @@ import { WinesModule } from './wines/wines.module';
     ExportModule,
     CaveModule,
     ImageSearchModule,
+    ZonesModule,
   ],
   controllers: [HealthController],
 })
