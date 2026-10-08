@@ -11,6 +11,22 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.3.0](https://github.com/djkix/cave-a-vin/compare/v2.2.1...v2.3.0) (2026-10-08)
 
+### Résumé
+
+**Mon compte.** Une icône en haut à droite de chaque écran ouvre « Mon
+compte », ouvert à tout compte connecté : installer l'application sur le
+téléphone (bouton « Installer l'application » quand le navigateur le propose,
+sur Android ; indication *Safari → Partager → Sur l'écran d'accueil* sur
+iPhone), mes caves — la sienne et celles où l'on est invité, avec « Afficher »
+pour en changer —, sauvegarde Excel de la cave affichée (propriétaire),
+lien vers l'Administration (administrateur), numéro de version et « Se
+déconnecter ». La version quitte l'en-tête des écrans (elle reste sur l'écran
+de connexion) et le bouton de déconnexion quitte l'accueil. Aucune migration,
+aucune nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
