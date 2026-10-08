@@ -3,7 +3,7 @@ import { CaveRole, Prisma } from '@prisma/client';
 import { Apogee, ApogeeWineInput, CompiledApogeeRules, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
 import { ManualApogeeInput } from '../apogee/dto';
-import { labelOf } from '../locations/location';
+import { labelOf, Place } from '../locations/location';
 import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { currentQuote, idealwineSearchUrl, QUOTE_SELECT, QuoteView, quoteView, savedSourceUrl } from '../quotes/quote';
@@ -36,7 +36,8 @@ export type CaveDbRow = CaveRow & Omit<ApogeeWineInput, 'vintage' | 'color'> & R
 
 export interface Rating { value: number; ratedAt: Date; ratedBy: string | null }
 
-export type CaveItem = CaveRow & { apogee: Apogee; rating: Rating | null; matchedDish?: string };
+/** `places` : endroits du vin, seulement dans la liste « à boire en priorité ». */
+export type CaveItem = CaveRow & { apogee: Apogee; rating: Rating | null; matchedDish?: string; places?: Place[] };
 
 export function ratingOf(row: CaveDbRow): Rating | null {
   return row.rating == null || row.ratedAt == null ? null : { value: Number(row.rating), ratedAt: row.ratedAt, ratedBy: row.ratedBy ?? null };
@@ -129,7 +130,12 @@ export class CaveService {
     const year = new Date().getFullYear();
     const kept = filterCave(atPlace ? rows.filter((r) => atPlace.has(r.id)) : rows, filter);
     let items = kept.map((r) => toItem(r, rules, year));
-    if (filter.drinkSoon) items = sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
+    if (filter.drinkSoon) {
+      items = sortByApogeeEnd(items.filter((i) => isDrinkSoon(i.apogee, year)));
+      // « À boire prochainement » regroupe ces vins par emplacement : où descendre les chercher.
+      const places = await this.locations.placesByWine(caveId, items.map((i) => i.id));
+      items = items.map((i) => ({ ...i, places: places.get(i.id) ?? [] }));
+    }
     else if (filter.noApogee) items = items.filter((i) => i.apogee.max == null);
     if (filter.dish) {
       const dishesById = new Map(kept.map((r) => [r.id, r.pairingDishes ?? null]));
