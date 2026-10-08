@@ -112,7 +112,25 @@ export class ImageSearchService {
     return wine;
   }
 
+  /**
+   * Chaque recherche laisse une trace : son arrivée, puis son issue (nombre
+   * d'images et durée) ou la raison du refus — un « indisponible » n'est jamais
+   * muet dans les journaux.
+   */
   async search(caveId: string, wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
+    const started = Date.now();
+    this.logger.log(`Recherche d'image demandée pour le vin ${wineId}`);
+    try {
+      const result = await this.searchImages(caveId, wineId);
+      this.logger.log(`Recherche d'image du vin ${wineId} : ${result.candidates.length} image(s) en ${Date.now() - started} ms`);
+      return result;
+    } catch (e) {
+      this.logger.warn(`Recherche d'image du vin ${wineId} refusée en ${Date.now() - started} ms : ${(e as Error).message}`);
+      throw e;
+    }
+  }
+
+  private async searchImages(caveId: string, wineId: string): Promise<{ candidates: ImageCandidateView[] }> {
     const wine = await this.findWine(caveId, wineId);
     await this.store.cleanup();
     const query = { producer: wine.producer, cuvee: wine.cuvee, appellation: wine.appellationRaw, vintage: wine.vintage };
@@ -182,7 +200,10 @@ export class ImageSearchService {
       // Part de la cave atteinte : même 503 que le plafond, avec le motif de la
       // cave (le motif des photos parle de reprise, ici rien ne reprend seul).
       if (e instanceof CaveBudgetShareExceededError) throw new ServiceUnavailableException(CAVE_SHARE_REACHED);
-      if (e instanceof VisionBudgetExceededError) throw new ServiceUnavailableException(UNAVAILABLE);
+      if (e instanceof VisionBudgetExceededError) {
+        this.logger.warn(`Recherche du site officiel refusée pour le vin ${wine.id} : ${e.message}`);
+        throw new ServiceUnavailableException(UNAVAILABLE);
+      }
       throw e;
     }
     let result;
