@@ -9,6 +9,21 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.6.0](https://github.com/djkix/cave-a-vin/compare/v2.5.0...v2.6.0) (2026-10-08)
+
+
+### Fonctionnalités
+
+* **web:** page Ma cave et choix de la zone ([796da2d](https://github.com/djkix/cave-a-vin/commit/796da2de67a316dc919b1b168de617d3cec3a59f))
+* **zones:** zones de la cave, indication et photo ([56a7aaa](https://github.com/djkix/cave-a-vin/commit/56a7aaa64897359e1929c7ca005725ccc85f5690))
+
+
+### Corrections
+
+* **cote:** recherche iDealwine avec des espaces ([c9c55ce](https://github.com/djkix/cave-a-vin/commit/c9c55ce61c8a9268d2c32c4292a6eb39da575473))
+* **web:** choix de la zone en attente, état après suppression, photo accessible ([f1dde4c](https://github.com/djkix/cave-a-vin/commit/f1dde4cb5b57bc3b19f2d265c590b36131bbb86a))
+* **zones:** bouteilles jamais rangées dans une zone archivée, photo atomique ([c6597ac](https://github.com/djkix/cave-a-vin/commit/c6597acd527795456b84b4194e7bf2b26733d55f))
+
 ## [2.5.0](https://github.com/djkix/cave-a-vin/compare/v2.4.2...v2.5.0) (2026-10-08)
 
 ### Résumé
