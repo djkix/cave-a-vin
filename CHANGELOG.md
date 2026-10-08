@@ -11,6 +11,21 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.4.2](https://github.com/djkix/cave-a-vin/compare/v2.4.1...v2.4.2) (2026-10-08)
 
+### Résumé
+
+Quota Gemini épuisé signalé en clair. Quand Google refuse la recherche du site
+officiel faute de quota (erreur 429, typiquement une clé Gemini sans
+facturation activée, où la recherche Google intégrée n'est pas disponible),
+l'écran affiche « Recherche d'image impossible : quota Gemini épuisé » au lieu
+de « indisponible pour le moment ». Plus largement, l'écran affiche désormais
+tel quel le motif d'un 503 de l'api (« Part mensuelle de cette cave atteinte »
+était lui aussi masqué) ; un 503 sans motif, venu d'un proxy, reste
+« indisponible pour le moment ». Aucune migration, aucune nouvelle variable
+d'environnement.
+
+### Détail par commit
+
+
 
 ### Corrections
 

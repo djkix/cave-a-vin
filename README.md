@@ -964,6 +964,15 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.4.2 — 8 octobre 2026
+
+Publiée ([v2.4.2](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.2)),
+images `ghcr.io/djkix/cave-a-vin-api:2.4.2` et `-web:2.4.2`.
+
+**Quota Gemini épuisé signalé.** « Recherche d'image impossible : quota Gemini
+épuisé » quand Google refuse la recherche faute de quota, et le motif d'un
+refus de l'api est affiché tel quel.
+
 ### 2.4.1 — 8 octobre 2026
 
 Publiée ([v2.4.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.1)),
