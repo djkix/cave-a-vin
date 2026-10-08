@@ -101,7 +101,7 @@ describeIfInfra('cote iDealwine (HTTP)', () => {
       const res = await ownerA.get(`/api/wines/${wineA}`);
       expect(res.status).toBe(200);
       expect(res.body.quote).toBeNull();
-      expect(res.body.idealwineUrl).toBe(`https://www.idealwine.com/fr/acheter-du-vin/recherche-chateau_cote_a_hommage_a_jacques`);
+      expect(res.body.idealwineUrl).toBe(`https://www.idealwine.com/fr/acheter-du-vin/recherche-chateau%20cote%20a%20hommage%20a%20jacques`);
     });
   });
 

@@ -176,7 +176,7 @@ describe('ExportService.buildWorkbook', () => {
       id: 'w1', producer: 'Domaine Tempier', cuvee: null, appellationRaw: 'Bandol', vintage: 2019, color: 'ROUGE', formatCl: 75,
       appellationId: 'a-bandol', apogeeMin: null, apogeeMax: null, apogeeSource: null, appellation: { region: 'Provence', guardMinYears: 5, guardMaxYears: 20 },
     };
-    const b3 = { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3' };
+    const b3 = { id: 'l1', zoneId: 'z1', zone: { name: 'Cave 2' }, casier: 'B', position: '3' };
     prisma.wine.findMany = async () => [wine] as any;
     prisma.$queryRaw = async () => [{ wine_id: 'w1', quantity: 6 }];
     const at = (id: string, delta: number, type: string, location: typeof b3 | null) =>

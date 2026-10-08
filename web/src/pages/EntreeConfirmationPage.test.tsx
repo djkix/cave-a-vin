@@ -151,9 +151,16 @@ it('pré-remplit la fiche depuis la photo déjà lue, même sans nouvelle du flu
 
 describe('emplacement à l’entrée', () => {
   const locations: api.Location[] = [
-    { id: 'l0', zone: 'Armoire', casier: null, position: null, label: 'Armoire', lastUsed: false },
-    { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
+    { id: 'l0', zoneId: 'z1', zone: 'Armoire', casier: null, position: null, label: 'Armoire', lastUsed: false },
+    { id: 'l1', zoneId: 'z2', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
   ];
+  const zones: api.Zone[] = [
+    { id: 'z1', name: 'Armoire', indication: null, hasPhoto: false, sortOrder: 0 },
+    { id: 'z2', name: 'Cave 2', indication: 'Au fond à droite', hasPhoto: false, sortOrder: 1 },
+  ];
+  beforeEach(() => {
+    vi.spyOn(api, 'getZones').mockResolvedValue(zones);
+  });
   const ok = { movement: { id: 'm1', delta: 6, type: 'IN', occurredAt: '' }, wine: { id: 'w1', producer: 'Domaine Tempier', appellationRaw: 'Bandol', color: 'ROUGE' as const, formatCl: 75 }, stock: 6, created: true };
 
   function ready() {
@@ -187,7 +194,7 @@ describe('emplacement à l’entrée', () => {
     expect(recent).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
-    expect(create.mock.calls[0][0].location).toEqual({ zone: 'Cave 2', casier: 'B', position: '3' });
+    expect(create.mock.calls[0][0].location).toEqual({ zoneId: 'z2', casier: 'B', position: '3' });
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['locations'] }));
   });
 
@@ -253,11 +260,27 @@ describe('emplacement à l’entrée', () => {
     mount();
     await screen.findByText('Cave 2 / B / 3');
     await userEvent.click(screen.getByText('Emplacement'));
-    for (const label of ['Zone', 'Casier', 'Position']) await userEvent.clear(screen.getByLabelText(label));
+    await userEvent.selectOptions(screen.getByLabelText('Zone'), 'Sans zone');
+    for (const label of ['Casier', 'Position']) await userEvent.clear(screen.getByLabelText(label));
     expect(screen.getByText('Sans emplacement')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(create.mock.calls[0][0].location).toBeNull();
+  });
+
+  it('choisit une zone de la cave, montre son indication, et l’envoie par son identifiant', async () => {
+    ready();
+    vi.spyOn(api, 'getLocations').mockResolvedValue([]);
+    const create = vi.spyOn(api, 'createMovement').mockResolvedValue(ok);
+    mount();
+    await screen.findByDisplayValue('Domaine Tempier');
+    await userEvent.click(screen.getByText('Emplacement'));
+    await userEvent.selectOptions(await screen.findByLabelText('Zone'), 'Cave 2');
+    expect(screen.getByText('Au fond à droite')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Casier'), 'C');
+    await userEvent.click(screen.getByRole('button', { name: /Confirmer l’entrée/ }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].location).toEqual({ zoneId: 'z2', casier: 'C', position: null });
   });
 
   it('affiche telle quelle l’erreur de l’API sur l’emplacement', async () => {
@@ -267,7 +290,7 @@ describe('emplacement à l’entrée', () => {
     mount();
     await screen.findByDisplayValue('Domaine Tempier');
     await userEvent.click(screen.getByText('Emplacement'));
-    await userEvent.type(screen.getByLabelText('Zone'), 'Cellier');
+    await userEvent.type(screen.getByLabelText('Casier'), 'Cellier');
     await userEvent.click(await screen.findByRole('button', { name: /Confirmer l’entrée/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('40 caractères au plus par champ d\'emplacement');
   });

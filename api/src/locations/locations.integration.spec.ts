@@ -48,7 +48,7 @@ describeIfDb('emplacements (base réelle)', () => {
       const a = await locations.resolve(caveId, { zone: ' Cave 2 ', casier: 'B', position: '3' });
       const b = await locations.resolve(caveId, { zone: 'cave 2', casier: ' b', position: '3 ' });
       expect(b.id).toBe(a.id);
-      expect(a).toMatchObject({ zone: 'Cave 2', casier: 'B', position: '3', labelKey: '["cave 2","b","3"]' });
+      expect(a).toMatchObject({ zoneId: expect.any(String), casier: 'B', position: '3' });
       const other = await locations.resolve(otherCaveId, { zone: 'Cave 2', casier: 'B', position: '3' });
       expect(other.id).not.toBe(a.id);
       const [x, y] = await Promise.all([locations.resolve(caveId, { zone: 'Course' }), locations.resolve(caveId, { zone: 'course' })]);
@@ -93,7 +93,7 @@ describeIfDb('emplacements (base réelle)', () => {
       await entry(4, { zone: 'Cave 2', casier: 'B', position: '3' });
       await entry(3);
       const b3 = (await locations.resolve(caveId, { zone: 'Cave 2', casier: 'B', position: '3' })).id;
-      expect(await places(w.id)).toEqual([
+      expect(await places(w.id)).toMatchObject([
         { id: b3, label: 'Cave 2 / B / 3', quantity: 4 },
         { id: null, label: 'Sans emplacement', quantity: 3 },
       ]);
@@ -108,7 +108,7 @@ describeIfDb('emplacements (base réelle)', () => {
       await movements.adjustTo(caveId, w.id, { idempotencyKey: randomUUID(), counted: 6 });
       expect((await places(w.id)).map((p) => p.quantity)).toEqual([2, 4]);
       await movements.adjustTo(caveId, w.id, { idempotencyKey: randomUUID(), counted: 7, locationId: b3 });
-      expect(await places(w.id)).toEqual([
+      expect(await places(w.id)).toMatchObject([
         { id: b3, label: 'Cave 2 / B / 3', quantity: 3 },
         { id: null, label: 'Sans emplacement', quantity: 4 },
       ]);
@@ -136,7 +136,7 @@ describeIfDb('emplacements (base réelle)', () => {
       const bas = await idOf('Bas');
       expect((await out(w.id, 1)).movement.locationId).toBeNull();
       expect((await out(w.id, 1)).movement.locationId).toBe(bas);
-      expect(await places(w.id)).toEqual([{ id: bas, label: 'Bas', quantity: 1 }]);
+      expect(await places(w.id)).toMatchObject([{ id: bas, label: 'Bas', quantity: 1 }]);
     });
 
     it('emplacement d’une autre cave : 404 « Emplacement introuvable »', async () => {
@@ -159,7 +159,7 @@ describeIfDb('emplacements (base réelle)', () => {
       const key = randomUUID();
       const r = await movements.move(caveId, w.id, { idempotencyKey: key, from: null, to: { zone: 'Cave 2', casier: 'C' }, quantity: 3 });
       const c = await idOf('Cave 2', 'C');
-      expect(r.locations).toEqual([
+      expect(r.locations).toMatchObject([
         { id: c, label: 'Cave 2 / C', quantity: 3 },
         { id: null, label: 'Sans emplacement', quantity: 2 },
       ]);
@@ -193,7 +193,7 @@ describeIfDb('emplacements (base réelle)', () => {
         const target = await prisma.movement.findFirstOrThrow({ where: { wineId: w.id, type: 'MOVE', delta: half * 2 } });
         const r = await movements.cancel(caveId, target.id, randomUUID());
         expect(r.movement.reversesId).toBe(target.id);
-        expect(await places(w.id)).toEqual([{ id: null, label: 'Sans emplacement', quantity: 2 }]);
+        expect(await places(w.id)).toMatchObject([{ id: null, label: 'Sans emplacement', quantity: 2 }]);
         expect(await prisma.movement.count({ where: { wineId: w.id, reversesId: { not: null } } })).toBe(2);
         const other = await prisma.movement.findFirstOrThrow({ where: { wineId: w.id, type: 'MOVE', delta: -half * 2 } });
         await expect(movements.cancel(caveId, other.id, randomUUID())).rejects.toThrow(new ConflictException('Ce mouvement a déjà été annulé'));
@@ -206,7 +206,7 @@ describeIfDb('emplacements (base réelle)', () => {
       const retour = await idOf('Retour');
       const exit = await out(w.id, 1, retour);
       await movements.cancel(caveId, exit.movement.id, randomUUID());
-      expect(await places(w.id)).toEqual([{ id: retour, label: 'Retour', quantity: 2 }]);
+      expect(await places(w.id)).toMatchObject([{ id: retour, label: 'Retour', quantity: 2 }]);
       const reversal = await prisma.movement.findFirstOrThrow({ where: { reversesId: exit.movement.id } });
       expect(reversal.locationId).toBe(retour);
 
@@ -224,7 +224,7 @@ describeIfDb('emplacements (base réelle)', () => {
       const zone = `Orpheline ${randomUUID().slice(0, 8)}`;
       // Prix hors de l'entier 32 bits : l'insertion du mouvement échoue, après la création de l'emplacement.
       await expect(movements.createIn(caveId, { idempotencyKey: randomUUID(), wine: draft, quantity: 1, priceUnitCents: 2 ** 31, location: { zone } })).rejects.toThrow();
-      expect(await prisma.location.count({ where: { caveId, zone } })).toBe(0);
+      expect(await prisma.location.count({ where: { caveId, zone: { name: zone } } })).toBe(0);
     });
 
     it('annuler un déplacement dont les bouteilles ont été bues : 409 par emplacement, pas le message du total', async () => {
@@ -275,7 +275,7 @@ describeIfDb('emplacements (base réelle)', () => {
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
       const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')!;
       expect(rejected.reason).toEqual(new ConflictException('Pas assez de bouteilles à cet emplacement'));
-      expect(await places(w.id)).toEqual([{ id: null, label: 'Sans emplacement', quantity: 5 }]);
+      expect(await places(w.id)).toMatchObject([{ id: null, label: 'Sans emplacement', quantity: 5 }]);
       expect(await movements.stockOf(w.id)).toBe(5);
     });
 
@@ -342,7 +342,7 @@ describeIfDb('emplacements (base réelle)', () => {
       const b = await idOf('Fiche', 'B');
       for (const role of ['OWNER', 'VIEWER'] as const) {
         const d = await cave.detail(caveId, w.id, role);
-        expect(d.locations).toEqual([
+        expect(d.locations).toMatchObject([
           { id: a, label: 'Fiche / A', quantity: 2 },
           { id: b, label: 'Fiche / B', quantity: 1 },
         ]);

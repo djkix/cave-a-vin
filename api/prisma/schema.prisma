@@ -209,6 +209,7 @@ model Cave {
   exportLogs       ExportLog[]
   imageSearchCosts ImageSearchCost[]
   locations        Location[]
+  zones            CaveZone[]
 
   @@index([ownerId])
   @@map("cave")
@@ -358,23 +359,46 @@ model ImageSearchCost {
 }
 
 /// Emplacement dans une cave (zone / casier / position, au moins un des trois).
-/// labelKey = les trois champs nettoyés, en minuscules, en tableau JSON (`["cave 2","b",null]`).
-/// Aucune quantité stockée : le stock d'un emplacement est la somme des delta
-/// des mouvements qui le désignent. Au moins un champ renseigné : CHECK
-/// location_not_empty_check en migration.
+/// La zone est une zone de la liste de la cave (CaveZone) : le libellé suit son
+/// nom, renommage compris. Casier et position restent du texte libre. Unicité
+/// par (cave, zone, casier et position en minuscules) : index sur expressions
+/// location_place_key en migration. Aucune quantité stockée : le stock d'un
+/// emplacement est la somme des delta des mouvements qui le désignent. Au moins
+/// un champ renseigné : CHECK location_not_empty_check en migration.
 model Location {
   id        String     @id @default(uuid())
   caveId    String     @map("cave_id")
   cave      Cave       @relation(fields: [caveId], references: [id], onDelete: Restrict)
-  zone      String?
+  zoneId    String?    @map("zone_id")
+  zone      CaveZone?  @relation(fields: [zoneId], references: [id], onDelete: Restrict)
   casier    String?
   position  String?
-  labelKey  String     @map("label_key")
   createdAt DateTime   @default(now()) @map("created_at")
   movements Movement[]
 
-  @@unique([caveId, labelKey])
+  @@index([zoneId])
   @@map("location")
+}
+
+/// Zone de la cave (« Cave 1 », « Garage ») : nom (1 à 40 caractères, unique par
+/// cave sans tenir compte de la casse parmi les zones non archivées : index
+/// partiel cave_zone_cave_id_name_key en migration), indication (300 au plus),
+/// photo facultative (`zones/<id>.jpg` sous PHOTO_STORAGE_DIR), ordre
+/// d'affichage. Une zone qui a servi dans l'historique est archivée plutôt que
+/// supprimée : elle disparaît des listes, l'historique garde son libellé.
+model CaveZone {
+  id         String     @id @default(uuid())
+  caveId     String     @map("cave_id")
+  cave       Cave       @relation(fields: [caveId], references: [id], onDelete: Restrict)
+  name       String
+  indication String?
+  photoPath  String?    @map("photo_path")
+  sortOrder  Int        @default(0) @map("sort_order")
+  archivedAt DateTime?  @map("archived_at")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  locations  Location[]
+
+  @@map("cave_zone")
 }
 
 /// Cote iDealwine saisie à la main, en ajout seulement (historique). La cote

@@ -33,6 +33,22 @@ it('la page liste les vins à boire par emplacement, avec la quantité de chaque
   expect(get).toHaveBeenCalledWith({ drinkSoon: true });
 });
 
+it('chaque en-tête d’emplacement montre l’indication et la vignette de sa zone, s’il y en a', async () => {
+  vi.spyOn(api, 'getCave').mockResolvedValue([
+    row('Tempier', 2026, [{ id: 'g', label: 'Garage', quantity: 1, zoneId: 'z1' }, { id: 'c', label: 'Cave 2 / B', quantity: 1, zoneId: 'z2' }]),
+  ]);
+  vi.spyOn(api, 'getZones').mockResolvedValue([
+    { id: 'z1', name: 'Garage', indication: 'Au fond, derrière l’escalier', hasPhoto: true, sortOrder: 0 },
+    { id: 'z2', name: 'Cave 2', indication: null, hasPhoto: false, sortOrder: 1 },
+  ]);
+  mount(<ABoirePage />);
+  const garage = await screen.findByRole('region', { name: 'Garage' });
+  expect(await within(garage).findByText('Au fond, derrière l’escalier')).toBeInTheDocument();
+  expect(within(garage).getByRole('img', { name: 'Photo de la zone Garage' })).toHaveAttribute('src', '/api/caves/zones/z1/photo');
+  const cave = screen.getByRole('region', { name: 'Cave 2 / B' });
+  expect(within(cave).queryByRole('img')).not.toBeInTheDocument();
+});
+
 it('dit qu’il n’y a rien d’urgent quand la liste est vide', async () => {
   vi.spyOn(api, 'getCave').mockResolvedValue([]);
   mount(<ABoirePage />);

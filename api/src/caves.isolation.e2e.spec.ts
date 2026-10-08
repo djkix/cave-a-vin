@@ -18,7 +18,7 @@ import { createTestCave, deleteTestCaves } from './test-utils/cave';
  *
  *   cave-viewer-read  lecture d'une cave, ouverte au membre (sans prix) ;
  *   cave-owner        réservée au propriétaire de la cave courante ;
- *   photo-image       image d'une photo, servie pour toute cave du compte ;
+ *   photo-image       image d'une photo ou d'une zone, servie pour toute cave du compte ;
  *   admin             réservée à l'administrateur ;
  *   auth-public       connexion, session, santé.
  *
@@ -47,7 +47,7 @@ type Expected = { status: number; message?: string };
 type Ids = {
   caveA: string; caveB: string; wineA: string; wineA2: string; movementA: string; movementCancelA: string;
   photoA: string; photoDismissA: string; memberA: string; candidateA: string; producerKeyA: string;
-  pendingUser: string; noCaveUser: string; locationA: string; wineB: string;
+  pendingUser: string; noCaveUser: string; locationA: string; wineB: string; zoneA: string; zoneDeleteA: string;
 };
 type Request = { url: string; body?: unknown; upload?: boolean };
 
@@ -75,6 +75,7 @@ const run = randomUUID().slice(0, 8);
 const draft = (name: string) => ({ producer: `Domaine Iso ${run} ${name}`, appellationRaw: 'Bandol', vintage: 2015, color: 'ROUGE', formatCl: 75 });
 const NOT_FOUND_WINE: Expected = { status: 404, message: 'Vin introuvable' };
 const NOT_FOUND_PHOTO: Expected = { status: 404, message: 'Photo introuvable' };
+const NOT_FOUND_ZONE: Expected = { status: 404, message: 'Zone introuvable' };
 const contains = (id: keyof Ids) => (res: supertest.Response, ids: Ids) => expect(res.text).toContain(ids[id]);
 
 /** La table : une ligne par route HTTP de l'application. */
@@ -83,6 +84,7 @@ const ROUTES: Route[] = [
   { method: 'GET', path: '/api/cave', kind: 'cave-viewer-read', req: () => ({ url: '/api/cave?includeEmpty=true' }), foreign: 'own', readable: contains('wineA') },
   { method: 'GET', path: '/api/wines/:id', kind: 'cave-viewer-read', req: (i) => ({ url: `/api/wines/${i.wineA}` }), foreign: NOT_FOUND_WINE, readable: contains('wineA') },
   { method: 'GET', path: '/api/locations', kind: 'cave-viewer-read', req: () => ({ url: '/api/locations' }), foreign: 'own', readable: contains('locationA') },
+  { method: 'GET', path: '/api/caves/current/zones', kind: 'cave-viewer-read', req: () => ({ url: '/api/caves/current/zones' }), foreign: 'own', readable: contains('zoneA') },
   {
     method: 'GET', path: '/api/stats', kind: 'cave-viewer-read', req: () => ({ url: '/api/stats' }), foreign: 'own',
     readable: (res) => expect(res.body.bottles).toBeGreaterThan(0),
@@ -167,6 +169,33 @@ const ROUTES: Route[] = [
     foreign: { status: 404, message: 'Membre introuvable' }, happy: { status: 204 },
   },
   { method: 'PATCH', path: '/api/caves/current', kind: 'cave-owner', req: () => ({ url: '/api/caves/current', body: { name: `Iso renommée ${run}` } }), foreign: 'own', happy: { status: 200 } },
+
+  // ── Propriétaire : zones de la cave (« Ma cave ») ───────────────────────────
+  {
+    method: 'POST', path: '/api/caves/current/zones', kind: 'cave-owner', req: () => ({ url: '/api/caves/current/zones', body: { name: `Iso nouvelle ${run}` } }), foreign: 'own',
+    happy: { status: 201, check: (res) => expect(res.body).toMatchObject({ name: `Iso nouvelle ${run}`, indication: null, hasPhoto: false }) },
+  },
+  {
+    method: 'POST', path: '/api/caves/current/zones/order', kind: 'cave-owner', req: (i) => ({ url: '/api/caves/current/zones/order', body: { ids: [i.zoneA] } }),
+    foreign: NOT_FOUND_ZONE, happy: { status: 200, check: (res, i) => expect(res.body[0].id).toBe(i.zoneA) },
+  },
+  {
+    method: 'PATCH', path: '/api/caves/current/zones/:id', kind: 'cave-owner',
+    req: (i) => ({ url: `/api/caves/current/zones/${i.zoneA}`, body: { indication: 'Au fond' } }), foreign: NOT_FOUND_ZONE,
+    happy: { status: 200, check: (res) => expect(res.body.indication).toBe('Au fond') },
+  },
+  { method: 'DELETE', path: '/api/caves/current/zones/:id', kind: 'cave-owner', req: (i) => ({ url: `/api/caves/current/zones/${i.zoneDeleteA}` }), foreign: NOT_FOUND_ZONE,
+    happy: { status: 200, check: (res) => expect(res.body).toEqual({ archived: false }) } },
+  // Photo de zone : lue (membre compris) avant d'être remplacée puis retirée plus bas.
+  { method: 'GET', path: '/api/caves/zones/:id/photo', kind: 'photo-image', req: (i) => ({ url: `/api/caves/zones/${i.zoneA}/photo` }), foreign: NOT_FOUND_ZONE, happy: { status: 200 } },
+  {
+    method: 'PUT', path: '/api/caves/current/zones/:id/photo', kind: 'cave-owner', req: (i) => ({ url: `/api/caves/current/zones/${i.zoneA}/photo`, upload: true }),
+    foreign: NOT_FOUND_ZONE, happy: { status: 200, check: (res) => expect(res.body.hasPhoto).toBe(true) },
+  },
+  {
+    method: 'DELETE', path: '/api/caves/current/zones/:id/photo', kind: 'cave-owner', req: (i) => ({ url: `/api/caves/current/zones/${i.zoneA}/photo` }),
+    foreign: NOT_FOUND_ZONE, happy: { status: 200, check: (res) => expect(res.body.hasPhoto).toBe(false) },
+  },
 
   // ── Propriétaire : photos, « À confirmer », suivi ───────────────────────────
   { method: 'POST', path: '/api/photos', kind: 'cave-owner', req: () => ({ url: '/api/photos', upload: true }), foreign: 'own', happy: { status: 202 } },
@@ -306,7 +335,11 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     ids.wineB = wineB;
     // Cote de A : la fiche du propriétaire en porte une, celle du membre aucune clé.
     await prisma.priceQuote.create({ data: { wineId: ids.wineA, coteCents: 5000, quotedOn: new Date('2026-02-01'), sourceUrl: 'https://www.idealwine.com/fr/iso.jsp' } });
-    ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zone: 'Cave A', casier: 'Iso', labelKey: '["cave a","iso",null]' } })).id;
+    ids.zoneA = (await prisma.caveZone.create({ data: { caveId: ids.caveA, name: 'Cave A' } })).id;
+    ids.zoneDeleteA = (await prisma.caveZone.create({ data: { caveId: ids.caveA, name: 'Iso à supprimer', sortOrder: 1 } })).id;
+    ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zoneId: ids.zoneA, casier: 'Iso' } })).id;
+    // Photo de la zone de A, sur disque.
+    await prisma.caveZone.update({ where: { id: ids.zoneA }, data: { photoPath: `zones/${ids.zoneA}.jpg` } });
 
     // Photo d'entrée lue, sans mouvement : « À confirmer » de A, avec son image sur disque.
     const photo = (name: string) =>
@@ -315,6 +348,8 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     ids.photoDismissA = (await photo('dismiss')).id;
     mkdirSync(join(storage, 'normalized'), { recursive: true });
     writeFileSync(join(storage, 'normalized', `${ids.photoA}.jpg`), jpeg);
+    mkdirSync(join(storage, 'zones'), { recursive: true });
+    writeFileSync(join(storage, 'zones', `${ids.zoneA}.jpg`), jpeg);
     ids.candidateA = candidateFor(ids.wineA);
 
     ids.producerKeyA = producerKeyOf(a.producer);
@@ -365,7 +400,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
   /** Ce qu'une requête refusée ne doit jamais changer : la cave A et les comptes de la suite. */
   async function snapshot(): Promise<string> {
     const inA = { caveId: ids.caveA };
-    const [cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes] = await Promise.all([
+    const [cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes, zones] = await Promise.all([
       prisma.cave.findUnique({ where: { id: ids.caveA } }),
       prisma.caveMember.findMany({ where: inA, orderBy: { id: 'asc' } }),
       prisma.wine.findMany({ where: inA, orderBy: { id: 'asc' } }),
@@ -379,8 +414,9 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
       prisma.producerProfile.findUnique({ where: { producerKey: ids.producerKeyA } }),
       prisma.location.findMany({ where: inA, orderBy: { id: 'asc' } }),
       prisma.priceQuote.findMany({ where: { wine: inA }, orderBy: { id: 'asc' } }),
+      prisma.caveZone.findMany({ where: inA, orderBy: { id: 'asc' } }),
     ]);
-    return JSON.stringify({ cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes });
+    return JSON.stringify({ cave, members, wines, movements, photos, pairings, exports, costs, users, ownedCaves, profile, locations, quotes, zones });
   }
 
   /** La requête, et la preuve qu'elle n'a rien changé à A. */
@@ -395,7 +431,7 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
 
   /** Aucun identifiant ni nom de A dans une réponse lue par B. */
   function expectNothingOfA(res: supertest.Response) {
-    for (const marker of [ids.caveA, ids.wineA, ids.wineA2, ids.movementA, ids.photoA, ids.memberA, ids.locationA, caveAName, `Domaine Iso ${run} a`]) {
+    for (const marker of [ids.caveA, ids.wineA, ids.wineA2, ids.movementA, ids.photoA, ids.memberA, ids.locationA, ids.zoneA, caveAName, `Domaine Iso ${run} a`]) {
       expect(res.text ?? '').not.toContain(marker);
     }
   }
@@ -451,8 +487,10 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
         return;
       }
 
-      it(route.kind === 'photo-image' ? 'compte sans cave : 404 « Photo introuvable »' : 'compte sans cave : 404 « Cave introuvable »', async () => {
-        await refused(agents.noCave, route, route.kind === 'photo-image' ? NOT_FOUND_PHOTO : { status: 404, message: 'Cave introuvable' });
+      // Image : sans accès à la cave de la photo (ou de la zone), elle est inexistante, avec le message de la route.
+      const imageNotFound = route.kind === 'photo-image' && route.foreign && typeof route.foreign === 'object' ? route.foreign : NOT_FOUND_PHOTO;
+      it(route.kind === 'photo-image' ? `compte sans cave : 404 « ${imageNotFound.message} »` : 'compte sans cave : 404 « Cave introuvable »', async () => {
+        await refused(agents.noCave, route, route.kind === 'photo-image' ? imageNotFound : { status: 404, message: 'Cave introuvable' });
       });
 
       if (route.kind === 'cave-owner') {

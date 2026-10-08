@@ -58,7 +58,7 @@ export function HomePage() {
               {movements.data?.length === 0 && <p className="centered">Aucun mouvement pour l’instant.</p>}
             </div>
             <Link to="/journal" className="btn btn--link">Voir le journal</Link>
-            <Link to="/membres" className="btn btn--link">Membres de la cave</Link>
+            <Link to="/ma-cave" className="btn btn--link">Ma cave</Link>
           </>
         )}
         {role === 'VIEWER' && (

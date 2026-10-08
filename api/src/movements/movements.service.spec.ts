@@ -77,7 +77,7 @@ describe('MovementsService — cave courante', () => {
     const findMany = jest.fn(async () => []);
     h.prisma.movement.findMany = findMany;
     await h.service.recent('c1', 5);
-    expect(findMany).toHaveBeenCalledWith({ where: { wine: { caveId: 'c1' } }, take: 5, orderBy: { occurredAt: 'desc' }, include: { wine: true, location: true } });
+    expect(findMany).toHaveBeenCalledWith({ where: { wine: { caveId: 'c1' } }, take: 5, orderBy: { occurredAt: 'desc' }, include: { wine: true, location: { include: { zone: true } } } });
   });
 });
 

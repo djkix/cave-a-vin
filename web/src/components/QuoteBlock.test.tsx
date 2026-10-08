@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import * as api from '../lib/api-client';
 import { QuoteBlock } from './QuoteBlock';
 
-const SEARCH = 'https://www.idealwine.com/fr/acheter-du-vin/recherche-domaine_tempier_la_tourtine';
+const SEARCH = 'https://www.idealwine.com/fr/acheter-du-vin/recherche-domaine%20tempier%20la%20tourtine';
 const PAGE = 'https://www.idealwine.com/fr/acheter-vin/tempier.jsp';
 const quote: api.Quote = { coteCents: 8500, nTransactions: 12, quotedOn: '2026-03-03', sourceUrl: PAGE, enteredBy: 'Franck', cessionCents: 7328 };
 

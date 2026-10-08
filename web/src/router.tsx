@@ -11,7 +11,7 @@ import { NotFoundPage, RouteErrorPage } from './pages/ErrorPages';
 import { HomePage } from './pages/HomePage';
 import { JournalPage } from './pages/JournalPage';
 import { LoginPage } from './pages/LoginPage';
-import { MembresPage } from './pages/MembresPage';
+import { MaCavePage } from './pages/MaCavePage';
 import { SortieCapturePage } from './pages/SortieCapturePage';
 import { SortieResolutionPage } from './pages/SortieResolutionPage';
 import { StatsPage } from './pages/StatsPage';
@@ -48,7 +48,9 @@ export const routes: RouteObject[] = [
               { path: '/journal', element: <JournalPage /> },
               { path: '/sortie', element: <SortieCapturePage /> },
               { path: '/sortie/:photoId', element: <SortieResolutionPage /> },
-              { path: '/membres', element: <MembresPage /> },
+              { path: '/ma-cave', element: <MaCavePage /> },
+              // Ancienne adresse de l'écran des membres, désormais dans « Ma cave ».
+              { path: '/membres', element: <Navigate to="/ma-cave" replace /> },
             ],
           },
           { path: '/admin', element: <AdminPage /> },

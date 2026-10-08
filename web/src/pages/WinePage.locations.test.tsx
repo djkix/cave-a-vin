@@ -19,17 +19,26 @@ const detail: api.WineDetail = {
     { id: 'm1', delta: 6, type: 'IN', occurredAt: '2026-09-21T10:00:00Z', note: null, reversesId: null, locationId: null, locationLabel: null },
   ],
   locations: [
-    { id: 'l1', label: 'Cave 2 / B / 3', quantity: 2 },
-    { id: 'l2', label: 'Garage', quantity: 1 },
-    { id: null, label: 'Sans emplacement', quantity: 3 },
+    { id: 'l1', label: 'Cave 2 / B / 3', quantity: 2, zoneId: 'z2' },
+    { id: 'l2', label: 'Garage', quantity: 1, zoneId: 'z1' },
+    { id: null, label: 'Sans emplacement', quantity: 3, zoneId: null },
   ],
   exitDefault: 'l1',
 };
 
 const cellar: api.Location[] = [
-  { id: 'l1', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
-  { id: 'l2', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: false },
+  { id: 'l1', zoneId: 'z2', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
+  { id: 'l2', zoneId: 'z1', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: false },
 ];
+
+const zones: api.Zone[] = [
+  { id: 'z1', name: 'Garage', indication: 'Au fond, derrière l’escalier', hasPhoto: true, sortOrder: 0 },
+  { id: 'z2', name: 'Cave 2', indication: null, hasPhoto: false, sortOrder: 1 },
+];
+
+beforeEach(() => {
+  vi.spyOn(api, 'getZones').mockResolvedValue(zones);
+});
 
 function mount() {
   return render(
@@ -51,11 +60,29 @@ it('liste chaque endroit et sa quantité, et les déplacements au journal du vin
   await screen.findByRole('region', { name: 'Emplacements' });
   const items = section().getAllByRole('listitem').map((li) => li.textContent);
   expect(items).toEqual(['Cave 2 / B / 3 × 2', 'Garage × 1', 'Sans emplacement × 3']);
+  expect(section().queryByText('Au fond, derrière l’escalier')).not.toBeInTheDocument();
   expect(screen.getByText(/Déplacé · Cave 2 \/ B \/ 3/)).toBeInTheDocument();
   expect(screen.getByText(/Déplacé · Sans emplacement/)).toBeInTheDocument();
 });
 
-it('membre : voit les emplacements mais aucun bouton ni requête d’écriture', async () => {
+it('toucher un emplacement montre ou cache l’indication et la photo de sa zone', async () => {
+  vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+  mount();
+  await screen.findByRole('region', { name: 'Emplacements' });
+  const garage = await section().findByRole('button', { name: /Garage/ });
+  expect(garage).toHaveAttribute('aria-expanded', 'false');
+  // Zone sans indication ni photo, ou « Sans emplacement » : rien à révéler, pas de bouton.
+  expect(section().queryByRole('button', { name: /Cave 2/ })).not.toBeInTheDocument();
+  expect(section().queryByRole('button', { name: /Sans emplacement/ })).not.toBeInTheDocument();
+  await userEvent.click(garage);
+  expect(garage).toHaveAttribute('aria-expanded', 'true');
+  expect(section().getByText('Au fond, derrière l’escalier')).toBeInTheDocument();
+  expect(section().getByRole('img', { name: 'Photo de la zone Garage' })).toHaveAttribute('src', '/api/caves/zones/z1/photo');
+  await userEvent.click(garage);
+  expect(section().queryByText('Au fond, derrière l’escalier')).not.toBeInTheDocument();
+});
+
+it('membre : voit les emplacements et le détail des zones, mais aucun bouton ni requête d’écriture', async () => {
   const me = vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
   const getWine = vi.spyOn(api, 'getWine').mockResolvedValue(detail);
   const locations = vi.spyOn(api, 'getLocations').mockResolvedValue(cellar);
@@ -69,7 +96,10 @@ it('membre : voit les emplacements mais aucun bouton ni requête d’écriture',
   expect(section().getAllByRole('listitem')).toHaveLength(3);
   expect(screen.queryByRole('button', { name: 'Ranger / déplacer' })).not.toBeInTheDocument();
   expect(screen.queryByRole('group', { name: 'D\'où sort-elle ?' })).not.toBeInTheDocument();
-  expect(screen.queryAllByRole('button')).toHaveLength(0);
+  // Seul bouton : révéler le détail de la zone « Garage », ouvert au membre.
+  expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual([expect.stringContaining('Garage')]);
+  await userEvent.click(section().getByRole('button', { name: /Garage/ }));
+  expect(section().getByText('Au fond, derrière l’escalier')).toBeInTheDocument();
   expect(locations).not.toHaveBeenCalled();
   expect(recent).not.toHaveBeenCalled();
   expect(move).not.toHaveBeenCalled();
@@ -83,7 +113,7 @@ it('sortie depuis la fiche : question avec la pré-sélection de la fiche', asyn
 });
 
 describe('Ranger / déplacer', () => {
-  it('déplace depuis l’endroit choisi vers l’emplacement saisi, avec la datalist', async () => {
+  it('déplace depuis l’endroit choisi vers la zone choisie et le casier saisi, avec la datalist', async () => {
     const getWine = vi.spyOn(api, 'getWine').mockResolvedValue(detail);
     vi.spyOn(api, 'getLocations').mockResolvedValue(cellar);
     const move = vi.spyOn(api, 'moveWine').mockResolvedValue({ locations: detail.locations! });
@@ -93,10 +123,10 @@ describe('Ranger / déplacer', () => {
     const from = form.getByLabelText('De');
     expect([...(from as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Cave 2 / B / 3 · 2', 'Garage · 1', 'Sans emplacement · 3']);
     await userEvent.selectOptions(from, 'Sans emplacement · 3');
-    const zone = form.getByLabelText('Zone');
-    await waitFor(() => expect(container.querySelector(`datalist#${CSS.escape(zone.getAttribute('list')!)} option[value="Garage"]`)).not.toBeNull());
-    await userEvent.type(zone, 'Cave 2');
-    await userEvent.type(form.getByLabelText('Casier'), 'A');
+    const casier = form.getByLabelText('Casier');
+    await waitFor(() => expect(container.querySelector(`datalist#${CSS.escape(casier.getAttribute('list')!)} option[value="B"]`)).not.toBeNull());
+    await userEvent.selectOptions(await form.findByLabelText('Zone'), 'Cave 2');
+    await userEvent.type(casier, 'A');
     const qty = form.getByLabelText('Quantité');
     expect(qty).toHaveAttribute('max', '3');
     await userEvent.clear(qty);
@@ -104,7 +134,7 @@ describe('Ranger / déplacer', () => {
     await userEvent.click(form.getByRole('button', { name: 'Déplacer' }));
     await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
     expect(move).toHaveBeenCalledWith('w1', {
-      idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/), from: null, to: { zone: 'Cave 2', casier: 'A', position: null }, quantity: 3,
+      idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/), from: null, to: { zoneId: 'z2', casier: 'A', position: null }, quantity: 3,
     });
     await waitFor(() => expect(getWine).toHaveBeenCalledTimes(2));
   });
@@ -116,7 +146,7 @@ describe('Ranger / déplacer', () => {
     mount();
     await userEvent.click(await screen.findByRole('button', { name: 'Ranger / déplacer' }));
     const form = within(screen.getByRole('form', { name: 'Ranger / déplacer' }));
-    await userEvent.type(form.getByLabelText('Zone'), 'Garage');
+    await userEvent.type(form.getByLabelText('Casier'), 'Haut');
     await userEvent.click(form.getByRole('button', { name: 'Déplacer' }));
     expect(await form.findByRole('alert')).toHaveTextContent('Pas assez de bouteilles à cet emplacement');
   });
@@ -142,18 +172,33 @@ describe('inventaire', () => {
     await waitFor(() => expect(inventory).toHaveBeenCalledWith('w1', { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/), counted: 5, locationId: 'l2' }));
   });
 
-  it('en hausse : range à l’endroit choisi, « Sans emplacement » par défaut', async () => {
+  it('en hausse : range dans la zone choisie et au casier saisi', async () => {
     vi.spyOn(api, 'getWine').mockResolvedValue(detail);
     vi.spyOn(api, 'getLocations').mockResolvedValue(cellar);
     const inventory = vi.spyOn(api, 'postInventory').mockResolvedValue({ movement: { id: 'a1' }, stock: 8, delta: 2, created: true });
     mount();
     await count('8');
-    const where = screen.getByLabelText('Emplacement');
-    expect(where).toHaveValue('');
-    await waitFor(() => expect([...(where as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Sans emplacement', 'Cave 2 / B / 3', 'Garage']));
-    await userEvent.selectOptions(where, 'Garage');
+    const where = within(screen.getByRole('group', { name: 'Emplacement' }));
+    const zone = await where.findByLabelText('Zone');
+    expect(zone).toHaveValue('');
+    await waitFor(() => expect(within(zone).getAllByRole('option').map((o) => o.textContent)).toEqual(['Sans zone', 'Garage', 'Cave 2']));
+    await userEvent.selectOptions(zone, 'Garage');
+    expect(where.getByText('Au fond, derrière l’escalier')).toBeInTheDocument();
+    await userEvent.type(where.getByLabelText('Casier'), 'Haut');
     await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’inventaire' }));
-    await waitFor(() => expect(inventory).toHaveBeenCalledWith('w1', { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/), counted: 8, locationId: 'l2' }));
+    await waitFor(() => expect(inventory).toHaveBeenCalledWith('w1', {
+      idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/), counted: 8, location: { zoneId: 'z1', casier: 'Haut', position: null },
+    }));
+  });
+
+  it('en hausse sans rien choisir : « Sans emplacement »', async () => {
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    vi.spyOn(api, 'getLocations').mockResolvedValue(cellar);
+    const inventory = vi.spyOn(api, 'postInventory').mockResolvedValue({ movement: { id: 'a1' }, stock: 8, delta: 2, created: true });
+    mount();
+    await count('8');
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer l’inventaire' }));
+    await waitFor(() => expect(inventory).toHaveBeenCalledWith('w1', { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/), counted: 8, locationId: null }));
   });
 
   it('affiche tel quel le 409 de l’endroit', async () => {

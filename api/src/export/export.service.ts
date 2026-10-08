@@ -3,7 +3,7 @@ import { Prisma, WineColor } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { ApogeeConfidence, estimateApogee, isDrinkSoon, sortByApogeeEnd } from '../apogee/apogee';
 import { ApogeeRulesService } from '../apogee/apogee-rules.service';
-import { formatPlaces, LocationParts, placesOf } from '../locations/location';
+import { formatPlaces, LocatedParts, partsOf, placesOf } from '../locations/location';
 import { PrismaService } from '../prisma/prisma.service';
 import { currentQuoteByWine } from '../quotes/quote';
 
@@ -33,7 +33,7 @@ export class ExportService {
       this.prisma.$queryRaw<{ wine_id: string; quantity: number }[]>`
         SELECT s.wine_id, s.quantity FROM stock_courant s JOIN wine w ON w.id = s.wine_id WHERE w.cave_id = ${caveId}`,
       this.prisma.wine.findMany({ where: { caveId }, include: { appellation: true, pairing: true }, orderBy: [{ producer: 'asc' }, { vintage: 'asc' }] }),
-      this.prisma.movement.findMany({ where: { wine: { caveId } }, include: { wine: true, location: true }, orderBy: { occurredAt: 'desc' } }),
+      this.prisma.movement.findMany({ where: { wine: { caveId } }, include: { wine: true, location: { include: { zone: true } } }, orderBy: { occurredAt: 'desc' } }),
       this.prisma.appellation.findMany({ orderBy: { canonicalName: 'asc' } }),
       // Cote iDealwine : l'export est réservé au propriétaire, qui voit les prix.
       this.prisma.priceQuote.findMany({ where: { wine: { caveId } }, select: { wineId: true, coteCents: true, quotedOn: true, createdAt: true } }),
@@ -45,12 +45,12 @@ export class ExportService {
     const lastPrice = new Map<string, number>();
     for (const m of [...movements].reverse()) if (m.type === 'IN' && m.priceUnitCents != null && !cancelled.has(m.id)) lastPrice.set(m.wineId, m.priceUnitCents);
     // Stock par emplacement, sommé depuis le journal déjà lu (même règle que la fiche).
-    const byPlace = new Map<string, Map<string | null, { location: (LocationParts & { id: string }) | null; quantity: number }>>();
+    const byPlace = new Map<string, Map<string | null, { location: LocatedParts | null; quantity: number }>>();
     for (const m of movements) {
       const groups = byPlace.get(m.wineId) ?? new Map();
       byPlace.set(m.wineId, groups);
       const key = m.locationId ?? null;
-      const g = groups.get(key) ?? { location: m.location ?? null, quantity: 0 };
+      const g = groups.get(key) ?? { location: m.location ? partsOf(m.location) : null, quantity: 0 };
       g.quantity += m.delta;
       groups.set(key, g);
     }

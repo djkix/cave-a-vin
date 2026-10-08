@@ -165,7 +165,7 @@ export class CaveService {
         take: 10,
         select: {
           id: true, delta: true, type: true, occurredAt: true, note: true, reversesId: true, locationId: true,
-          location: { select: { zone: true, casier: true, position: true } },
+          location: { select: { zone: { select: { name: true } }, casier: true, position: true } },
         },
       }),
       // Un descriptif par domaine, partagé par tous ses vins : lien par la clé normalisée.
@@ -192,7 +192,7 @@ export class CaveService {
         producerKey: producerKey || null,
         producerProfile: producerProfileOf(profile, role),
       },
-      movements: movements.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf(location) : null })),
+      movements: movements.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf({ ...location, zone: location.zone?.name ?? null }) : null })),
       /** Endroits du vin et leur quantité (> 0) ; « Sans emplacement » : id null, en dernier. */
       locations,
       /** Endroit pré-sélectionné à la sortie : id, null = « Sans emplacement », absent = plus de stock. */

@@ -5,7 +5,7 @@ import { useCurrentCave } from '../lib/use-current-cave';
 
 // Listes qui valent pour n'importe quelle cave : on y reste après un changement.
 const ANY_ROLE = ['/', '/cave', '/stats', '/compte', '/a-boire'];
-const OWNER_ONLY = ['/entree', '/sortie', '/journal', '/a-confirmer', '/membres'];
+const OWNER_ONLY = ['/entree', '/sortie', '/journal', '/a-confirmer', '/ma-cave'];
 
 /**
  * Où rester après un changement de cave : une liste encore permise au nouveau

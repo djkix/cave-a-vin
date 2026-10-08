@@ -2,17 +2,22 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Location, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ZONE_ARCHIVED_TAKEN, ZONE_NOT_FOUND } from '../zones/zone';
 import {
-  LOCATION_NOT_FOUND, LocationInput, LocationParts, labelOf, normalizeLocation, NOT_ENOUGH_AT_LOCATION, Place, placesOf,
+  LocatedParts, LOCATION_NOT_FOUND, LocationInput, labelOf, normalizeLocation, NOT_ENOUGH_AT_LOCATION, Place, placesOf,
 } from './location';
 
 /** Client Prisma ordinaire ou client d'une transaction interactive. */
 export type Db = PrismaService | Prisma.TransactionClient;
 
 /** `lastUsed` : emplacement de la dernière entrée rangée de la cave (pré-remplit l'entrée suivante), un seul au plus. */
-export interface LocationView extends LocationParts { id: string; label: string; lastUsed: boolean }
+export interface LocationView extends LocatedParts { label: string; lastUsed: boolean }
 
-interface Group extends LocationParts { locationId: string | null; quantity: number }
+/** Somme des mouvements d'un vin à un endroit ; `zone` : nom de la zone (relation), `zoneId` : son id. */
+interface Group { locationId: string | null; zoneId: string | null; zone: string | null; casier: string | null; position: string | null; quantity: number }
+
+/** Colonnes d'un emplacement et de sa zone, pour les requêtes qui joignent `location l` et `cave_zone z`. */
+const PARTS = Prisma.sql`l.zone_id AS "zoneId", z.name AS zone, l.casier, l.position`;
 
 /** Stock d'un endroit (id null = « Sans emplacement ») selon la même règle que placesOf, négatif compris. */
 function rawStockAt(groups: Group[], id: string | null): number {
@@ -29,10 +34,17 @@ function rawStockAt(groups: Group[], id: string | null): number {
 export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Emplacements de la cave, par libellé ; `lastUsed` sur celui de la dernière entrée rangée. */
+  /**
+   * Emplacements de la cave, par libellé (nom actuel de la zone) ; `lastUsed`
+   * sur celui de la dernière entrée rangée. Ceux d'une zone archivée (vides,
+   * l'historique seul les désigne) n'y figurent pas.
+   */
   async list(caveId: string): Promise<LocationView[]> {
     const [rows, last] = await Promise.all([
-      this.prisma.location.findMany({ where: { caveId }, select: { id: true, zone: true, casier: true, position: true } }),
+      this.prisma.$queryRaw<LocatedParts[]>`
+        SELECT l.id, ${PARTS}
+        FROM location l LEFT JOIN cave_zone z ON z.id = l.zone_id
+        WHERE l.cave_id = ${caveId} AND z.archived_at IS NULL`,
       this.lastIn(caveId),
     ]);
     return rows
@@ -41,19 +53,85 @@ export class LocationsService {
   }
 
   /**
-   * Emplacement saisi, créé à la volée. INSERT … ON CONFLICT sur (cave_id,
-   * label_key) : deux saisies simultanées du même emplacement obtiennent la même
-   * ligne, sans violation d'unicité (P2002) à rattraper — utilisable aussi dans
-   * une transaction, qu'une violation interromprait.
+   * Emplacement saisi, créé à la volée. La zone est une zone non archivée de la
+   * cave (sinon 404 « Zone introuvable »), lue FOR SHARE : une suppression de
+   * zone simultanée attend la fin de l'écriture, et voit alors ses bouteilles.
+   * INSERT … ON CONFLICT sur l'index location_place_key (cave, zone, casier et
+   * position en minuscules) : deux saisies simultanées du même emplacement
+   * obtiennent la même ligne, sans violation d'unicité (P2002) à rattraper —
+   * utilisable aussi dans une transaction, qu'une violation interromprait.
    */
   async resolve(caveId: string, input: LocationInput, db: Db = this.prisma): Promise<Location> {
     const n = normalizeLocation(input);
+    const zoneId = n.zoneId ? await this.lockZone(caveId, n.zoneId, db) : n.zoneName ? await this.zoneNamed(caveId, n.zoneName, db) : null;
     const [row] = await db.$queryRaw<Location[]>`
-      INSERT INTO location (id, cave_id, zone, casier, position, label_key)
-      VALUES (${randomUUID()}, ${caveId}, ${n.zone}, ${n.casier}, ${n.position}, ${n.labelKey})
-      ON CONFLICT (cave_id, label_key) DO UPDATE SET label_key = EXCLUDED.label_key
-      RETURNING id, cave_id AS "caveId", zone, casier, position, label_key AS "labelKey", created_at AS "createdAt"`;
+      INSERT INTO location (id, cave_id, zone_id, casier, position)
+      VALUES (${randomUUID()}, ${caveId}, ${zoneId}, ${n.casier}, ${n.position})
+      ON CONFLICT (cave_id, (COALESCE(zone_id, '')), (lower(COALESCE(casier, ''))), (lower(COALESCE(position, ''))))
+      DO UPDATE SET cave_id = EXCLUDED.cave_id
+      RETURNING id, cave_id AS "caveId", zone_id AS "zoneId", casier, position, created_at AS "createdAt"`;
     return row;
+  }
+
+  /**
+   * Avant d'ajouter des bouteilles à un emplacement existant (annulation d'une
+   * sortie, hausse d'inventaire par `locationId`) : sa zone est verrouillée
+   * (FOR UPDATE, dans la transaction de l'écriture), ce qui sérialise l'écriture
+   * avec une suppression de zone (ZonesService.remove). Une zone archivée entre-
+   * temps est rétablie en fin de liste si aucune zone active de la cave ne porte
+   * son nom ; sinon 409 : les bouteilles ne reviennent jamais dans une zone archivée.
+   */
+  async reopenZoneOf(caveId: string, locationId: string | null, db: Db): Promise<void> {
+    if (!locationId) return;
+    const [zone] = await db.$queryRaw<{ id: string; name: string; archived: boolean }[]>`
+      SELECT z.id, z.name, z.archived_at IS NOT NULL AS archived
+      FROM location l JOIN cave_zone z ON z.id = l.zone_id
+      WHERE l.id = ${locationId} AND l.cave_id = ${caveId}
+      FOR UPDATE OF z`;
+    if (!zone?.archived) return;
+    const taken = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM cave_zone WHERE cave_id = ${caveId} AND archived_at IS NULL AND lower(name) = lower(${zone.name}) LIMIT 1`;
+    if (taken.length > 0) throw new ConflictException(ZONE_ARCHIVED_TAKEN);
+    const last = await db.caveZone.aggregate({ where: { caveId, archivedAt: null }, _max: { sortOrder: true } });
+    try {
+      await db.caveZone.update({ where: { id: zone.id }, data: { archivedAt: null, sortOrder: (last._max.sortOrder ?? -1) + 1 } });
+    } catch (e) {
+      // Une zone du même nom créée à l'instant (index cave_zone_cave_id_name_key).
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException(ZONE_ARCHIVED_TAKEN);
+      throw e;
+    }
+  }
+
+  /** Zone non archivée de la cave, sinon 404 « Zone introuvable » : vérifiée avant de créer le moindre vin. */
+  async assertZone(caveId: string, zoneId: string): Promise<void> {
+    if (!(await this.prisma.caveZone.findFirst({ where: { id: zoneId, caveId, archivedAt: null }, select: { id: true } }))) {
+      throw new NotFoundException(ZONE_NOT_FOUND);
+    }
+  }
+
+  /** Zone non archivée de la cave, verrouillée en partage jusqu'à la fin de la transaction ; sinon 404. */
+  private async lockZone(caveId: string, zoneId: string, db: Db): Promise<string> {
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM cave_zone WHERE id = ${zoneId} AND cave_id = ${caveId} AND archived_at IS NULL FOR SHARE`;
+    if (rows.length === 0) throw new NotFoundException(ZONE_NOT_FOUND);
+    return rows[0].id;
+  }
+
+  /**
+   * Ancien client (`zone` en texte) : la zone non archivée de même nom (espaces
+   * autour et casse ignorés), créée en fin de liste si la cave n'en a pas. ON
+   * CONFLICT sur l'index cave_zone_cave_id_name_key : deux saisies simultanées
+   * du même nom obtiennent la même zone.
+   */
+  private async zoneNamed(caveId: string, name: string, db: Db): Promise<string> {
+    const [row] = await db.$queryRaw<{ id: string }[]>`
+      INSERT INTO cave_zone (id, cave_id, name, sort_order)
+      VALUES (${randomUUID()}, ${caveId}, ${name},
+              (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM cave_zone WHERE cave_id = ${caveId} AND archived_at IS NULL))
+      ON CONFLICT (cave_id, (lower(name))) WHERE archived_at IS NULL
+      DO UPDATE SET name = cave_zone.name
+      RETURNING id`;
+    return row.id;
   }
 
   /** Emplacement de la cave ; celui d'une autre cave est « introuvable », comme un identifiant inconnu. */
@@ -65,12 +143,13 @@ export class LocationsService {
 
   private groups(caveId: string, wineId: string, db: Db): Promise<Group[]> {
     return db.$queryRaw<Group[]>`
-      SELECT m.location_id AS "locationId", l.zone, l.casier, l.position, SUM(m.delta)::INTEGER AS quantity
+      SELECT m.location_id AS "locationId", ${PARTS}, SUM(m.delta)::INTEGER AS quantity
       FROM movement m
       JOIN wine w ON w.id = m.wine_id
       LEFT JOIN location l ON l.id = m.location_id
+      LEFT JOIN cave_zone z ON z.id = l.zone_id
       WHERE m.wine_id = ${wineId} AND w.cave_id = ${caveId}
-      GROUP BY m.location_id, l.zone, l.casier, l.position`;
+      GROUP BY m.location_id, l.zone_id, z.name, l.casier, l.position`;
   }
 
   /** Endroits du vin et leur quantité (> 0) : emplacements par libellé, « Sans emplacement » en dernier. */
@@ -82,12 +161,13 @@ export class LocationsService {
   async placesByWine(caveId: string, wineIds: string[]): Promise<Map<string, Place[]>> {
     if (wineIds.length === 0) return new Map();
     const rows = await this.prisma.$queryRaw<Array<Group & { wineId: string }>>`
-      SELECT m.wine_id AS "wineId", m.location_id AS "locationId", l.zone, l.casier, l.position, SUM(m.delta)::INTEGER AS quantity
+      SELECT m.wine_id AS "wineId", m.location_id AS "locationId", ${PARTS}, SUM(m.delta)::INTEGER AS quantity
       FROM movement m
       JOIN wine w ON w.id = m.wine_id
       LEFT JOIN location l ON l.id = m.location_id
+      LEFT JOIN cave_zone z ON z.id = l.zone_id
       WHERE w.cave_id = ${caveId} AND m.wine_id IN (${Prisma.join(wineIds)})
-      GROUP BY m.wine_id, m.location_id, l.zone, l.casier, l.position`;
+      GROUP BY m.wine_id, m.location_id, l.zone_id, z.name, l.casier, l.position`;
     const byWine = new Map<string, Group[]>();
     for (const r of rows) byWine.set(r.wineId, [...(byWine.get(r.wineId) ?? []), r]);
     return new Map([...byWine].map(([id, groups]) => [id, placesOf(groups.map(toPlaceGroup))]));
@@ -108,14 +188,15 @@ export class LocationsService {
     return rawStockAt(await this.groups(caveId, wineId, db), place);
   }
 
-  /** Dernière entrée rangée et non annulée de la cave : son emplacement, id compris. */
-  private async lastIn(caveId: string): Promise<(LocationParts & { id: string }) | null> {
-    const rows = await this.prisma.$queryRaw<Array<LocationParts & { id: string }>>`
-      SELECT l.id, l.zone, l.casier, l.position
+  /** Dernière entrée rangée et non annulée de la cave, hors zone archivée : son emplacement. */
+  private async lastIn(caveId: string): Promise<{ id: string } | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT l.id
       FROM movement m
       JOIN wine w ON w.id = m.wine_id
       JOIN location l ON l.id = m.location_id
-      WHERE w.cave_id = ${caveId} AND m.type = 'IN'
+      LEFT JOIN cave_zone z ON z.id = l.zone_id
+      WHERE w.cave_id = ${caveId} AND m.type = 'IN' AND z.archived_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM movement r WHERE r.reverses_id = m.id)
       ORDER BY m.occurred_at DESC
       LIMIT 1`;
@@ -179,7 +260,7 @@ export class LocationsService {
 
 function toPlaceGroup(g: Group) {
   return {
-    location: g.locationId == null ? null : { id: g.locationId, zone: g.zone, casier: g.casier, position: g.position },
+    location: g.locationId == null ? null : { id: g.locationId, zoneId: g.zoneId, zone: g.zone, casier: g.casier, position: g.position },
     quantity: Number(g.quantity),
   };
 }

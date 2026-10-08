@@ -39,7 +39,7 @@ describe('membre en lecture seule', () => {
     vi.spyOn(api, 'getPhotoQueueStatus').mockResolvedValue({ waiting: 0, oldestWaitingAt: null, lastReason: null });
   });
 
-  it.each(['/entree', '/entree/p1', '/sortie', '/sortie/p1', '/journal', '/a-confirmer', '/membres'])(
+  it.each(['/entree', '/entree/p1', '/sortie', '/sortie/p1', '/journal', '/a-confirmer', '/membres', '/ma-cave'])(
     'renvoie %s vers l’accueil',
     async (path) => {
       const router = mountAt(path, viewerMe());
@@ -55,11 +55,20 @@ describe('membre en lecture seule', () => {
   });
 });
 
-it('ouvre l’écran Membres au propriétaire', async () => {
+it('ouvre « Ma cave » au propriétaire', async () => {
   vi.spyOn(api, 'getMembers').mockResolvedValue([]);
+  vi.spyOn(api, 'getZones').mockResolvedValue([]);
+  const router = mountAt('/ma-cave');
+  expect(await screen.findByRole('heading', { level: 1, name: 'Ma cave' })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe('/ma-cave');
+});
+
+it('redirige l’ancienne adresse /membres vers « Ma cave »', async () => {
+  vi.spyOn(api, 'getMembers').mockResolvedValue([]);
+  vi.spyOn(api, 'getZones').mockResolvedValue([]);
   const router = mountAt('/membres');
-  expect(await screen.findByRole('heading', { name: 'Membres' })).toBeInTheDocument();
-  expect(router.state.location.pathname).toBe('/membres');
+  await waitFor(() => expect(router.state.location.pathname).toBe('/ma-cave'));
+  expect(await screen.findByRole('region', { name: 'Membres' })).toBeInTheDocument();
 });
 
 describe('changement de cave', () => {

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Movement, Prisma, Wine } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { CANCEL_MOVED, labelOf, normalizeLocation, NOT_ENOUGH_AT_LOCATION, Place, SAME_LOCATION } from '../locations/location';
+import { CANCEL_MOVED, labelOf, normalizeLocation, NOT_ENOUGH_AT_LOCATION, partsOf, Place, SAME_LOCATION } from '../locations/location';
 import { Db, LocationsService } from '../locations/locations.service';
 import { PairingScheduler } from '../pairing/pairing.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -121,6 +121,7 @@ export class MovementsService {
     if (photo?.purpose === 'REFERENCE') throw new BadRequestException(WEB_IMAGE_FOR_MOVEMENT);
     // Emplacement vérifié avant de créer le moindre vin (400 aux messages de la spec).
     if (input.location) normalizeLocation(input.location);
+    if (input.location?.zoneId) await this.locations.assertZone(caveId, input.location.zoneId);
     await this.assertKeyNotUsedByMove(input.idempotencyKey);
 
     const { wine, created: wineCreated } = await this.matching.matchOrCreate(caveId, input.wine);
@@ -225,6 +226,8 @@ export class MovementsService {
     try {
       const movement = await this.prisma.$transaction(async (tx) => {
         await lockWine(tx, caveId, original.wineId);
+        // Les bouteilles qui reviennent à un emplacement : sa zone ne doit pas être archivée.
+        for (const half of halves) if (half.delta < 0) await this.locations.reopenZoneOf(caveId, half.locationId, tx);
         const reversals = [];
         // La moitié qui rend des bouteilles d'abord (annulation du −N) : le total du vin ne passe
         // jamais sous zéro en cours de route, et un manque est signalé par emplacement (409) plutôt
@@ -404,6 +407,7 @@ export class MovementsService {
 
     await this.assertKeyNotUsedByMove(input.idempotencyKey);
     if (input.locationId) await this.locations.findOwn(caveId, input.locationId);
+    if (input.location) normalizeLocation(input.location);
 
     return this.prisma.$transaction(async (tx) => {
       await lockWine(tx, caveId, wineId);
@@ -411,9 +415,12 @@ export class MovementsService {
         SELECT COALESCE(SUM(delta), 0)::INTEGER AS quantity FROM movement WHERE wine_id = ${wineId}`;
       const delta = input.counted - quantity;
       if (delta === 0) return { movement: null, stock: quantity, delta: 0, created: false };
-      // Une hausse va à l'endroit choisi (par défaut « Sans emplacement ») ; une baisse s'y applique.
+      // Une hausse va à l'endroit choisi ou saisi (par défaut « Sans emplacement ») ; une baisse s'y applique.
       const locationId =
-        input.locationId !== undefined ? input.locationId : delta > 0 ? null : await this.legacyExitPlace(caveId, wineId, -delta, tx);
+        input.location ? (await this.locations.resolve(caveId, input.location, tx)).id
+          : input.locationId !== undefined ? input.locationId : delta > 0 ? null : await this.legacyExitPlace(caveId, wineId, -delta, tx);
+      // Une hausse vers un emplacement existant : sa zone ne doit pas être archivée.
+      if (delta > 0 && !input.location) await this.locations.reopenZoneOf(caveId, locationId, tx);
       const movement = await tx.movement.create({
         data: { wineId, delta, type: 'ADJUST', note: `Inventaire : ${input.counted} comptées`, idempotencyKey: input.idempotencyKey, locationId },
       });
@@ -470,8 +477,8 @@ export class MovementsService {
   /** Journal de la cave : ses derniers mouvements, tous vins confondus. */
   async recent(caveId: string, limit = 20): Promise<JournalMovement[]> {
     const rows = await this.prisma.movement.findMany({
-      where: { wine: { caveId } }, take: limit, orderBy: { occurredAt: 'desc' }, include: { wine: true, location: true },
+      where: { wine: { caveId } }, take: limit, orderBy: { occurredAt: 'desc' }, include: { wine: true, location: { include: { zone: true } } },
     });
-    return rows.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf(location) : null }));
+    return rows.map(({ location, ...m }) => ({ ...m, locationLabel: location ? labelOf(partsOf(location)) : null }));
   }
 }
