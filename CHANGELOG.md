@@ -9,6 +9,29 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.2.0](https://github.com/djkix/cave-a-vin/compare/v2.1.1...v2.2.0) (2026-10-08)
+
+
+### Fonctionnalités
+
+* **cote:** cote iDealwine saisie à la main ([4d804a0](https://github.com/djkix/cave-a-vin/commit/4d804a003b5f1e7aed8d7f296457c4eec77ea7dc))
+* **emplacements:** emplacements côté api ([c629c9e](https://github.com/djkix/cave-a-vin/commit/c629c9e67923a531ad14c79e544f76156cb7e199))
+* **emplacements:** schéma des emplacements et des cotes ([5507e06](https://github.com/djkix/cave-a-vin/commit/5507e064027dcd74c6a90c491623e77385330a8f))
+* **web:** cote iDealwine saisie à la main ([1777f4f](https://github.com/djkix/cave-a-vin/commit/1777f4f100c0da9a59f7da9a8ad30054e7395be3))
+* **web:** emplacements ([4db5699](https://github.com/djkix/cave-a-vin/commit/4db5699de17db305ad274a8c86edf515c67d6ab9))
+
+
+### Corrections
+
+* **cote:** lien enregistré gardé, ligatures dans la recherche ([cfe7472](https://github.com/djkix/cave-a-vin/commit/cfe74728aaf5eeed40b2efc9c27657251a947917))
+* **cote:** valeur de cession hors frais, lien enregistré fourni par l'api ([2e8a5c8](https://github.com/djkix/cave-a-vin/commit/2e8a5c820edf65483bfdca91ba21605654012fba))
+* **emplacements:** annulation après déplacement, clé JSON, entrée en une transaction ([b5a595c](https://github.com/djkix/cave-a-vin/commit/b5a595c8be0c8d3854d90d1310ebe5c7a0126040))
+* **emplacements:** message d'annulation juste après un déplacement ou une sortie ([055cbd0](https://github.com/djkix/cave-a-vin/commit/055cbd00c504bf6372ea13f7c58797c6b2bafd3f))
+* **emplacements:** ordre d'annulation d'un déplacement, clé déjà utilisée, tests de concurrence ([ac25a80](https://github.com/djkix/cave-a-vin/commit/ac25a80f0199a3277848cb391f3e640ef4a03c76))
+* **emplacements:** pré-remplissage mémorisé côté serveur, sortie attendue sur la fiche ([294e674](https://github.com/djkix/cave-a-vin/commit/294e6742e2d2bde3d6596f15fed10cfc50661e42))
+* **web:** cote hors frais, lien enregistré de l'api, accessibilité du formulaire ([d2eeed3](https://github.com/djkix/cave-a-vin/commit/d2eeed379c6668a2a04d574d9c19e94fff968b61))
+* **web:** entrée et sortie jamais bloquées plus de 2 s, fiche relue après un 409 ([7497640](https://github.com/djkix/cave-a-vin/commit/7497640533457af61c102609d4a226360a069be1))
+
 ## [2.1.1](https://github.com/djkix/cave-a-vin/compare/v2.1.0...v2.1.1) (2026-10-07)
 
 ### Résumé
