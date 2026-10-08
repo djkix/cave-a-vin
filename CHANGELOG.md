@@ -9,6 +9,18 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.4.0](https://github.com/djkix/cave-a-vin/compare/v2.3.0...v2.4.0) (2026-10-08)
+
+
+### Fonctionnalités
+
+* **cave:** à boire prochainement, par emplacement ([df5cc3f](https://github.com/djkix/cave-a-vin/commit/df5cc3f782bfcae344e06793920d6f259d9729fc))
+
+
+### Corrections
+
+* **web:** lignes « À boire prochainement » au style de l'application ([75ea241](https://github.com/djkix/cave-a-vin/commit/75ea241a3d58a75d701004ebbd557eeb32e62b07))
+
 ## [2.3.0](https://github.com/djkix/cave-a-vin/compare/v2.2.1...v2.3.0) (2026-10-08)
 
 ### Résumé
