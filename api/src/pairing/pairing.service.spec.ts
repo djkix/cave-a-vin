@@ -1,61 +1,49 @@
 import { NotFoundException } from '@nestjs/common';
-import { PairingService } from './pairing.service';
+import { PairingScheduler, PairingService } from './pairing.service';
 
-function harness(opts: { wine?: unknown; schedule?: () => Promise<void> } = {}) {
+function harness(opts: { wine?: unknown } = {}) {
   const upsert = jest.fn(async () => ({}));
+  const createMany = jest.fn(async () => ({ count: 1 }));
   const prisma = {
     // Le vin n'existe que dans la cave c1.
     wine: { findFirst: jest.fn(async ({ where }: any) => ('wine' in opts ? opts.wine : where.caveId === 'c1' && where.id === 'w1' ? { id: 'w1' } : null)) },
-    pairing: { upsert },
+    pairing: { upsert, createMany },
   };
-  const scheduler = { schedule: jest.fn(opts.schedule ?? (async () => {})) };
-  return { upsert, scheduler, service: new PairingService(prisma as any, scheduler as any) };
+  return { upsert, createMany, prisma, service: new PairingService(prisma as any) };
 }
 
 describe('PairingService.regenerate', () => {
-  it('remet l’accord en attente et planifie sa régénération', async () => {
+  it('remet l’accord en attente tout de suite, daté de maintenant, tentatives remises à zéro : il part dans le lot suivant, sans appel à Gemini', async () => {
     const h = harness();
+    const before = Date.now();
     await h.service.regenerate('c1', 'w1');
-    expect(h.upsert).toHaveBeenCalledWith({ where: { wineId: 'w1' }, create: { wineId: 'w1' }, update: { status: 'PENDING', errorMessage: null } });
-    expect(h.scheduler.schedule).toHaveBeenCalledWith('w1');
+    expect(h.upsert).toHaveBeenCalledWith({
+      where: { wineId: 'w1' },
+      create: { wineId: 'w1', requestedAt: expect.any(Date) },
+      update: { status: 'PENDING', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null },
+    });
+    const { update } = (h.upsert.mock.calls[0] as any)[0];
+    expect(update.requestedAt.getTime()).toBeGreaterThanOrEqual(before);
+    // Le service ne dépend que de la base : aucun fournisseur Gemini, aucune file.
+    expect(PairingService.length).toBe(1);
   });
 
-  it('vin d’une autre cave : 404 « Vin introuvable », rien n’est remis en attente ni planifié', async () => {
+  it('vin d’une autre cave : 404 « Vin introuvable », rien n’est remis en attente', async () => {
     const h = harness();
     await expect(h.service.regenerate('c2', 'w1')).rejects.toThrow(new NotFoundException('Vin introuvable'));
     expect(h.upsert).not.toHaveBeenCalled();
-    expect(h.scheduler.schedule).not.toHaveBeenCalled();
   });
 
   it('refuse un vin introuvable', async () => {
     const h = harness({ wine: null });
     await expect(h.service.regenerate('c1', 'w1')).rejects.toBeInstanceOf(NotFoundException);
   });
+});
 
-  it('n’attend pas indéfiniment une planification qui ne répond pas (Redis indisponible) : la ligne PENDING et la reprise du worker prendront le relais', async () => {
-    jest.useFakeTimers();
-    try {
-      let resolveSchedule!: () => void;
-      const neverSettling = new Promise<void>((resolve) => { resolveSchedule = resolve; });
-      const h = harness({ schedule: () => neverSettling });
-
-      const warn = jest.spyOn((h.service as any).logger, 'warn').mockImplementation(() => undefined);
-
-      const regenerate = h.service.regenerate('c1', 'w1');
-      let settled = false;
-      regenerate.then(() => { settled = true; });
-
-      await jest.advanceTimersByTimeAsync(2999);
-      expect(settled).toBe(false);
-
-      await jest.advanceTimersByTimeAsync(1);
-      await regenerate;
-      expect(settled).toBe(true);
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('w1'));
-
-      resolveSchedule();
-    } finally {
-      jest.useRealTimers();
-    }
+describe('PairingScheduler.schedule', () => {
+  it('nouveau vin : crée sa demande d’accords en attente, sans toucher à une ligne existante', async () => {
+    const h = harness();
+    await new PairingScheduler(h.prisma as any).schedule('w1');
+    expect(h.createMany).toHaveBeenCalledWith({ data: [{ wineId: 'w1', requestedAt: expect.any(Date) }], skipDuplicates: true });
   });
 });

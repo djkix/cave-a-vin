@@ -1,42 +1,35 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PAIRING_QUEUE_TOKEN, raceScheduleWithTimeout, WinePairingJobData, schedulePairing } from './pairing.queue';
+import { requestPairings } from './generation-requests';
 
-/** Au-delà, on répond quand même (202) : la ligne est déjà PENDING et la reprise au
- * démarrage du worker régénérera l'accord si la planification n'a jamais abouti. */
-const SCHEDULE_TIMEOUT_MS = 3000;
-
+/** Nouveau vin : sa demande d'accords, en attente, part dans le prochain lot du worker. */
 @Injectable()
 export class PairingScheduler {
-  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<WinePairingJobData>) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  schedule(wineId: string): Promise<void> {
-    return schedulePairing(this.queue, wineId);
+  async schedule(wineId: string): Promise<void> {
+    await requestPairings(this.prisma, [wineId]);
   }
 }
 
 @Injectable()
 export class PairingService {
-  private readonly logger = new Logger(PairingService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly scheduler: PairingScheduler,
-  ) {}
-
-  /** Vin de la cave courante seulement : celui d'une autre cave est inexistant (404). */
+  /**
+   * « Régénérer » : l'accord repasse en attente tout de suite (l'interface
+   * affiche « en préparation » dès la réponse) et rejoint le prochain lot du
+   * worker, comme une nouvelle demande. Jamais d'appel direct à Gemini. Vin de
+   * la cave courante seulement : celui d'une autre cave est inexistant (404).
+   */
   async regenerate(caveId: string, wineId: string): Promise<void> {
     const wine = await this.prisma.wine.findFirst({ where: { id: wineId, caveId }, select: { id: true } });
     if (!wine) throw new NotFoundException('Vin introuvable');
+    const requestedAt = new Date();
     await this.prisma.pairing.upsert({
       where: { wineId },
-      create: { wineId },
-      update: { status: 'PENDING', errorMessage: null },
+      create: { wineId, requestedAt },
+      update: { status: 'PENDING', errorMessage: null, requestedAt, attempts: 0, nextAttemptAt: null },
     });
-
-    await raceScheduleWithTimeout(this.scheduler.schedule(wineId), SCHEDULE_TIMEOUT_MS, () =>
-      this.logger.warn(`Planification de l'accord ${wineId} toujours en cours après ${SCHEDULE_TIMEOUT_MS} ms : réponse envoyée sans attendre, la reprise du worker prendra le relais si besoin`),
-    );
   }
 }

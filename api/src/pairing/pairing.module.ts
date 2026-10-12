@@ -1,24 +1,16 @@
-import { Inject, Module, OnModuleDestroy } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { CavesModule } from '../caves/caves.module';
 import { QueueModule } from '../queue/queue.module';
 import { VisionModule } from '../vision/vision.module';
+import { PairingBatchProcessor } from './pairing-batch.processor';
 import { PairingController } from './pairing.controller';
-import { PairingProcessor } from './pairing.processor';
-import { closePairingQueue, createPairingQueue, PAIRING_QUEUE_TOKEN, WinePairingJobData } from './pairing.queue';
 import { PairingScheduler, PairingService } from './pairing.service';
 
 @Module({
   imports: [AuthModule, CavesModule, QueueModule, VisionModule],
   controllers: [PairingController],
-  providers: [{ provide: PAIRING_QUEUE_TOKEN, useFactory: createPairingQueue }, PairingScheduler, PairingService, PairingProcessor],
-  exports: [PAIRING_QUEUE_TOKEN, PairingScheduler, PairingProcessor],
+  providers: [PairingScheduler, PairingService, PairingBatchProcessor],
+  exports: [PairingScheduler, PairingBatchProcessor],
 })
-export class PairingModule implements OnModuleDestroy {
-  constructor(@Inject(PAIRING_QUEUE_TOKEN) private readonly queue: Queue<WinePairingJobData>) {}
-
-  async onModuleDestroy() {
-    await closePairingQueue(this.queue);
-  }
-}
+export class PairingModule {}

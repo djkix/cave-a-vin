@@ -1,34 +1,29 @@
-import { PairingQueueLike } from '../pairing/pairing.queue';
+import { requestProducerProfiles } from '../pairing/generation-requests';
+import { PrismaService } from '../prisma/prisma.service';
 import { producerKeyOf } from './producer-key';
-import { scheduleProducer } from './producer.queue';
-
-export interface ProducerRecoveryPrisma {
-  wine: { findMany(args: unknown): Promise<{ producer: string }[]> };
-  producerProfile: { findMany(args: unknown): Promise<{ producerKey: string; status: string }[]> };
-}
 
 /**
- * Au démarrage du worker : chaque domaine des vins en cave sans descriptif, ou
- * dont la génération est restée en attente, est (re)mis en file, une seule fois
- * même si plusieurs graphies du nom coexistent. Idempotent.
+ * Au démarrage du worker : chaque domaine des vins en cave sans descriptif en
+ * reçoit un, en attente, une seule fois même si plusieurs graphies du nom
+ * coexistent (nom affiché : celui du vin le plus ancien). Les descriptifs déjà
+ * en attente sont dans la file : rien à faire pour eux. Idempotent, sans appel
+ * à Gemini.
  */
 export async function requeueMissingProducers(
-  prisma: ProducerRecoveryPrisma,
-  queue: PairingQueueLike,
+  prisma: Pick<PrismaService, 'wine' | 'producerProfile'>,
   log: (message: string) => void = () => undefined,
 ): Promise<number> {
   const [wines, profiles] = await Promise.all([
-    prisma.wine.findMany({ select: { producer: true }, distinct: ['producer'] }),
-    prisma.producerProfile.findMany({ select: { producerKey: true, status: true } }),
+    prisma.wine.findMany({ select: { producer: true }, orderBy: { createdAt: 'asc' } }),
+    prisma.producerProfile.findMany({ select: { producerKey: true } }),
   ]);
-  const statusOf = new Map(profiles.map((p) => [p.producerKey, p.status]));
-  const keys = new Set<string>();
+  const known = new Set(profiles.map((p) => p.producerKey));
+  const missing = new Map<string, string>();
   for (const w of wines) {
     const key = producerKeyOf(w.producer);
-    const status = statusOf.get(key);
-    if (key && (status === undefined || status === 'PENDING')) keys.add(key);
+    if (key && !known.has(key) && !missing.has(key)) missing.set(key, w.producer);
   }
-  for (const key of keys) await scheduleProducer(queue, key);
-  if (keys.size) log(`descriptifs : ${keys.size} domaine(s) mis en file`);
-  return keys.size;
+  const created = await requestProducerProfiles(prisma, [...missing].map(([producerKey, displayName]) => ({ producerKey, displayName })));
+  if (created) log(`descriptifs : ${created} domaine(s) mis en attente`);
+  return created;
 }

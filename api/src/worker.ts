@@ -2,14 +2,14 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Worker } from 'bullmq';
 import { AppModule } from './app.module';
-import { PairingProcessor } from './pairing/pairing.processor';
+import { GENERATION_BATCH_TICK_MS } from './pairing/generation-batch';
+import { handleLegacyPairingJob } from './pairing/legacy-pairing-job';
+import { PairingBatchProcessor } from './pairing/pairing-batch.processor';
 import { requeueMissingPairings } from './pairing/pairing-recovery';
-import { PAIRING_QUEUE, PAIRING_QUEUE_TOKEN, WinePairingJobData, pairingBackoffDelay } from './pairing/pairing.queue';
-import { processWinePairingJob } from './pairing/wine-pairing-dispatch';
+import { PAIRING_QUEUE, PRODUCER_JOB, WinePairingJobData } from './pairing/pairing.queue';
 import { PrismaService } from './prisma/prisma.service';
-import { ProducerProcessor } from './producers/producer.processor';
+import { ProducerBatchProcessor } from './producers/producer-batch.processor';
 import { requeueMissingProducers } from './producers/producer-recovery';
-import { PRODUCER_JOB } from './producers/producer.queue';
 import { ENTRY_BATCH_TICK_MS, createEntryBatchLoop } from './queue/entry-batch';
 import { EntryBatchProcessor } from './queue/entry-batch.processor';
 import { ExtractionProcessor } from './queue/extraction.processor';
@@ -35,37 +35,34 @@ async function main() {
   worker.on('error', (err) => console.error(`worker : ${err.message}`));
   console.log('worker prêt (photo-extraction, concurrence 5)');
 
-  // Une seule file pour les accords ('pairing') et les descriptifs de domaine ('producer').
-  const pairingProcessors = { pairing: app.get(PairingProcessor), producer: app.get(ProducerProcessor) };
-  const pairingWorker = new Worker<WinePairingJobData>(
-    PAIRING_QUEUE,
-    // Le jeton du verrou permet de reporter le travail pendant une pause commune de Gemini.
-    (job, token) => processWinePairingJob(job, pairingProcessors, token),
-    {
-      connection: redisConnection(),
-      concurrency: 1,
-      settings: { backoffStrategy: (attemptsMade: number, _type?: string, err?: Error) => pairingBackoffDelay(attemptsMade, err) },
-    },
-  );
-  pairingWorker.on('failed', (job, err) => console.warn(`${job?.name === PRODUCER_JOB ? 'descriptif' : 'accords'} ${job?.id} : ${err.message}`));
-  pairingWorker.on('error', (err) => console.error(`worker accords : ${err.message}`));
-  console.log('worker prêt (wine-pairing, concurrence 1)');
+  // Ancienne file des accords et descriptifs, un élément par travail : plus
+  // alimentée, mais vidée. Un travail resté dans Redis à la mise à jour ne fait
+  // que remettre sa demande en attente en base, sans appel à Gemini ; le lot
+  // suivant s'en charge (voir legacy-pairing-job.ts).
+  const prisma = app.get(PrismaService);
+  const legacyPairingWorker = new Worker<WinePairingJobData>(PAIRING_QUEUE, (job) => handleLegacyPairingJob(prisma, job), {
+    connection: redisConnection(),
+    concurrency: 1,
+    settings: { backoffStrategy: (attemptsMade: number) => extractionBackoffDelay(attemptsMade) },
+  });
+  legacyPairingWorker.on('failed', (job, err) => console.warn(`ancien travail ${job?.name === PRODUCER_JOB ? 'de descriptif' : "d'accords"} ${job?.id} : ${err.message}`));
+  legacyPairingWorker.on('error', (err) => console.error(`ancienne file des accords : ${err.message}`));
 
   // Avant de traiter la file, rattraper les photos que Redis a oubliées : sans
   // cela, un simple redémarrage suffit à laisser une photo stockée sur le disque
   // sans personne pour l'analyser.
   try {
-    await requeueOrphanPhotos(app.get(PrismaService), (m) => console.log(m));
+    await requeueOrphanPhotos(prisma, (m) => console.log(m));
   } catch (e) {
     console.error(`reprise au démarrage impossible : ${(e as Error).message}`);
   }
   try {
-    await requeueMissingPairings(app.get(PrismaService), app.get(PAIRING_QUEUE_TOKEN), (m) => console.log(m));
+    await requeueMissingPairings(prisma, (m) => console.log(m));
   } catch (e) {
     console.error(`rattrapage des accords impossible : ${(e as Error).message}`);
   }
   try {
-    await requeueMissingProducers(app.get(PrismaService), app.get(PAIRING_QUEUE_TOKEN), (m) => console.log(m));
+    await requeueMissingProducers(prisma, (m) => console.log(m));
   } catch (e) {
     console.error(`rattrapage des descriptifs de domaine impossible : ${(e as Error).message}`);
   }
@@ -79,12 +76,28 @@ async function main() {
   entryBatchLoop.start();
   console.log(`worker prêt (photos d'entrée par lots, toutes les ${ENTRY_BATCH_TICK_MS / 1000} s)`);
 
+  // Accords et descriptifs de domaine : même principe, les tables `pairing` et
+  // `producer_profile` servent de file, dix demandes au plus par appel Gemini.
+  const pairingLoop = createEntryBatchLoop(
+    () => app.get(PairingBatchProcessor).tick(),
+    GENERATION_BATCH_TICK_MS,
+    (e) => console.error(`lot d'accords : ${(e as Error).message}`),
+  );
+  const producerLoop = createEntryBatchLoop(
+    () => app.get(ProducerBatchProcessor).tick(),
+    GENERATION_BATCH_TICK_MS,
+    (e) => console.error(`lot de descriptifs : ${(e as Error).message}`),
+  );
+  pairingLoop.start();
+  producerLoop.start();
+  console.log(`worker prêt (accords et descriptifs par lots de dix, toutes les ${GENERATION_BATCH_TICK_MS / 1000} s)`);
+
   let stopping = false;
   const stop = async () => {
     if (stopping) return;
     stopping = true;
-    await entryBatchLoop.stop();
-    await pairingWorker.close();
+    await Promise.all([entryBatchLoop.stop(), pairingLoop.stop(), producerLoop.stop()]);
+    await legacyPairingWorker.close();
     await worker.close();
     await app.close();
     process.exit(0);

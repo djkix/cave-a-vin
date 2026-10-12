@@ -322,14 +322,18 @@ describeIfInfra('api HTTP', () => {
     }
   });
 
-  it('queues a pairing regeneration for a known wine, 404 otherwise', async () => {
+  it('puts a pairing regeneration back to pending for the next batch, 404 otherwise', async () => {
     const wine = await prisma.wine.create({
       data: { caveId, matchKey: `e2e-pairing-${Date.now()}`, producer: 'Domaine e2e accords', appellationRaw: 'Bandol', color: 'ROUGE' },
     });
     try {
+      const before = Date.now();
       const res = await agent.post(`/api/wines/${wine.id}/pairing/regenerate`);
       expect(res.status).toBe(202);
-      expect((await prisma.pairing.findUniqueOrThrow({ where: { wineId: wine.id } })).status).toBe('PENDING');
+      // En attente dès la réponse, datée de la demande : elle rejoint le prochain lot du worker.
+      const pending = await prisma.pairing.findUniqueOrThrow({ where: { wineId: wine.id } });
+      expect(pending).toMatchObject({ status: 'PENDING', attempts: 0, nextAttemptAt: null });
+      expect(pending.requestedAt.getTime()).toBeGreaterThanOrEqual(before);
       expect((await agent.get(`/api/wines/${wine.id}`)).body.wine.pairing).toMatchObject({ status: 'PENDING', dishes: [] });
       expect((await agent.post('/api/wines/00000000-0000-4000-8000-000000000000/pairing/regenerate')).status).toBe(404);
       expect((await supertest(app.getHttpServer()).post(`/api/wines/${wine.id}/pairing/regenerate`)).status).toBe(401);

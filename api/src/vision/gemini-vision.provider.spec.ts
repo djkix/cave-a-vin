@@ -1,8 +1,6 @@
 import { GEMINI_PAUSE_REASON_KEY, GEMINI_PAUSE_UNTIL_KEY, GeminiJournal, GeminiPausedError } from './gemini-journal';
 import { fakeGeminiPrisma as fakePrisma } from '../test-utils/fake-gemini-prisma';
 import { GeminiVisionProvider, VisionBatchMismatchError } from './gemini-vision.provider';
-import { PairingInvalidOutputError } from './pairing-output';
-import { ProducerInvalidOutputError } from './producer-output';
 
 const validObj = (overrides: Record<string, unknown> = {}) => ({
   producteur: { value: 'Domaine Tempier', confidence: 0.98 }, cuvee: { value: null, confidence: 0 },
@@ -43,37 +41,68 @@ describe('GeminiVisionProvider', () => {
   });
 });
 
-describe('GeminiVisionProvider.suggestPairings', () => {
-  const wine = { producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellation: 'Bandol', region: 'Provence', color: 'ROUGE', vintage: 2019 };
+describe('GeminiVisionProvider.suggestPairingsBatch', () => {
+  const tempier = { producer: 'Domaine Tempier', cuvee: 'La Tourtine', appellation: 'Bandol', region: 'Provence', color: 'ROUGE', vintage: 2019 };
+  const trimbach = { producer: 'Trimbach', cuvee: null, appellation: 'Alsace', region: null, color: 'BLANC', vintage: null };
   const fake = (text: string, usage = { promptTokenCount: 200, candidatesTokenCount: 50 }) => ({
     generateContent: jest.fn(async () => ({ response: { text: () => text, usageMetadata: usage } })),
   });
+  const promptOf = (model: ReturnType<typeof fake>) => (model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text as string;
 
-  it('demande des plats en français pour ce vin et rend la liste vérifiée avec un coût arrondi (quasi nul pour un appel courant)', async () => {
-    const model = fake('{"plats":["Agneau de sept heures","Daube provençale"]}');
-    const r = await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings(wine);
-    expect(r).toEqual({ dishes: ['Agneau de sept heures', 'Daube provençale'], model: 'gemini-test', costCents: 0 });
-    const prompt = (model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text as string;
-    expect(prompt).toContain('Domaine Tempier');
-    expect(prompt).toContain('La Tourtine');
-    expect(prompt).toContain('Bandol');
-    expect(prompt).toContain('2019');
+  it('demande en un seul appel un tableau numéroté de plats en français et rend chaque liste à la position de son vin', async () => {
+    const model = fake(JSON.stringify([
+      { vin: 2, plats: ['Choucroute', 'Munster'] },
+      { vin: 1, plats: ['Agneau de sept heures', 'Daube provençale'] },
+    ]));
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairingsBatch([tempier, trimbach]);
+    expect(r).toEqual({
+      items: [
+        { index: 0, dishes: ['Agneau de sept heures', 'Daube provençale'] },
+        { index: 1, dishes: ['Choucroute', 'Munster'] },
+      ],
+      model: 'gemini-test',
+      costCents: 0,
+    });
+    expect(model.generateContent).toHaveBeenCalledTimes(1);
+    const prompt = promptOf(model);
+    expect(prompt).toContain('Tu es sommelier');
+    expect(prompt).toContain('de 5 à 8 plats');
+    expect(prompt).toContain('60 caractères au plus');
+    expect(prompt).toContain('tableau JSON de 2 éléments');
+    expect(prompt).toContain('Vin 1 : producteur « Domaine Tempier » ; cuvée « La Tourtine » ; appellation « Bandol » ; région « Provence » ; couleur rouge ; millésime 2019.');
+    expect(prompt).toContain('Vin 2 : producteur « Trimbach » ; cuvée « aucune » ; appellation « Alsace » ; région « inconnue » ; couleur blanc ; non millésimé.');
+    expect((model.generateContent.mock.calls[0] as any)[0].generationConfig.responseMimeType).toBe('application/json');
   });
 
-  it('arrondit (ne majore jamais) le coût d’un accord, contrairement à l’analyse de photo', async () => {
-    const model = fake('{"plats":["Agneau"]}', { promptTokenCount: 200000, candidatesTokenCount: 50000 });
-    const r = await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings(wine);
-    expect(r.costCents).toBe(4);
+  it('accepte une clôture ```json et un tableau enveloppé dans un objet', async () => {
+    const model = fake('```json\n' + JSON.stringify({ vins: [{ vin: 1, plats: ['Agneau'] }] }) + '\n```');
+    await expect(new GeminiVisionProvider(model as any, 'm').suggestPairingsBatch([tempier])).resolves.toMatchObject({ items: [{ index: 0, dishes: ['Agneau'] }] });
   });
 
-  it('nomme un vin non millésimé comme tel', async () => {
-    const model = fake('{"plats":["Comté"]}');
-    await new GeminiVisionProvider(model as any, 'gemini-test').suggestPairings({ ...wine, vintage: null });
-    expect((model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text).toContain('non millésimé');
+  it('valide chaque vin avec les règles habituelles : un vin aux plats invalides est seulement absent du résultat', async () => {
+    const model = fake(JSON.stringify([{ vin: 1, plats: [] }, { vin: 2, plats: ['Choucroute'] }]));
+    const r = await new GeminiVisionProvider(model as any, 'm').suggestPairingsBatch([tempier, trimbach]);
+    expect(r.items).toEqual([{ index: 1, dishes: ['Choucroute'] }]);
   });
 
-  it('refuse un JSON illisible', async () => {
-    await expect(new GeminiVisionProvider(fake('pas du json') as any, 'm').suggestPairings(wine)).rejects.toThrow(PairingInvalidOutputError);
+  it.each([
+    ['JSON illisible', 'pas du json'],
+    ['pas un tableau', '{"plats": ["Agneau"]}'],
+    ['taille incorrecte', JSON.stringify([{ vin: 1, plats: ['Agneau'] }])],
+    ['indice manquant', JSON.stringify([{ vin: 1, plats: ['Agneau'] }, { plats: ['Choucroute'] }])],
+    ['indice dupliqué', JSON.stringify([{ vin: 1, plats: ['Agneau'] }, { vin: 1, plats: ['Choucroute'] }])],
+    ['indice hors bornes', JSON.stringify([{ vin: 1, plats: ['Agneau'] }, { vin: 3, plats: ['Choucroute'] }])],
+  ])('lot mélangé (%s) : VisionBatchMismatchError, avec le coût de l’appel', async (_why, text) => {
+    const model = fake(text, { promptTokenCount: 200000, candidatesTokenCount: 50000 });
+    const e = await new GeminiVisionProvider(model as any, 'm').suggestPairingsBatch([tempier, trimbach]).catch((x) => x);
+    expect(e).toBeInstanceOf(VisionBatchMismatchError);
+    expect(e.message).toMatch(/^Sortie du modèle invalide/);
+    expect(e.costCents).toBe(4);
+  });
+
+  it('arrondit (ne majore jamais) le coût total de l’appel', async () => {
+    const model = fake(JSON.stringify([{ vin: 1, plats: ['Agneau'] }]), { promptTokenCount: 200000, candidatesTokenCount: 50000 });
+    expect((await new GeminiVisionProvider(model as any, 'm').suggestPairingsBatch([tempier])).costCents).toBe(4);
   });
 });
 
@@ -264,55 +293,52 @@ describe('GeminiVisionProvider.extractWineLabels', () => {
   });
 });
 
-describe('GeminiVisionProvider.describeProducer', () => {
-  const query = { producer: 'Domaine Tempier', appellations: ['Bandol'], region: 'Provence' };
+describe('GeminiVisionProvider.describeProducersBatch', () => {
+  const tempier = { producer: 'Domaine Tempier', appellations: ['Bandol'], region: 'Provence' };
+  const closX = { producer: 'Clos X', appellations: [], region: null };
   const description = 'Domaine familial du Castellet, au cœur de l’appellation Bandol, réputé pour ses mourvèdres de garde.';
   const fake = (body: string, usage = { promptTokenCount: 200, candidatesTokenCount: 120 }) => ({
     generateContent: jest.fn(async () => ({ response: { text: () => body, usageMetadata: usage } })),
   });
   const promptOf = (model: ReturnType<typeof fake>) => (model.generateContent.mock.calls[0] as any)[0].contents[0].parts[0].text as string;
 
-  it('demande un descriptif en français et rend le texte vérifié avec un coût arrondi', async () => {
-    const model = fake(JSON.stringify({ connu: true, description }));
-    const r = await new GeminiVisionProvider(model as any, 'gemini-test').describeProducer(query);
-    expect(r).toEqual({ known: true, description, model: 'gemini-test', costCents: 0 });
+  it('demande en un seul appel un tableau numéroté de descriptifs en français et rend chacun à la position de son domaine', async () => {
+    const model = fake(JSON.stringify([{ domaine: 2, connu: false }, { domaine: 1, connu: true, description }]));
+    const r = await new GeminiVisionProvider(model as any, 'gemini-test').describeProducersBatch([tempier, closX]);
+    expect(r).toEqual({
+      items: [
+        { index: 0, known: true, description },
+        { index: 1, known: false, description: null },
+      ],
+      model: 'gemini-test',
+      costCents: 0,
+    });
+    expect(model.generateContent).toHaveBeenCalledTimes(1);
     const prompt = promptOf(model);
-    expect(prompt).toContain('Domaine Tempier');
-    expect(prompt).toContain('Bandol');
-    expect(prompt).toContain('Provence');
-    expect(prompt).toContain('{"connu": false}');
     expect(prompt).toMatch(/3 à 4 phrases/);
+    expect(prompt).toContain('n\'invente rien');
+    expect(prompt).toContain('"connu": false');
+    expect(prompt).toContain('tableau JSON de 2 éléments');
+    expect(prompt).toContain('Domaine 1 : « Domaine Tempier » ; appellation(s) de ses vins : « Bandol » ; région « Provence ».');
+    expect(prompt).toContain('Domaine 2 : « Clos X » ; appellation(s) de ses vins : inconnue ; région « inconnue ».');
     expect((model.generateContent.mock.calls[0] as any)[0].generationConfig.responseMimeType).toBe('application/json');
   });
 
-  it('rend « inconnu » sans texte pour un domaine peu documenté', async () => {
-    const r = await new GeminiVisionProvider(fake('{"connu": false}') as any, 'gemini-test').describeProducer(query);
-    expect(r).toEqual({ known: false, description: null, model: 'gemini-test', costCents: 0 });
+  it('valide chaque domaine avec les règles habituelles : un descriptif trop court est seulement absent du résultat', async () => {
+    const model = fake(JSON.stringify([{ domaine: 1, connu: true, description: 'Bandol.' }, { domaine: 2, connu: false }]));
+    const r = await new GeminiVisionProvider(model as any, 'm').describeProducersBatch([tempier, closX]);
+    expect(r.items).toEqual([{ index: 1, known: false, description: null }]);
   });
 
-  it('arrondit (ne majore jamais) le coût, comme pour les accords', async () => {
-    const model = fake(JSON.stringify({ connu: true, description }), { promptTokenCount: 200000, candidatesTokenCount: 50000 });
-    expect((await new GeminiVisionProvider(model as any, 'm').describeProducer(query)).costCents).toBe(4);
-  });
-
-  it('accepte un JSON entouré d’une clôture ```json', async () => {
-    const model = fake('```json\n' + JSON.stringify({ connu: true, description }) + '\n```');
-    await expect(new GeminiVisionProvider(model as any, 'm').describeProducer(query)).resolves.toMatchObject({ known: true });
-  });
-
-  it('refuse un JSON illisible', async () => {
-    await expect(new GeminiVisionProvider(fake('pas du json') as any, 'm').describeProducer(query)).rejects.toThrow(ProducerInvalidOutputError);
-  });
-
-  it('refuse un descriptif trop court', async () => {
-    await expect(new GeminiVisionProvider(fake('{"connu": true, "description": "Bandol."}') as any, 'm').describeProducer(query))
-      .rejects.toThrow(/Sortie du modèle invalide/);
-  });
-
-  it('nomme une région et des appellations inconnues comme telles', async () => {
-    const model = fake('{"connu": false}');
-    await new GeminiVisionProvider(model as any, 'm').describeProducer({ producer: 'Clos X', appellations: [], region: null });
-    expect(promptOf(model)).toContain('inconnue');
+  it.each([
+    ['JSON illisible', 'pas du json'],
+    ['indice manquant', JSON.stringify([{ domaine: 1, connu: false }, { connu: false }])],
+    ['indice dupliqué', JSON.stringify([{ domaine: 2, connu: false }, { domaine: 2, connu: false }])],
+  ])('lot mélangé (%s) : VisionBatchMismatchError, avec le coût de l’appel', async (_why, text) => {
+    const model = fake(text, { promptTokenCount: 200000, candidatesTokenCount: 50000 });
+    const e = await new GeminiVisionProvider(model as any, 'm').describeProducersBatch([tempier, closX]).catch((x) => x);
+    expect(e).toBeInstanceOf(VisionBatchMismatchError);
+    expect(e.costCents).toBe(4);
   });
 });
 
@@ -421,15 +447,15 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
       { data: Buffer.from('a'), mimeType: 'image/jpeg' },
       { data: Buffer.from('b'), mimeType: 'image/jpeg' },
     ]);
-    await new GeminiVisionProvider(fakeModel('{"plats":["Agneau"]}') as any, 'm', journal).suggestPairings(wine);
-    await new GeminiVisionProvider(fakeModel('{"connu": false}') as any, 'm', journal).describeProducer({ producer: 'X', appellations: [], region: null });
+    await new GeminiVisionProvider(fakeModel('[{"vin":1,"plats":["Agneau"]}]') as any, 'm', journal).suggestPairingsBatch([wine]);
+    await new GeminiVisionProvider(fakeModel('[{"domaine":1,"connu":false}]') as any, 'm', journal).describeProducersBatch([{ producer: 'X', appellations: [], region: null }]);
     await new GeminiVisionProvider(fakeModel('{"site": null}') as any, 'm', journal).findOfficialSite({ producer: 'X', cuvee: null, appellation: 'Bandol', vintage: null });
     expect(prisma.calls.map((c: any) => c.usage)).toEqual(['LECTURE_ENTREE', 'LECTURE_ENTREE', 'ACCORDS', 'DESCRIPTIF', 'RECHERCHE_IMAGE']);
   });
 
   it('503 : noté REFUSE avec le statut, et met Gemini en pause 5 min (« modèle saturé »)', async () => {
     const { prisma, journal } = journalOf();
-    await expect(new GeminiVisionProvider(failing(GEMINI_503) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(GEMINI_503);
+    await expect(new GeminiVisionProvider(failing(GEMINI_503) as any, 'm', journal).suggestPairingsBatch([wine])).rejects.toBe(GEMINI_503);
     expect(prisma.calls).toEqual([
       { usage: 'ACCORDS', outcome: 'REFUSE', httpStatus: 503, reason: GEMINI_503.message, costCents: 0, durationMs: expect.any(Number) },
     ]);
@@ -439,7 +465,7 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
 
   it('429 : noté REFUSE avec le statut, et met Gemini en pause 1 h (« quota épuisé »)', async () => {
     const { prisma, journal } = journalOf();
-    await expect(new GeminiVisionProvider(failing(GEMINI_429) as any, 'm', journal).describeProducer({ producer: 'X', appellations: [], region: null })).rejects.toBe(GEMINI_429);
+    await expect(new GeminiVisionProvider(failing(GEMINI_429) as any, 'm', journal).describeProducersBatch([{ producer: 'X', appellations: [], region: null }])).rejects.toBe(GEMINI_429);
     expect(prisma.calls[0]).toMatchObject({ usage: 'DESCRIPTIF', outcome: 'REFUSE', httpStatus: 429 });
     expect(prisma.settings.get(GEMINI_PAUSE_UNTIL_KEY)).toBe('2026-10-08T13:00:00.000Z');
     expect(prisma.settings.get(GEMINI_PAUSE_REASON_KEY)).toBe('quota épuisé');
@@ -448,7 +474,7 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
   it('un 503 après un 429 ne raccourcit pas la pause d’une heure', async () => {
     const { prisma, journal } = journalOf();
     prisma.settings.set(GEMINI_PAUSE_UNTIL_KEY, '2026-10-08T11:59:00.000Z'); // pause échue : l'appel part
-    await expect(new GeminiVisionProvider(failing(GEMINI_429) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(GEMINI_429);
+    await expect(new GeminiVisionProvider(failing(GEMINI_429) as any, 'm', journal).suggestPairingsBatch([wine])).rejects.toBe(GEMINI_429);
     await journal.extendPause(503, NOW);
     expect(prisma.settings.get(GEMINI_PAUSE_UNTIL_KEY)).toBe('2026-10-08T13:00:00.000Z');
   });
@@ -456,7 +482,7 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
   it('une autre panne est notée ERREUR, sans pause ; une sortie inexploitable aussi, avec son coût', async () => {
     const { prisma, journal } = journalOf();
     const boom = new Error('[500 Internal Server Error] boom');
-    await expect(new GeminiVisionProvider(failing(boom) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(boom);
+    await expect(new GeminiVisionProvider(failing(boom) as any, 'm', journal).suggestPairingsBatch([wine])).rejects.toBe(boom);
     await expect(new GeminiVisionProvider(fakeModel('pas du json') as any, 'm', journal).extractWineLabel(Buffer.from('x'), 'image/jpeg')).rejects.toThrow(/sortie du modèle invalide/i);
     await expect(
       new GeminiVisionProvider(fakeModel('pas du json', { promptTokenCount: 200000, candidatesTokenCount: 50000 }) as any, 'm', journal).extractWineLabels([
@@ -472,22 +498,36 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
     expect(prisma.settings.has(GEMINI_PAUSE_UNTIL_KEY)).toBe(false);
   });
 
-  it('un accord ou un descriptif inexploitable porte son coût, déjà facturé, jusque dans le journal', async () => {
+  it('un lot d’accords ou de descriptifs inexploitable porte son coût, déjà facturé, jusque dans le journal', async () => {
     const { prisma, journal } = journalOf();
     const big = { promptTokenCount: 200000, candidatesTokenCount: 50000 };
-    const e1 = await new GeminiVisionProvider(fakeModel('pas du json', big) as any, 'm', journal).suggestPairings(wine).catch((x) => x);
-    expect(e1).toBeInstanceOf(PairingInvalidOutputError);
+    const e1 = await new GeminiVisionProvider(fakeModel('pas du json', big) as any, 'm', journal).suggestPairingsBatch([wine]).catch((x) => x);
+    expect(e1).toBeInstanceOf(VisionBatchMismatchError);
     expect(e1.costCents).toBe(4);
-    const e2 = await new GeminiVisionProvider(fakeModel('{"plats":[]}', big) as any, 'm', journal).suggestPairings(wine).catch((x) => x);
-    expect(e2).toBeInstanceOf(PairingInvalidOutputError);
-    const e3 = await new GeminiVisionProvider(fakeModel('{"connu": true, "description": "Bandol."}', big) as any, 'm', journal)
-      .describeProducer({ producer: 'X', appellations: [], region: null })
+    const e2 = await new GeminiVisionProvider(fakeModel('{"plats":[]}', big) as any, 'm', journal).suggestPairingsBatch([wine]).catch((x) => x);
+    expect(e2).toBeInstanceOf(VisionBatchMismatchError);
+    const e3 = await new GeminiVisionProvider(fakeModel('pas du json', big) as any, 'm', journal)
+      .describeProducersBatch([{ producer: 'X', appellations: [], region: null }])
       .catch((x) => x);
-    expect(e3).toBeInstanceOf(ProducerInvalidOutputError);
+    expect(e3).toBeInstanceOf(VisionBatchMismatchError);
     expect(prisma.calls.map((c: any) => [c.usage, c.outcome, c.costCents])).toEqual([
       ['ACCORDS', 'ERREUR', 4],
       ['ACCORDS', 'ERREUR', 4],
       ['DESCRIPTIF', 'ERREUR', 4],
+    ]);
+  });
+
+  it('une seule ligne de journal par lot, quel que soit le nombre de vins ou de domaines, avec le coût total', async () => {
+    const { prisma, journal } = journalOf();
+    const big = { promptTokenCount: 200000, candidatesTokenCount: 50000 };
+    const wines = [wine, { ...wine, producer: 'B' }, { ...wine, producer: 'C' }];
+    const plats = JSON.stringify(wines.map((_, i) => ({ vin: i + 1, plats: ['Agneau'] })));
+    await new GeminiVisionProvider(fakeModel(plats, big) as any, 'm', journal).suggestPairingsBatch(wines);
+    const producers = [{ producer: 'X', appellations: [], region: null }, { producer: 'Y', appellations: [], region: null }];
+    await new GeminiVisionProvider(fakeModel('[{"domaine":1,"connu":false},{"domaine":2,"connu":false}]', big) as any, 'm', journal).describeProducersBatch(producers);
+    expect(prisma.calls.map((c: any) => [c.usage, c.outcome, c.costCents])).toEqual([
+      ['ACCORDS', 'OK', 4],
+      ['DESCRIPTIF', 'OK', 4],
     ]);
   });
 
@@ -500,8 +540,8 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
     for (const call of [
       () => provider.extractWineLabel(Buffer.from('x'), 'image/jpeg'),
       () => provider.extractWineLabels([{ data: Buffer.from('a'), mimeType: 'image/jpeg' }]),
-      () => provider.suggestPairings(wine),
-      () => provider.describeProducer({ producer: 'X', appellations: [], region: null }),
+      () => provider.suggestPairingsBatch([wine]),
+      () => provider.describeProducersBatch([{ producer: 'X', appellations: [], region: null }]),
       () => provider.findOfficialSite({ producer: 'X', cuvee: null, appellation: 'Bandol', vintage: null }),
     ]) {
       const e = await call().catch((x) => x);
@@ -515,8 +555,8 @@ describe('GeminiVisionProvider — journal des appels et pause commune', () => {
   it('une écriture du journal en échec ne casse pas l’appel', async () => {
     const { prisma, journal } = journalOf();
     prisma.geminiCall.create.mockRejectedValue(new Error('base injoignable'));
-    const r = await new GeminiVisionProvider(fakeModel('{"plats":["Agneau"]}') as any, 'm', journal).suggestPairings(wine);
-    expect(r.dishes).toEqual(['Agneau']);
-    await expect(new GeminiVisionProvider(failing(GEMINI_503) as any, 'm', journal).suggestPairings(wine)).rejects.toBe(GEMINI_503);
+    const r = await new GeminiVisionProvider(fakeModel('[{"vin":1,"plats":["Agneau"]}]') as any, 'm', journal).suggestPairingsBatch([wine]);
+    expect(r.items).toEqual([{ index: 0, dishes: ['Agneau'] }]);
+    await expect(new GeminiVisionProvider(failing(GEMINI_503) as any, 'm', journal).suggestPairingsBatch([wine])).rejects.toBe(GEMINI_503);
   });
 });

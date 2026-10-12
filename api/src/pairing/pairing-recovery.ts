@@ -1,24 +1,18 @@
-import { PairingQueueLike, schedulePairing } from './pairing.queue';
-
-export interface PairingRecoveryPrisma {
-  wine: { findMany(args: unknown): Promise<{ id: string }[]> };
-}
+import { PrismaService } from '../prisma/prisma.service';
+import { requestPairings } from './generation-requests';
 
 /**
- * Au démarrage du worker : tout vin sans accords, ou dont la génération est
- * restée en attente, est (re)mis en file. Couvre les vins existants à la mise à
- * jour et les travaux qu'un Redis vidé aurait oubliés. Idempotent.
+ * Au démarrage du worker : tout vin sans demande d'accords en reçoit une, en
+ * attente (vins créés quand l'écriture de la demande a échoué, vins d'avant
+ * les accords). Les demandes déjà en attente sont dans la file : rien à
+ * faire pour elles. Idempotent, sans appel à Gemini.
  */
 export async function requeueMissingPairings(
-  prisma: PairingRecoveryPrisma,
-  queue: PairingQueueLike,
+  prisma: Pick<PrismaService, 'wine' | 'pairing'>,
   log: (message: string) => void = () => undefined,
 ): Promise<number> {
-  const wines = await prisma.wine.findMany({
-    where: { OR: [{ pairing: null }, { pairing: { status: 'PENDING' } }] },
-    select: { id: true },
-  });
-  for (const w of wines) await schedulePairing(queue, w.id);
-  if (wines.length) log(`accords : ${wines.length} vin(s) mis en file`);
-  return wines.length;
+  const wines = await prisma.wine.findMany({ where: { pairing: null }, select: { id: true } });
+  const created = await requestPairings(prisma, wines.map((w) => w.id));
+  if (created) log(`accords : ${created} vin(s) mis en attente`);
+  return created;
 }

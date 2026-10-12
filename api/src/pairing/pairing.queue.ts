@@ -1,95 +1,22 @@
-import { Queue } from 'bullmq';
-import Redis from 'ioredis';
-import { EXTRACTION_ATTEMPTS, EXTRACTION_BACKOFF, extractionBackoffDelay, redisConnection } from '../queue/extraction.queue';
-import { statusFromMessage } from '../queue/transient-failure';
-import { PAUSE_AFTER_REFUSAL } from '../vision/gemini-pause';
-
+/**
+ * File BullMQ des versions précédentes : accords ('pairing') et descriptifs
+ * ('producer') y étaient mis un par un. Elle n'est plus alimentée — les tables
+ * `pairing` et `producer_profile` servent désormais de file (voir
+ * generation-batch.processor.ts) — mais le worker la vide encore : les
+ * travaux restés en attente dans Redis à la mise à jour ne font que remettre
+ * leur demande en attente en base (voir legacy-pairing-job.ts).
+ */
 export const PAIRING_QUEUE = 'wine-pairing';
-export const PAIRING_QUEUE_TOKEN = 'PAIRING_QUEUE';
 
 export interface PairingJobData {
   wineId: string;
 }
 
-/** La même file porte les descriptifs de domaine (travail nommé 'producer'), voir producers/producer.queue.ts. */
 export interface ProducerJobData {
   producerKey: string;
 }
 
 export type WinePairingJobData = PairingJobData | ProducerJobData;
 
-/** Un identifiant par vin : jamais deux générations du même vin dans la file. */
-export const pairingJobId = (wineId: string) => `pairing-${wineId}`;
-
-/**
- * Reprise des accords et descriptifs : celle des photos, sauf après un refus de
- * Google (503 saturé, 429 quota) où elle attend au moins la pause commune
- * (5 min, 1 h) au lieu de repartir au bout de 30 s pour tomber sur la pause.
- */
-export function pairingBackoffDelay(attemptsMade: number, err?: Error): number {
-  const base = extractionBackoffDelay(attemptsMade);
-  const status = err ? statusFromMessage(err.message) : null;
-  const pause = status === null ? undefined : PAUSE_AFTER_REFUSAL[status];
-  return pause ? Math.max(base, pause.ms) : base;
-}
-
-/** Même patience que les photos : une panne de Gemini ne perd jamais un vin. */
-export function createPairingQueue(): Queue<WinePairingJobData> {
-  return new Queue<WinePairingJobData>(PAIRING_QUEUE, {
-    connection: redisConnection(),
-    defaultJobOptions: { attempts: EXTRACTION_ATTEMPTS, backoff: { type: EXTRACTION_BACKOFF }, removeOnComplete: 1000, removeOnFail: 1000 },
-  });
-}
-
-export type PairingQueueLike = Pick<Queue<WinePairingJobData>, 'add' | 'getJob'>;
-
-/**
- * BullMQ ignore un `add` dont l'identifiant existe encore, y compris parmi les
- * travaux terminés gardés en mémoire : pour régénérer, on retire d'abord un
- * travail terminé ou échoué ; un travail encore vivant est laissé tel quel.
- * Partagé par les accords et les descriptifs de domaine.
- */
-export async function scheduleUnique(queue: PairingQueueLike, name: string, data: WinePairingJobData, jobId: string): Promise<void> {
-  const job = await queue.getJob(jobId);
-  if (job) {
-    const state = await job.getState();
-    if (state !== 'completed' && state !== 'failed') return;
-    // Deux régénérations quasi simultanées voient toutes deux le travail terminé :
-    // le second retrait échoue (déjà retiré). On poursuit : `add` remet le travail
-    // en file, ou ne fait rien si l'autre demande l'a déjà fait.
-    await job.remove().catch(() => undefined);
-  }
-  await queue.add(name, data, { jobId });
-}
-
-export function schedulePairing(queue: PairingQueueLike, wineId: string): Promise<void> {
-  return scheduleUnique(queue, 'pairing', { wineId }, pairingJobId(wineId));
-}
-
-/**
- * Si Redis est indisponible, la planification peut ne jamais se résoudre : on ne
- * retient pas la réponse HTTP pour autant. La ligne est déjà PENDING et la reprise
- * au démarrage du worker la remettra en file si la planification n'aboutit pas.
- * Une planification qui échoue franchement reste une erreur.
- */
-export async function raceScheduleWithTimeout(scheduling: Promise<void>, ms: number, onTimeout: () => void): Promise<void> {
-  let timeoutId: NodeJS.Timeout | undefined;
-  const timeout = new Promise<void>((resolve) => {
-    timeoutId = setTimeout(() => {
-      onTimeout();
-      resolve();
-    }, ms);
-  });
-  try {
-    await Promise.race([scheduling, timeout]);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-/** Voir `closeQueue` (extraction.queue.ts) : la connexion fournie doit être quittée à la main. */
-export async function closePairingQueue(queue: Queue<WinePairingJobData>): Promise<void> {
-  const { connection } = queue.opts;
-  await queue.close();
-  if (connection instanceof Redis) await connection.quit();
-}
+/** Nom des travaux de descriptif dans l'ancienne file. */
+export const PRODUCER_JOB = 'producer';
