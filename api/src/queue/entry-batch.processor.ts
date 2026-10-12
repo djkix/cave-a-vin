@@ -6,7 +6,7 @@ import { GeminiJournal } from '../vision/gemini-journal';
 import { GeminiPausedError } from '../vision/gemini-pause';
 import { VisionBatchMismatchError } from '../vision/gemini-vision.provider';
 import { VISION_PROVIDER, VisionProvider } from '../vision/vision-provider.interface';
-import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCost } from './entry-batch';
+import { ENTRY_BATCH_CALL_TIMEOUT_MS, ENTRY_BATCH_SIZE, ENTRY_CANDIDATES_SCAN, RESERVATION_MS, shouldRun, splitCostExact } from './entry-batch';
 import { EXTRACTION_ATTEMPTS, MAX_DELAY_MS, extractionBackoffDelay } from './extraction.queue';
 import { CONFIGURATION_DEFERRAL_REASON, deferralReason, isConfigurationError, isTransientVisionFailure } from './transient-failure';
 import { CaveBudgetShareExceededError, VisionBudgetExceededError, VisionBudgetService } from './vision-budget.service';
@@ -259,8 +259,8 @@ export class EntryBatchProcessor {
     } catch (e) {
       if (e instanceof VisionBatchMismatchError) {
         // L'appel a abouti et il est facturé : sa part reste comptée sur chaque photo.
-        const share = splitCost(e.costCents, readable.length);
-        readable.forEach((p) => spend(p, share));
+        const shares = splitCostExact(e.costCents, readable.length);
+        readable.forEach((p, i) => spend(p, shares[i]));
         this.logger.warn(`Lot mélangé (${e.message}) : relecture photo par photo`);
         await this.readEachAlone(readable, now, settled);
         return;
@@ -269,11 +269,11 @@ export class EntryBatchProcessor {
       return;
     }
 
-    const share = splitCost(batch.costCents, readable.length);
+    const shares = splitCostExact(batch.costCents, readable.length);
     for (let i = 0; i < readable.length; i++) {
       const item = batch.items[i];
       const photo = readable[i];
-      spend(photo, share);
+      spend(photo, shares[i]);
       if (!item || 'error' in item) {
         await this.fail(photo, UNREADABLE, settled);
         continue;

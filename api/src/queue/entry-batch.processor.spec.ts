@@ -222,12 +222,13 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
     const h = harness();
     const all = h.addMany(8);
     await h.processor.tick(NOW);
+    expect(all.reduce((sum, r) => sum + (r.costCents ?? 0), 0)).toBe(10);
     all.forEach((r, i) => {
       expect(r.status).toBe('DONE');
       expect(r.rawExtraction).toEqual({ image: i + 1, producteur: `P${i}` });
       expect(r.model).toBe('gemini-test');
       expect(r.latencyMs).toBe(900);
-      expect(r.costCents).toBe(2); // ceil(10 / 8)
+      expect(r.costCents).toBe(i < 2 ? 2 : 1); // 10 ct sur 8 photos : 2, 2, puis 1
       expect(r.errorMessage).toBeNull();
       expect(r.nextAttemptAt).toBeNull();
     });
@@ -345,7 +346,7 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
     }));
     await h.processor.tick(NOW);
     expect(all[0].status).toBe('FAILED');
-    all.forEach((r) => expect(r.costCents).toBe(2));
+    expect(all.map((r) => r.costCents)).toEqual([2, 2, 1, 1, 1, 1, 1, 1]);
   });
 
   it('un appel de lot sans réponse est abandonné au bout du délai et le lot reporté', async () => {
@@ -388,7 +389,8 @@ describe('EntryBatchProcessor.tick — résultat du lot', () => {
     expect(all[5].errorMessage).toBe('Image introuvable');
     expect(h.vision.extractWineLabels.mock.calls[0][0]).toHaveLength(7);
     expect(all.filter((r) => r.status === 'DONE')).toHaveLength(7);
-    expect(all[6].costCents).toBe(2); // ceil(10 / 7)
+    // 10 ct sur les 7 photos lues : 2, 2, 2, puis 1 ; la photo introuvable ne paie rien.
+    expect(all.filter((r) => r.id !== all[5].id).map((r) => r.costCents)).toEqual([2, 2, 2, 1, 1, 1, 1]);
   });
 });
 

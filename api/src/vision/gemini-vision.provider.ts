@@ -1,12 +1,12 @@
 import { GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
 import { EXTRACTION_JSON_SCHEMA_DESCRIPTION, parseExtraction } from './extraction-schema';
 import { GeminiJournal, GeminiUsage, classifyFailure } from './gemini-journal';
-import { parsePairingOutput, PairingInvalidOutputError } from './pairing-output';
-import { PairingProvider, PairingResult, PairingWine } from './pairing-provider.interface';
-import { parseProducerOutput, ProducerInvalidOutputError } from './producer-output';
+import { parsePairingOutput } from './pairing-output';
+import { PairingBatchItem, PairingBatchResult, PairingProvider, PairingWine } from './pairing-provider.interface';
+import { parseProducerOutput } from './producer-output';
 import { OfficialSiteProvider, OfficialSiteQuery, OfficialSiteResult } from './official-site-provider.interface';
-import { ProducerProvider, ProducerQuery, ProducerResult } from './producer-provider.interface';
-import { BatchVisionResult, LabelPurpose, VisionProvider, VisionResult, WineExtraction } from './vision-provider.interface';
+import { ProducerBatchItem, ProducerBatchResult, ProducerProvider, ProducerQuery } from './producer-provider.interface';
+import { BatchVisionResult, LabelPurpose, VisionProvider, VisionResult } from './vision-provider.interface';
 
 export class VisionInvalidOutputError extends Error {
   /** `costCents` : l'appel a abouti et il est facturé même si sa sortie est inexploitable. */
@@ -107,20 +107,73 @@ function unwrapArray(value: unknown): unknown {
   return arrays.length === 1 ? arrays[0] : value;
 }
 
-const COLOR_WORD: Record<string, string> = { ROUGE: 'rouge', BLANC: 'blanc', ROSE: 'rosé', PETILLANT: 'pétillant' };
-
-function pairingPrompt(w: PairingWine): string {
-  return `Tu es sommelier. Propose de 5 à 8 plats qui s'accordent avec ce vin.
-Réponds UNIQUEMENT par un objet JSON strict de la forme {"plats": string[]}.
-Chaque plat : un nom court en français (60 caractères au plus), sans phrase ni explication.
-Vin : producteur « ${w.producer} » ; cuvée « ${w.cuvee ?? 'aucune'} » ; appellation « ${w.appellation} » ; région « ${w.region ?? 'inconnue'} » ; couleur ${COLOR_WORD[w.color] ?? w.color} ; ${w.vintage == null ? 'non millésimé' : `millésime ${w.vintage}`}.`;
+/**
+ * Réponse d'un lot : un tableau JSON de `n` objets portant chacun leur numéro
+ * (`key`, de 1 à n). Rendue dans l'ordre des éléments envoyés (position 0 à
+ * n − 1). JSON illisible, pas un tableau, longueur ≠ n, numéro manquant,
+ * dupliqué ou hors bornes : lot mélangé (`VisionBatchMismatchError`), aucune
+ * réponse ne peut être attribuée avec certitude. Commun aux photos, accords
+ * et descriptifs.
+ */
+function indexedItems(text: string, n: number, key: string, costCents: number): unknown[] {
+  let rawArray: unknown;
+  try {
+    rawArray = unwrapArray(JSON.parse(stripFences(text)));
+  } catch {
+    throw new VisionBatchMismatchError('Sortie du modèle invalide (JSON illisible)', costCents);
+  }
+  if (!Array.isArray(rawArray) || rawArray.length !== n) {
+    throw new VisionBatchMismatchError('Sortie du modèle invalide (tableau de taille incorrecte)', costCents);
+  }
+  const items = new Array<unknown>(n);
+  const seen = new Set<number>();
+  for (const obj of rawArray as unknown[]) {
+    const index = (obj as Record<string, unknown> | null)?.[key];
+    if (typeof index !== 'number' || !Number.isInteger(index) || index < 1 || index > n) {
+      throw new VisionBatchMismatchError('Sortie du modèle invalide (indice hors bornes)', costCents);
+    }
+    if (seen.has(index)) {
+      throw new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)', costCents);
+    }
+    seen.add(index);
+    items[index - 1] = obj;
+  }
+  if (seen.size !== n) {
+    throw new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)', costCents);
+  }
+  return items;
 }
 
-function producerPrompt(q: ProducerQuery): string {
-  return `Tu es sommelier. Présente ce domaine viticole en 3 à 4 phrases en français : le lieu (région, village), quelques repères d'histoire, le style de ses vins (cépages).
-Réponds UNIQUEMENT par un objet JSON strict de la forme {"connu": true, "description": string}.
-Si tu ne connais pas ce domaine de façon fiable, n'invente rien et réponds exactement {"connu": false}.
-Domaine : « ${q.producer} » ; appellation(s) de ses vins : ${q.appellations.length ? q.appellations.map((a) => `« ${a} »`).join(', ') : 'inconnue'} ; région « ${q.region ?? 'inconnue'} ».`;
+const COLOR_WORD: Record<string, string> = { ROUGE: 'rouge', BLANC: 'blanc', ROSE: 'rosé', PETILLANT: 'pétillant' };
+
+/** Un vin, tel que décrit au modèle. */
+function pairingLine(w: PairingWine): string {
+  return `producteur « ${w.producer} » ; cuvée « ${w.cuvee ?? 'aucune'} » ; appellation « ${w.appellation} » ; région « ${w.region ?? 'inconnue'} » ; couleur ${COLOR_WORD[w.color] ?? w.color} ; ${w.vintage == null ? 'non millésimé' : `millésime ${w.vintage}`}.`;
+}
+
+/** Consigne de lot des accords : les règles de l'ancienne consigne d'un vin, réponse en tableau numéroté. */
+function pairingsBatchPrompt(wines: PairingWine[]): string {
+  const n = wines.length;
+  return `Tu es sommelier. Pour chacun des ${n} vins ci-dessous, numérotés de 1 à ${n}, propose de 5 à 8 plats qui s'accordent avec ce vin.
+Réponds UNIQUEMENT par un tableau JSON de ${n} éléments, un par vin, dans l'ordre des vins.
+Chaque élément est un objet strict de la forme {"vin": number, "plats": string[]}, où "vin" est le numéro du vin (de 1 à ${n}).
+Chaque plat : un nom court en français (60 caractères au plus), sans phrase ni explication.
+${wines.map((w, i) => `Vin ${i + 1} : ${pairingLine(w)}`).join('\n')}`;
+}
+
+/** Un domaine, tel que décrit au modèle. */
+function producerLine(q: ProducerQuery): string {
+  return `« ${q.producer} » ; appellation(s) de ses vins : ${q.appellations.length ? q.appellations.map((a) => `« ${a} »`).join(', ') : 'inconnue'} ; région « ${q.region ?? 'inconnue'} ».`;
+}
+
+/** Consigne de lot des descriptifs : les règles de l'ancienne consigne d'un domaine, réponse en tableau numéroté. */
+function producersBatchPrompt(queries: ProducerQuery[]): string {
+  const n = queries.length;
+  return `Tu es sommelier. Pour chacun des ${n} domaines viticoles ci-dessous, numérotés de 1 à ${n}, présente ce domaine en 3 à 4 phrases en français : le lieu (région, village), quelques repères d'histoire, le style de ses vins (cépages).
+Réponds UNIQUEMENT par un tableau JSON de ${n} éléments, un par domaine, dans l'ordre des domaines.
+Chaque élément est un objet strict de la forme {"domaine": number, "connu": true, "description": string}, où "domaine" est le numéro du domaine (de 1 à ${n}).
+Si tu ne connais pas un domaine de façon fiable, n'invente rien et réponds pour lui exactement {"domaine": <numéro>, "connu": false}.
+${queries.map((q, i) => `Domaine ${i + 1} : ${producerLine(q)}`).join('\n')}`;
 }
 
 function officialSitePrompt(q: OfficialSiteQuery): string {
@@ -250,91 +303,60 @@ export class GeminiVisionProvider implements VisionProvider, PairingProvider, Pr
     });
     const latencyMs = Date.now() - started;
     const costCents = costCentsOf(result.response.usageMetadata);
-    const text = stripFences(result.response.text());
-
-    let rawArray: unknown;
-    try {
-      rawArray = unwrapArray(JSON.parse(text));
-    } catch {
-      throw new VisionBatchMismatchError('Sortie du modèle invalide (JSON illisible)', costCents);
-    }
-    if (!Array.isArray(rawArray) || rawArray.length !== n) {
-      throw new VisionBatchMismatchError('Sortie du modèle invalide (tableau de taille incorrecte)', costCents);
-    }
-
-    const items = new Array<{ raw: unknown; extraction: WineExtraction } | { error: string }>(n);
-    const seen = new Set<number>();
-    for (const obj of rawArray as unknown[]) {
-      const index = (obj as { image?: unknown } | null)?.image;
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 1 || index > n) {
-        throw new VisionBatchMismatchError('Sortie du modèle invalide (indice hors bornes)', costCents);
-      }
-      if (seen.has(index)) {
-        throw new VisionBatchMismatchError('Sortie du modèle invalide (indice dupliqué)', costCents);
-      }
-      seen.add(index);
-
+    const items = indexedItems(result.response.text(), n, 'image', costCents).map((obj) => {
       try {
-        items[index - 1] = { raw: obj, extraction: parseExtraction(obj) };
+        return { raw: obj, extraction: parseExtraction(obj) };
       } catch {
-        items[index - 1] = { error: 'Lecture de l’étiquette inexploitable' };
+        return { error: 'Lecture de l’étiquette inexploitable' };
       }
-    }
-    if (seen.size !== n) {
-      throw new VisionBatchMismatchError('Sortie du modèle invalide (indice manquant)', costCents);
-    }
+    });
 
     return { items, model: this.modelName, latencyMs, costCents };
   }
 
-  suggestPairings(wine: PairingWine): Promise<PairingResult> {
-    return this.call('ACCORDS', () => this.pairings(wine));
+  /** Accords de tout un lot de vins (dix au plus) en un seul appel : une ligne `ACCORDS` au journal. */
+  suggestPairingsBatch(wines: PairingWine[]): Promise<PairingBatchResult> {
+    return this.call('ACCORDS', () => this.pairingsBatch(wines));
   }
 
-  private async pairings(wine: PairingWine): Promise<PairingResult> {
+  private async pairingsBatch(wines: PairingWine[]): Promise<PairingBatchResult> {
     const result = await this.model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: pairingPrompt(wine) }] }],
+      contents: [{ role: 'user', parts: [{ text: pairingsBatchPrompt(wines) }] }],
       generationConfig: { responseMimeType: 'application/json' },
     });
     const costCents = pairingCostCentsOf(result.response.usageMetadata);
-    let raw: unknown;
-    try {
-      raw = JSON.parse(stripFences(result.response.text()));
-    } catch {
-      throw new PairingInvalidOutputError('Sortie du modèle invalide (JSON illisible)', costCents);
-    }
-    let dishes: string[];
-    try {
-      dishes = parsePairingOutput(raw);
-    } catch (e) {
-      throw e instanceof PairingInvalidOutputError ? new PairingInvalidOutputError(e.message, costCents) : e;
-    }
-    return { dishes, model: this.modelName, costCents };
+    const items: PairingBatchItem[] = [];
+    indexedItems(result.response.text(), wines.length, 'vin', costCents).forEach((obj, index) => {
+      try {
+        items.push({ index, dishes: parsePairingOutput(obj) });
+      } catch {
+        // Vin inexploitable : absent du résultat, redemandé par le lot suivant.
+      }
+    });
+    return { items, model: this.modelName, costCents };
   }
 
-  describeProducer(query: ProducerQuery): Promise<ProducerResult> {
-    return this.call('DESCRIPTIF', () => this.producer(query));
+  /** Descriptifs de tout un lot de domaines (dix au plus) en un seul appel : une ligne `DESCRIPTIF` au journal. */
+  describeProducersBatch(queries: ProducerQuery[]): Promise<ProducerBatchResult> {
+    return this.call('DESCRIPTIF', () => this.producersBatch(queries));
   }
 
-  private async producer(query: ProducerQuery): Promise<ProducerResult> {
+  private async producersBatch(queries: ProducerQuery[]): Promise<ProducerBatchResult> {
     const result = await this.model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: producerPrompt(query) }] }],
+      contents: [{ role: 'user', parts: [{ text: producersBatchPrompt(queries) }] }],
       generationConfig: { responseMimeType: 'application/json' },
     });
     const costCents = pairingCostCentsOf(result.response.usageMetadata);
-    let raw: unknown;
-    try {
-      raw = JSON.parse(stripFences(result.response.text()));
-    } catch {
-      throw new ProducerInvalidOutputError('Sortie du modèle invalide (JSON illisible)', costCents);
-    }
-    let output;
-    try {
-      output = parseProducerOutput(raw);
-    } catch (e) {
-      throw e instanceof ProducerInvalidOutputError ? new ProducerInvalidOutputError(e.message, costCents) : e;
-    }
-    return { known: output.known, description: output.known ? output.description : null, model: this.modelName, costCents };
+    const items: ProducerBatchItem[] = [];
+    indexedItems(result.response.text(), queries.length, 'domaine', costCents).forEach((obj, index) => {
+      try {
+        const output = parseProducerOutput(obj);
+        items.push({ index, known: output.known, description: output.known ? output.description : null });
+      } catch {
+        // Domaine inexploitable : absent du résultat, redemandé par le lot suivant.
+      }
+    });
+    return { items, model: this.modelName, costCents };
   }
 
   /**

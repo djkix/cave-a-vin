@@ -159,20 +159,19 @@ export class MovementsService {
         await this.prisma.wine.updateMany({ where: { id: wine.id, referencePhotoId: null }, data: { referencePhotoId: input.photoId } });
       }
 
-      // Nouveau vin : ses accords sont suggérés en tâche de fond. Une file
-      // indisponible ne doit jamais faire échouer ni retenir l'entrée : on
-      // n'attend pas la mise en file (Redis injoignable, la connexion BullMQ met
-      // les commandes en attente sans fin), le rattrapage du worker reprendra ce
-      // vin au prochain démarrage.
+      // Nouveau vin : ses accords sont demandés (ligne en attente, prise par le
+      // prochain lot du worker). Cette écriture ne doit jamais faire échouer ni
+      // retenir l'entrée : on ne l'attend pas, et si elle échoue, le rattrapage
+      // du worker créera la demande au prochain démarrage.
       if (wineCreated && this.pairings) {
         void this.pairings.schedule(wine.id).catch((e: unknown) =>
-          this.logger.warn(`Accords de ${wine.id} non mis en file : ${e instanceof Error ? e.message : String(e)}`),
+          this.logger.warn(`Accords de ${wine.id} non demandés : ${e instanceof Error ? e.message : String(e)}`),
         );
       }
       // Même règle pour le descriptif de son domaine, demandé seulement s'il n'existe pas encore.
       if (wineCreated && this.producers) {
         void this.producers.scheduleIfMissing(wine.producer).catch((e: unknown) =>
-          this.logger.warn(`Descriptif du domaine « ${wine.producer} » non mis en file : ${e instanceof Error ? e.message : String(e)}`),
+          this.logger.warn(`Descriptif du domaine « ${wine.producer} » non demandé : ${e instanceof Error ? e.message : String(e)}`),
         );
       }
 

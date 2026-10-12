@@ -308,37 +308,49 @@ model GuardOverride {
 }
 
 model Pairing {
-  id           String        @id @default(uuid())
-  wineId       String        @unique @map("wine_id")
-  wine         Wine          @relation(fields: [wineId], references: [id], onDelete: Cascade)
-  status       PairingStatus @default(PENDING)
-  dishes       String[]      @default([])
-  model        String?
-  costCents    Int?          @map("cost_cents")
-  errorMessage String?       @map("error_message")
-  generatedAt  DateTime?     @map("generated_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  id            String        @id @default(uuid())
+  wineId        String        @unique @map("wine_id")
+  wine          Wine          @relation(fields: [wineId], references: [id], onDelete: Cascade)
+  status        PairingStatus @default(PENDING)
+  dishes        String[]      @default([])
+  model         String?
+  costCents     Int?          @map("cost_cents")
+  errorMessage  String?       @map("error_message")
+  generatedAt   DateTime?     @map("generated_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  /// File des lots d'accords (voir pairing/generation-batch.ts) : demande, tentatives, reprise, réservation.
+  requestedAt   DateTime      @default(now()) @map("requested_at")
+  attempts      Int           @default(0)
+  nextAttemptAt DateTime?     @map("next_attempt_at")
+  reservedUntil DateTime?     @map("reserved_until")
 
+  @@index([status, requestedAt])
   @@map("pairing")
 }
 
 /// Descriptif d'un domaine, partagé par tous ses vins : lien par la clé
 /// normalisée du producteur (normalizeLabel), sans clé étrangère vers wine.
 model ProducerProfile {
-  id           String                @id @default(uuid())
-  producerKey  String                @unique @map("producer_key")
-  displayName  String                @map("display_name")
-  status       ProducerProfileStatus @default(PENDING)
-  description  String?
-  source       String                @default("GEMINI")
-  model        String?
-  costCents    Int?                  @map("cost_cents")
-  errorMessage String?               @map("error_message")
-  generatedAt  DateTime?             @map("generated_at")
-  updatedById  String?               @map("updated_by")
-  updatedBy    AppUser?              @relation(fields: [updatedById], references: [id], onDelete: SetNull)
-  updatedAt    DateTime              @updatedAt @map("updated_at")
+  id            String                @id @default(uuid())
+  producerKey   String                @unique @map("producer_key")
+  displayName   String                @map("display_name")
+  status        ProducerProfileStatus @default(PENDING)
+  description   String?
+  source        String                @default("GEMINI")
+  model         String?
+  costCents     Int?                  @map("cost_cents")
+  errorMessage  String?               @map("error_message")
+  generatedAt   DateTime?             @map("generated_at")
+  updatedById   String?               @map("updated_by")
+  updatedBy     AppUser?              @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  /// File des lots de descriptifs, comme pour les accords.
+  requestedAt   DateTime              @default(now()) @map("requested_at")
+  attempts      Int                   @default(0)
+  nextAttemptAt DateTime?             @map("next_attempt_at")
+  reservedUntil DateTime?             @map("reserved_until")
 
+  @@index([status, requestedAt])
   @@map("producer_profile")
 }
 

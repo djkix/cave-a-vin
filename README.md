@@ -246,7 +246,9 @@ de la pile.
 
 **Consommation Gemini et pause commune.** Chaque requête réellement envoyée à
 Gemini (lecture à l'entrée, lecture à la sortie, accords, descriptifs de
-domaine, recherche d'image) laisse une ligne dans un journal (`gemini_call`),
+domaine, recherche d'image) laisse une ligne dans un journal (`gemini_call`) —
+une seule par lot de photos, d'accords ou de descriptifs, quel que soit le
+nombre d'éléments du lot —
 réussie, refusée par Google ou en erreur, avec son coût et sa durée. Un refus
 de Google (503 « modèle saturé », 429 « quota épuisé ») compte dans ses
 statistiques de requêtes mais n'est pas facturé : au lieu de réessayer aussitôt,
@@ -256,8 +258,8 @@ longue déjà en cours. Pendant la pause, aucun appel n'est envoyé : les photos
 d'entrée attendent sans consommer de tentative, puis partent ensemble, huit par
 appel, quand la pause se termine ; une analyse de sortie échoue tout de suite
 avec le message « Gemini en pause jusqu'à HH:MM (motif) » et l'écran propose la
-recherche dans la cave ; les accords et descriptifs sont reportés à la fin de
-la pause ; la recherche d'image répond aussitôt par ce même message. La section
+recherche dans la cave ; les accords et descriptifs attendent la fin de la pause sans consommer de
+tentative, puis partent par lots ; la recherche d'image répond aussitôt par ce même message. La section
 *Consommation Gemini* de l'Administration montre, sur 7 ou 30 jours, les appels
 par jour et par usage (réussis, refusés saturé ou quota, erreurs, coût), leurs
 totaux et la pause en cours. API : `GET /api/admin/gemini-usage?days=7` (1 à 90
@@ -435,12 +437,27 @@ dans la colonne *Note /20* de l'export Excel et dans le classement *Les mieux
 notés* de la page Stats. API : `PUT` et `DELETE /api/wines/:id/rating`.
 
 **Accords mets-vins.** Chaque vin reçoit, en tâche de fond, jusqu'à 8 plats
-suggérés par Gemini (file `wine-pairing` du worker, à la création du vin et au
-démarrage du worker pour les vins qui n'en ont pas encore — ce rattrapage au
-démarrage génère les accords de tous les vins existants qui n'en ont pas,
-pour une fraction de centime chacun). Comme pour les photos, une
-indisponibilité de Gemini relance la génération plus tard sans rien bloquer,
-et le plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` compte photos et accords
+suggérés par Gemini, demandés à la création du vin et, au démarrage du worker,
+pour les vins qui n'en ont pas encore. Les demandes sont **groupées par lots** :
+le worker passe toutes les 15 s et envoie **jusqu'à 10 vins en un seul appel**
+Gemini ; un lot part dès que 10 vins attendent, ou dès que la plus ancienne
+demande attend depuis **2 minutes** (les accords d'un vin saisi seul arrivent
+donc en 2 à 3 minutes). *Régénérer* remet simplement l'accord en attente : il
+rejoint le lot suivant, la fiche affiche aussitôt « Suggestions en
+préparation… », et aucun appel n'est fait directement. Deux vins décrits à
+l'identique (producteur, cuvée, appellation, couleur, millésime) ne prennent
+qu'une ligne de l'appel, et la réponse vaut pour les deux. Un vin absent ou
+invalide dans la réponse du lot est redemandé **seul**, pour ne pas faire
+échouer les autres (5 min, 20 min, 1 h 20, puis 5 h 20 plus tard) ; après 5
+réponses inexploitables, il passe en échec (« Réponse de Gemini
+inexploitable »). Une panne (réseau, service saturé, quota, clé Gemini
+refusée) ne compte pas comme une tentative : la demande est reprise après une
+attente qui grandit avec son ancienneté (de 5 min à 6 h, jamais avant la fin
+de la pause commune) et ne passe en échec qu'après 7 jours (motif du report
+suivi de « — abandon »). Une pause commune de Gemini ou le plafond atteint
+reportent le lot sans consommer de tentative. Les tables `pairing` et `producer_profile` servent
+elles-mêmes de file, comme celle des photos d'entrée : un redémarrage du
+worker ou de Redis ne perd aucune demande. Le plafond mensuel `GEMINI_MONTHLY_CAP_CENTS` compte photos et accords
 ensemble ; les accords ne se génèrent que tant que la dépense du mois reste
 sous 80 % de ce plafond, pour que les photos d'étiquette gardent toujours la
 priorité. La fiche affiche les plats (« Suggestions générées par
@@ -456,8 +473,10 @@ une colonne *Accords*.
 
 **Descriptif du domaine.** Chaque domaine (producteur) reçoit un seul texte,
 partagé par tous ses vins et millésimes, **dans toutes les caves**, généré en arrière-plan par Gemini (3
-à 4 phrases : lieu, histoire, style) — même file `wine-pairing` et même part de
-80 % du plafond mensuel que les accords mets-vins, déclenché à la création
+à 4 phrases : lieu, histoire, style) — par lots de **10 domaines au plus par
+appel**, avec la même attente de 2 minutes, les mêmes reprises et la même part
+de 80 % du plafond mensuel que les accords mets-vins (deux sortes de lots
+distinctes : un appel ne mélange jamais accords et descriptifs), déclenché à la création
 d'un vin dont le domaine n'a pas encore de descriptif et, pour les domaines
 déjà existants, au démarrage du worker. Quand Gemini n'a pas d'information
 fiable sur un petit domaine, la fiche affiche « Domaine peu documenté » plutôt
@@ -467,15 +486,16 @@ qu'un texte inventé. Un descriptif généré par Gemini porte toujours la menti
 pour les autres, propriétaires compris) : un texte saisi à la main
 (2 000 caractères maximum) prend le pas sur celui de Gemini et le remplace
 tant qu'on ne choisit pas *Revenir au texte généré*, qui relance une
-génération ; *Régénérer* relance aussi une génération à tout moment. Le bloc
+génération ; *Régénérer* relance aussi une génération à tout moment — le
+descriptif repasse en attente et rejoint le lot suivant, la fiche affiche
+aussitôt « Descriptif en préparation… ». Le bloc
 *Le domaine* s'affiche sur la fiche du vin, au-dessus des accords mets-vins.
 API : `PUT /api/producers/:key/description`, `POST
 /api/producers/:key/regenerate`, et `producerKey` / `producerProfile` ajoutés
-à `GET /api/wines/:id`. Au tout premier démarrage du worker après cette mise à
-jour, tous les domaines déjà existants sont mis en file un par un (la même
-file que les accords) : les textes et les accords des vins déjà saisis
-peuvent donc mettre quelques dizaines de minutes à apparaître cette première
-fois-là.
+à `GET /api/wines/:id`. Au démarrage du worker, tous les domaines sans
+descriptif sont mis en attente : ils partent dix par dix, au plus un lot de
+descriptifs (et un d'accords) par passage du worker, toutes les 15 s environ —
+un passage dont l'appel Gemini dure encore fait sauter le suivant.
 
 **Export Excel.** Réservé au propriétaire de la cave : un classeur `.xlsx` à la demande, limité à la cave courante, régénéré intégralement à
 chaque fois, avec trois feuilles (`Stock`, `Mouvements`, `Référence`), un filtre
@@ -560,7 +580,7 @@ cave et celles où il est invité, comme tout compte.
 | --- | --- | --- | --- |
 | `web` | nginx + PWA compilée, relaie `/api/` | **3100** sur l'hôte → 80 | **seul port publié** (`WEB_PORT`) |
 | `api` | REST, authentification, règles métier, export | 3000 | réseau Docker interne |
-| `worker` | extraction Gemini via BullMQ (sorties, accords) ; analyse des entrées par lots toutes les 15 s | — | réseau Docker interne |
+| `worker` | extraction Gemini via BullMQ (sorties) ; entrées (8 photos), accords et descriptifs (10) par lots toutes les 15 s | — | réseau Docker interne |
 | `postgres` | données (PostgreSQL 16 + `pg_trgm`) | 5432 | réseau Docker interne |
 | `redis` | file de travaux et sessions | 6379 | réseau Docker interne |
 | `db-backup` | `pg_dump` quotidien avec rotation | — | réseau Docker interne |
@@ -765,6 +785,26 @@ Si les images sont construites localement, remplacer `docker compose pull` par
 `docker compose build`. Pour figer une version plutôt que suivre `latest`,
 fusionner la demande de version proposée par release-please puis renseigner
 `IMAGE_TAG=<version>` dans le `.env`.
+
+### Passage à la 2.7.0 (accords et descriptifs par lots)
+
+Rien à faire : la migration `20261016000000_lots_accords` ajoute seulement
+des colonnes et des index aux tables `pairing` et `producer_profile`, et date
+les demandes déjà en attente pour qu'elles partent dans les premiers lots ;
+**les accords et descriptifs en échec sont relancés une fois** (un descriptif
+saisi à la main n'est jamais touché). Les
+travaux d'accords ou de descriptifs restés dans Redis (ancienne file
+`wine-pairing`) sont vidés par le worker **sans appeler Gemini** : chacun
+s'assure seulement que sa demande existe en attente en base. Une image 2.6.x
+peut encore tourner sur la base migrée (retour arrière sans restauration) ;
+elle reviendrait aux appels un par un.
+
+Le service `worker` du `docker-compose.yml` a désormais `stop_grace_period:
+150s` : à l'arrêt ou à la mise à jour, un lot dont l'appel Gemini est en cours
+(2 min au plus) se termine au lieu d'être coupé. Une stack créée à partir d'un
+ancien fichier doit reprendre ce réglage ; sans lui, Docker arrête le worker
+au bout de 10 s et le lot interrompu est repris 5 minutes plus tard, en
+comptant une tentative.
 
 ### Passage à la 2.6.0 (zones de la cave)
 
@@ -985,9 +1025,11 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 - **Accords suggérés, jamais saisis** : les plats viennent de Gemini et ne se
   corrigent pas un à un (seulement *Régénérer*) ; aucun accord « vécu » n'est
   enregistré. Une régénération remplace le coût de la précédente dans le
-  plafond du mois. Si le plafond mensuel est atteint tôt dans le mois, un
-  accord peut épuiser ses tentatives avant le changement de mois et rester
-  « indisponible » — utiliser alors *Régénérer* le mois suivant.
+  plafond du mois. Le coût d'un lot est réparti exactement sur les vins
+  enregistrés (les premiers portent le centime restant : la somme vaut le
+  coût de l'appel) ; une réponse de lot entièrement inexploitable n'est
+  comptée que dans le journal `gemini_call`, pas dans le plafond. Le coût d'un
+  lot de photos d'entrée est réparti de même sur ses photos.
 - **Une seule note par vin**, sans commentaire ni historique.
 - **Descriptif du domaine limité par ce que Gemini sait** : pour un petit
   domaine, la connaissance de Gemini est parfois incomplète ou erronée — d'où
@@ -1019,9 +1061,12 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
   (plafond mensuel ou part de la cave atteints) est repris sans limite, toutes
   les 15 minutes, et ne passe jamais en échec ; une pause commune de Gemini
   (après un 503 ou un 429) ne consomme aucune tentative, la reprise attend
-  simplement la fin de la pause. Après un 503 ou un 429, les accords et les
-  descriptifs attendent au moins la durée de la pause (5 min, 1 h) au lieu de
-  repartir au bout de 30 s.
+  simplement la fin de la pause. Les accords et les descriptifs sont repris
+  pendant 7 jours de panne (réseau, 5xx, 503, 429, clé refusée), à intervalles
+  de 5 min à 6 h, sans consommer de tentative ; seules 5 réponses
+  inexploitables (ou 5 lots interrompus par un arrêt du worker) les font
+  échouer plus tôt — *Régénérer* les relance ensuite. Une pause ou le plafond
+  atteint ne comptent jamais.
 - **Pause commune grossière** : la pause vaut pour tous les usages à la fois
   (un quota épuisé sur les lectures suspend aussi les accords), et le journal
   `gemini_call` n'est pas rattaché à une cave : il est réservé à

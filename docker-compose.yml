@@ -32,6 +32,8 @@ services:
     build: ./api
     restart: unless-stopped
     command: ["node", "dist/worker.js"]
+    # Un lot en cours (appel Gemini de 2 min au plus) se termine avant l'arrêt.
+    stop_grace_period: 150s
     env_file: .env
     environment:
       NODE_ENV: production

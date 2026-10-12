@@ -9,7 +9,7 @@ const include = { updatedBy: { select: { displayName: true, email: true } } };
 
 const conflict = () => new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'test' });
 
-function harness(opts: { wines?: unknown[]; schedule?: () => Promise<void>; saved?: unknown; existing?: unknown; conflictOnce?: boolean } = {}) {
+function harness(opts: { wines?: unknown[]; saved?: unknown; existing?: unknown; conflictOnce?: boolean } = {}) {
   let conflicts = opts.conflictOnce ? 1 : 0;
   const upsert = jest.fn(async () => {
     if (conflicts-- > 0) throw conflict();
@@ -20,15 +20,15 @@ function harness(opts: { wines?: unknown[]; schedule?: () => Promise<void>; save
   });
   const findUnique = jest.fn(async () => opts.existing ?? null);
   const prisma = { wine: { findMany: jest.fn(async () => opts.wines ?? wines) }, producerProfile: { upsert, findUnique } };
-  const scheduler = { schedule: jest.fn(opts.schedule ?? (async () => {})) };
-  return { upsert, scheduler, service: new ProducersService(prisma as any, scheduler as any) };
+  return { upsert, service: new ProducersService(prisma as any) };
 }
 
 describe('ProducersService.setDescription', () => {
   it('enregistre un texte saisi : DONE, MANUEL, signé du compte', async () => {
     const h = harness();
     const view = await h.service.setDescription(KEY, 'Texte', 'u1');
-    const manual = { status: 'DONE', source: 'MANUEL', description: 'Texte', errorMessage: null, updatedById: 'u1' };
+    // La réservation d'un lot en cours est levée : sa réponse n'écrase jamais le texte saisi.
+    const manual = { status: 'DONE', source: 'MANUEL', description: 'Texte', errorMessage: null, updatedById: 'u1', attempts: 0, nextAttemptAt: null, reservedUntil: null };
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
       create: { producerKey: KEY, displayName: 'Domaine Tempier', ...manual },
@@ -39,7 +39,6 @@ describe('ProducersService.setDescription', () => {
       key: KEY, displayName: 'Domaine Tempier', status: 'DONE', description: 'Texte', source: 'MANUEL',
       errorMessage: null, generatedAt: null, updatedBy: 'franck@example.com',
     });
-    expect(h.scheduler.schedule).not.toHaveBeenCalled();
   });
 
   it('réessaie une fois quand une création concurrente (worker) gagne la course (P2002)', async () => {
@@ -61,10 +60,9 @@ describe('ProducersService.regenerate', () => {
     await h.service.regenerate(KEY);
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
-      create: { producerKey: KEY, displayName: 'Domaine Tempier' },
-      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, description: null, updatedById: null },
+      create: { producerKey: KEY, displayName: 'Domaine Tempier', requestedAt: expect.any(Date) },
+      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null, reservedUntil: null, description: null, updatedById: null },
     });
-    expect(h.scheduler.schedule).toHaveBeenCalledWith(KEY);
   });
 
   it('depuis un texte Gemini : garde le texte visible pendant la nouvelle génération (comme les accords)', async () => {
@@ -72,68 +70,53 @@ describe('ProducersService.regenerate', () => {
     await h.service.regenerate(KEY);
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
-      create: { producerKey: KEY, displayName: 'Domaine Tempier' },
-      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null },
+      create: { producerKey: KEY, displayName: 'Domaine Tempier', requestedAt: expect.any(Date) },
+      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null, reservedUntil: null },
     });
-    expect(h.scheduler.schedule).toHaveBeenCalledWith(KEY);
   });
 
   it('sans profil : le crée en attente, et réessaie une fois sur une création concurrente (P2002)', async () => {
     const h = harness({ conflictOnce: true });
     await h.service.regenerate(KEY);
     expect(h.upsert).toHaveBeenCalledTimes(2);
-    expect(h.scheduler.schedule).toHaveBeenCalledWith(KEY);
   });
 
   it('refuse un domaine qu’aucun vin ne porte', async () => {
     const h = harness({ wines: [{ producer: 'Château Simone' }] });
     await expect(h.service.regenerate(KEY)).rejects.toThrow(new NotFoundException('Domaine introuvable'));
-    expect(h.scheduler.schedule).not.toHaveBeenCalled();
+    expect(h.upsert).not.toHaveBeenCalled();
   });
 
-  it('n’attend pas indéfiniment une planification qui ne répond pas (Redis indisponible)', async () => {
-    jest.useFakeTimers();
-    try {
-      const h = harness({ schedule: () => new Promise<void>(() => undefined) });
-      jest.spyOn((h.service as any).logger, 'warn').mockImplementation(() => undefined);
-      let settled = false;
-      const p = h.service.regenerate(KEY).then(() => { settled = true; });
-      await jest.advanceTimersByTimeAsync(2999);
-      expect(settled).toBe(false);
-      await jest.advanceTimersByTimeAsync(1);
-      await p;
-      expect(settled).toBe(true);
-    } finally {
-      jest.useRealTimers();
-    }
+  it('ne dépend que de la base : la régénération ne peut jamais appeler Gemini ni une file', () => {
+    expect(ProducersService.length).toBe(1);
   });
 });
 
 describe('ProducerScheduler.scheduleIfMissing', () => {
   function scheduler(profile: unknown) {
-    const queue = { getJob: jest.fn(async () => undefined), add: jest.fn(async () => undefined) };
     const findUnique = jest.fn(async () => profile);
-    return { queue, findUnique, s: new ProducerScheduler(queue as any, { producerProfile: { findUnique } } as any) };
+    const createMany = jest.fn(async () => ({ count: 1 }));
+    return { findUnique, createMany, s: new ProducerScheduler({ producerProfile: { findUnique, createMany } } as any) };
   }
 
-  it('met en file un domaine sans descriptif, sous sa clé normalisée', async () => {
+  it('crée en attente le descriptif d’un domaine qui n’en a pas, sous sa clé normalisée', async () => {
     const h = scheduler(null);
     await h.s.scheduleIfMissing('DOMAINE TEMPIER');
     expect(h.findUnique).toHaveBeenCalledWith({ where: { producerKey: KEY }, select: { id: true } });
-    expect(h.queue.add).toHaveBeenCalledWith('producer', { producerKey: KEY }, expect.anything());
+    expect(h.createMany).toHaveBeenCalledWith({ data: [{ producerKey: KEY, displayName: 'DOMAINE TEMPIER', requestedAt: expect.any(Date) }], skipDuplicates: true });
   });
 
   it('ne fait rien pour un domaine qui a déjà un descriptif', async () => {
     const h = scheduler({ id: 'p1' });
     await h.s.scheduleIfMissing('Domaine Tempier');
-    expect(h.queue.add).not.toHaveBeenCalled();
+    expect(h.createMany).not.toHaveBeenCalled();
   });
 
   it('ne fait rien pour un nom de domaine sans lettre ni chiffre', async () => {
     const h = scheduler(null);
     await h.s.scheduleIfMissing(' — ');
     expect(h.findUnique).not.toHaveBeenCalled();
-    expect(h.queue.add).not.toHaveBeenCalled();
+    expect(h.createMany).not.toHaveBeenCalled();
   });
 });
 

@@ -20,3 +20,15 @@ export async function findProducerWines(prisma: Pick<PrismaService, 'wine'>, key
   });
   return wines.filter((w) => producerKeyOf(w.producer) === key);
 }
+
+/** Vins de plusieurs domaines en une seule lecture (lot de descriptifs), du plus ancien au plus récent. */
+export async function findWinesByProducer(prisma: Pick<PrismaService, 'wine'>, keys: string[]): Promise<Map<string, ProducerWine[]>> {
+  const byKey = new Map<string, ProducerWine[]>(keys.filter(Boolean).map((k) => [k, []]));
+  if (byKey.size === 0) return byKey;
+  const wines = await prisma.wine.findMany({
+    select: { producer: true, appellationRaw: true, appellation: { select: { canonicalName: true, region: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  for (const w of wines) byKey.get(producerKeyOf(w.producer))?.push(w);
+  return byKey;
+}
