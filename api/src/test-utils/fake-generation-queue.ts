@@ -76,7 +76,7 @@ export function fakeGenerationQueue(
   const prisma: any = {
     [tableKey]: table,
     wine: { findMany: jest.fn(async () => opts.producerWines ?? []) },
-    $queryRaw: jest.fn(async () => sorted(rows.filter(ready)).slice(0, 10).map((r) => ({ id: r.id, attempts: r.attempts }))),
+    $queryRaw: jest.fn(async () => sorted(rows.filter(ready)).slice(0, 10).map((r) => ({ id: r.id, attempts: r.attempts, requestedAt: r.requestedAt }))),
     $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
   };
 

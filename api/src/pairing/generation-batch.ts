@@ -20,13 +20,18 @@ export const GENERATION_RESERVATION_MS = 5 * 60_000;
 export const GENERATION_CALL_TIMEOUT_MS = 2 * 60_000;
 
 /**
- * Tentatives d'une demande (réponse inexploitable, absente du lot, panne,
- * configuration) avant l'échec. Une pause commune ou un report pour budget
- * n'en consomme jamais.
+ * Tentatives d'une demande dont la réponse est inexploitable (absente ou
+ * invalide dans le lot, lot mélangé) ou dont le lot a été interrompu, avant
+ * l'échec. Une panne, une erreur de configuration, une pause commune ou un
+ * report pour budget n'en consomment jamais.
  */
 export const GENERATION_MAX_ATTEMPTS = 5;
 
+/** Panne ou configuration : une demande plus ancienne que cela passe en échec. */
+export const GENERATION_GIVE_UP_MS = 7 * 24 * 60 * 60_000;
+
 const FIRST_RETRY_MS = 5 * 60_000;
+const MAX_TRANSIENT_RETRY_MS = 6 * 60 * 60_000;
 
 export interface GenerationCandidate {
   requestedAt: Date;
@@ -45,13 +50,20 @@ export function shouldRunGeneration(candidates: GenerationCandidate[], now: Date
   return oldest <= now.getTime() - GENERATION_BATCH_MAX_WAIT_MS;
 }
 
+/** Réponse inexploitable : 5 min, 20 min, 1 h 20, 5 h 20 avant la tentative suivante. */
+export function invalidAnswerRetryDelay(attempts: number): number {
+  return FIRST_RETRY_MS * 4 ** Math.max(0, attempts - 1);
+}
+
 /**
- * Attente avant la tentative suivante : 5 min, 20 min, 1 h 20, 5 h 20, soit
- * environ sept heures de patience avant l'échec. Après un refus de Google
- * (503, 429), jamais moins que la pause commune posée par ce refus.
+ * Panne ou configuration : attendre aussi longtemps que la demande attend
+ * déjà, entre 5 min et 6 h — une panne longue espace les essais sans jamais
+ * les arrêter avant 7 jours. Après un refus de Google (503, 429), jamais avant
+ * la fin de la pause commune qu'il a posée.
  */
-export function generationRetryDelay(attempts: number, error?: unknown): number {
-  const base = FIRST_RETRY_MS * 4 ** Math.max(0, attempts - 1);
+export function transientRetryDelay(requestedAt: Date, now: Date, error?: unknown): number {
+  const age = now.getTime() - requestedAt.getTime();
+  const base = Math.min(Math.max(age, FIRST_RETRY_MS), MAX_TRANSIENT_RETRY_MS);
   const status = error instanceof Error ? statusFromMessage(error.message) : null;
   const pause = status === null ? undefined : PAUSE_AFTER_REFUSAL[status];
   return Math.max(base, pause?.ms ?? 0);

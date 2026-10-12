@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { splitCost } from '../queue/entry-batch';
+import { splitCostExact } from '../queue/entry-batch';
 import { MAX_DELAY_MS } from '../queue/extraction.queue';
 import { deferralReason, isConfigurationError } from '../queue/transient-failure';
 import { PAIRING_BUDGET_SHARE, VisionBudgetExceededError, VisionBudgetService } from '../queue/vision-budget.service';
@@ -9,16 +9,16 @@ import { GeminiPause, GeminiPausedError } from '../vision/gemini-pause';
 import {
   GENERATION_BATCH_SIZE,
   GENERATION_CALL_TIMEOUT_MS,
+  GENERATION_GIVE_UP_MS,
   GENERATION_MAX_ATTEMPTS,
   GENERATION_RESERVATION_MS,
-  generationRetryDelay,
+  invalidAnswerRetryDelay,
   shouldRunGeneration,
+  transientRetryDelay,
 } from './generation-batch';
 
 /** Message final d'une demande dont les réponses restent inexploitables (inchangé depuis l'appel par vin). */
 export const INVALID_ANSWER = 'Réponse de Gemini inexploitable';
-/** Message final d'une erreur de configuration (clé refusée, droits). */
-export const CONFIGURATION_FAILURE = 'Génération impossible : configuration Gemini à vérifier';
 /** Une demande absente de la réponse du lot (ou invalide) : traitée comme une sortie inexploitable. */
 export const MISSING_FROM_BATCH = 'Sortie du modèle invalide (réponse absente ou invalide dans le lot)';
 /** Message d'une demande reprise après un arrêt du worker en plein lot, à la dernière tentative. */
@@ -28,6 +28,8 @@ export const INTERRUPTED = `Génération interrompue (worker arrêté en plein l
 export interface ReservedRequest {
   id: string;
   attempts: number;
+  /** Quand la demande est passée en attente : une panne n'abandonne qu'au bout de 7 jours. */
+  requestedAt: Date;
 }
 
 type Status = 'PENDING' | 'FAILED';
@@ -73,6 +75,8 @@ export interface BatchAnswer<Out> {
 export interface Prepared<Input> {
   request: ReservedRequest;
   input: Input;
+  /** Deux demandes de même clé (même vin décrit, même domaine) partent en une seule ligne. */
+  dedupKey: string;
 }
 
 /**
@@ -113,7 +117,7 @@ export abstract class GenerationBatchProcessor<Input, Out> {
    * demande devenue sans objet (domaine sans plus aucun vin) est réglée ici
    * et absente du résultat.
    */
-  protected abstract prepare(requests: ReservedRequest[], deadline: Date): Promise<Array<Prepared<Input>>>;
+  protected abstract prepare(requests: ReservedRequest[], deadline: Date, now: Date): Promise<Array<Prepared<Input>>>;
 
   protected abstract generate(inputs: Input[]): Promise<BatchAnswer<Out>>;
 
@@ -188,13 +192,17 @@ export abstract class GenerationBatchProcessor<Input, Out> {
    * réservent jamais la même demande ; une demande réservée porte une
    * échéance et n'est plus prête. Dates comparées en UTC, comme Prisma les
    * écrit, quel que soit le fuseau de la session PostgreSQL.
+   *
+   * Une demande déjà revenue avec une réponse inexploitable (au moins une
+   * tentative) part seule quand elle est en tête : une demande qui trouble le
+   * modèle ne fait plus échouer un lot entier à chaque essai.
    */
   private async reserve(now: Date): Promise<{ requests: ReservedRequest[]; deadline: Date } | null> {
     const deadline = new Date(now.getTime() + GENERATION_RESERVATION_MS);
     const table = Prisma.raw(`"${this.tableName}"`);
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<ReservedRequest[]>`
-        SELECT id, attempts FROM ${table}
+      const found = await tx.$queryRaw<ReservedRequest[]>`
+        SELECT id, attempts, requested_at AS "requestedAt" FROM ${table}
         WHERE status = 'PENDING' AND reserved_until IS NULL
           AND requested_at <= (${now}::timestamptz AT TIME ZONE 'UTC')
           AND (next_attempt_at IS NULL OR next_attempt_at <= (${now}::timestamptz AT TIME ZONE 'UTC'))
@@ -202,9 +210,11 @@ export abstract class GenerationBatchProcessor<Input, Out> {
         ORDER BY requested_at
         LIMIT ${GENERATION_BATCH_SIZE}
         FOR UPDATE SKIP LOCKED`;
-      if (rows.length === 0) return null;
+      if (found.length === 0) return null;
+      // Les lignes écartées restent verrouillées jusqu'à la fin de la transaction, sans être réservées.
+      const rows = Number(found[0].attempts) >= 1 ? found.slice(0, 1) : found;
       await this.table(tx).updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { reservedUntil: deadline } });
-      return { requests: rows.map((r) => ({ id: r.id, attempts: Number(r.attempts) })), deadline };
+      return { requests: rows.map((r) => ({ id: r.id, attempts: Number(r.attempts), requestedAt: r.requestedAt })), deadline };
     });
   }
 
@@ -233,32 +243,41 @@ export abstract class GenerationBatchProcessor<Input, Out> {
       await this.settleFailure(requests, e, now, deadline, settled);
       return;
     }
-    const prepared = await this.prepare(requests, deadline);
+    const prepared = await this.prepare(requests, deadline, now);
     requests.filter((r) => !prepared.some((p) => p.request.id === r.id)).forEach((r) => settled.add(r.id));
     if (prepared.length === 0) return;
 
+    // Une ligne par clé : deux vins décrits à l'identique ne coûtent qu'une réponse, copiée sur chacun.
+    const groups = new Map<string, Array<Prepared<Input>>>();
+    for (const p of prepared) groups.set(p.dedupKey, [...(groups.get(p.dedupKey) ?? []), p]);
+    const lines = [...groups.values()];
+
     let answer: BatchAnswer<Out>;
     try {
-      answer = await this.withTimeout(this.generate(prepared.map((p) => p.input)));
+      answer = await this.withTimeout(this.generate(lines.map((group) => group[0].input)));
     } catch (e) {
       await this.settleFailure(prepared.map((p) => p.request), e, now, deadline, settled);
       return;
     }
 
-    const costCents = splitCost(answer.costCents, prepared.length);
     const byIndex = new Map(answer.items.map((item) => [item.index, item]));
+    const answered: Array<{ request: ReservedRequest; item: Out }> = [];
     const missing: ReservedRequest[] = [];
-    for (const [index, { request }] of prepared.entries()) {
+    lines.forEach((group, index) => {
       const item = byIndex.get(index);
-      if (!item) {
-        missing.push(request);
-        continue;
+      for (const { request } of group) {
+        if (item) answered.push({ request, item });
+        else missing.push(request);
       }
-      await this.save(request, item, { model: answer.model, costCents }, deadline);
+    });
+    // Coût de l'appel réparti exactement sur les demandes enregistrées : leur somme vaut le coût de l'appel.
+    const costs = splitCostExact(answer.costCents, answered.length);
+    for (const [i, { request, item }] of answered.entries()) {
+      await this.save(request, item, { model: answer.model, costCents: costs[i] }, deadline);
       settled.add(request.id);
     }
     if (missing.length) await this.settleFailure(missing, new Error(MISSING_FROM_BATCH), now, deadline, settled);
-    this.logger.log(`${this.label} : lot de ${prepared.length}, ${prepared.length - missing.length} enregistré(s)`);
+    this.logger.log(`${this.label} : lot de ${prepared.length} (${lines.length} ligne(s)), ${answered.length} enregistré(s)`);
   }
 
   /** Un appel bloqué devient une panne passagère (ETIMEDOUT) : le lot est reporté normalement. */
@@ -272,14 +291,16 @@ export abstract class GenerationBatchProcessor<Input, Out> {
   }
 
   /**
-   * Pause commune ou plafond atteint : aucun appel n'est parti. La demande
-   * revient en attente avec le message de la pause (ou du report), reprise à
-   * la fin de la pause (ou après l'attente maximale pour le budget), sans
-   * consommer de tentative : jamais d'échec pour cette raison.
-   *
-   * Toute autre erreur (réponse inexploitable, demande absente du lot, panne,
-   * configuration) consomme une tentative, avec une attente d'au moins 5 min ;
-   * à la cinquième, la demande passe en échec avec le message habituel.
+   * Trois sortes d'échec :
+   * - pause commune ou plafond atteint : aucun appel n'est parti. En attente
+   *   avec le message de la pause (ou du report), reprise à la fin de la pause
+   *   (ou après l'attente maximale pour le budget) ;
+   * - panne passagère ou configuration (réseau, délai, 5xx, 503, 429, clé
+   *   refusée) : la demande n'y est pour rien, aucune tentative consommée.
+   *   Reprise après une attente qui grandit avec l'âge de la demande (5 min à
+   *   6 h, jamais avant la fin de la pause), abandon au bout de 7 jours ;
+   * - réponse inexploitable (absente ou invalide dans le lot, lot mélangé) :
+   *   une tentative consommée, échec à la cinquième.
    */
   private async settleFailure(requests: ReservedRequest[], error: unknown, now: Date, deadline: Date, settled: Set<string>): Promise<void> {
     if (requests.length === 0) return;
@@ -292,15 +313,23 @@ export abstract class GenerationBatchProcessor<Input, Out> {
           nextAttemptAt: error instanceof GeminiPausedError ? error.until : new Date(now.getTime() + MAX_DELAY_MS),
           errorMessage: deferralReason(error),
         });
-      } else {
+      } else if (isInvalidAnswer(error)) {
         const attempts = request.attempts + 1;
         const exhausted = attempts >= GENERATION_MAX_ATTEMPTS;
         await this.write(request, deadline, {
           status: exhausted ? 'FAILED' : 'PENDING',
           attempts,
           reservedUntil: null,
-          nextAttemptAt: exhausted ? null : new Date(now.getTime() + generationRetryDelay(attempts, error)),
-          errorMessage: exhausted ? finalReason(error) : retryReason(error),
+          nextAttemptAt: exhausted ? null : new Date(now.getTime() + invalidAnswerRetryDelay(attempts)),
+          errorMessage: exhausted ? INVALID_ANSWER : `${INVALID_ANSWER}, nouvel essai automatique`,
+        });
+      } else {
+        const abandoned = now.getTime() - request.requestedAt.getTime() >= GENERATION_GIVE_UP_MS;
+        await this.write(request, deadline, {
+          status: abandoned ? 'FAILED' : 'PENDING',
+          reservedUntil: null,
+          nextAttemptAt: abandoned ? null : new Date(now.getTime() + transientRetryDelay(request.requestedAt, now, error)),
+          errorMessage: abandoned ? `${transientReason(error)} — abandon` : transientReason(error),
         });
       }
       settled.add(request.id);
@@ -320,18 +349,10 @@ function isInvalidAnswer(e: unknown): boolean {
   return e instanceof Error && e.message.includes('Sortie du modèle invalide');
 }
 
-/** Message affiché pendant l'attente de la tentative suivante. */
-function retryReason(e: unknown): string {
-  if (isInvalidAnswer(e)) return `${INVALID_ANSWER}, nouvel essai automatique`;
+/** Panne ou configuration : message affiché pendant l'attente, suivi de « — abandon » au bout de 7 jours. */
+function transientReason(e: unknown): string {
   if (isConfigurationError(e)) return 'Génération reportée : configuration Gemini à vérifier, reprise automatique';
   return deferralReason(e);
-}
-
-/** Messages d'échec de l'appel par vin, inchangés. */
-function finalReason(e: unknown): string {
-  if (isInvalidAnswer(e)) return INVALID_ANSWER;
-  if (isConfigurationError(e)) return CONFIGURATION_FAILURE;
-  return `${deferralReason(e)} — abandon`;
 }
 
 function messageOf(e: unknown): string {

@@ -27,7 +27,8 @@ describe('ProducersService.setDescription', () => {
   it('enregistre un texte saisi : DONE, MANUEL, signé du compte', async () => {
     const h = harness();
     const view = await h.service.setDescription(KEY, 'Texte', 'u1');
-    const manual = { status: 'DONE', source: 'MANUEL', description: 'Texte', errorMessage: null, updatedById: 'u1' };
+    // La réservation d'un lot en cours est levée : sa réponse n'écrase jamais le texte saisi.
+    const manual = { status: 'DONE', source: 'MANUEL', description: 'Texte', errorMessage: null, updatedById: 'u1', attempts: 0, nextAttemptAt: null, reservedUntil: null };
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
       create: { producerKey: KEY, displayName: 'Domaine Tempier', ...manual },
@@ -60,7 +61,7 @@ describe('ProducersService.regenerate', () => {
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
       create: { producerKey: KEY, displayName: 'Domaine Tempier', requestedAt: expect.any(Date) },
-      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null, description: null, updatedById: null },
+      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null, reservedUntil: null, description: null, updatedById: null },
     });
   });
 
@@ -70,7 +71,7 @@ describe('ProducersService.regenerate', () => {
     expect(h.upsert).toHaveBeenCalledWith({
       where: { producerKey: KEY },
       create: { producerKey: KEY, displayName: 'Domaine Tempier', requestedAt: expect.any(Date) },
-      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null },
+      update: { status: 'PENDING', source: 'GEMINI', errorMessage: null, requestedAt: expect.any(Date), attempts: 0, nextAttemptAt: null, reservedUntil: null },
     });
   });
 

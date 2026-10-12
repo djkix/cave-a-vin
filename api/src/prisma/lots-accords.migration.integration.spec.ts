@@ -27,6 +27,8 @@ describeIfDb('migration lots d’accords et de descriptifs (base au format préc
   const prisma = new PrismaClient();
   const schema = `lots_mig_${process.pid}`;
   const q = <T = Record<string, unknown>>(sql: string) => prisma.$queryRawUnsafe<T[]>(sql);
+  let dbNow: Date;
+  const DAY = 24 * 60 * 60_000;
 
   function execute(sql: string): void {
     execFileSync(PRISMA_BIN, ['db', 'execute', '--stdin', '--url', process.env.DATABASE_URL!], {
@@ -39,18 +41,26 @@ describeIfDb('migration lots d’accords et de descriptifs (base au format préc
     await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     await prisma.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
     for (const name of previousMigrations) execute(migrationSql(name));
+    // Dates relatives à l'horloge de la base : la migration borne la date de demande à un jour en arrière.
     execute(`
       INSERT INTO cave (id, name) VALUES ('cave-a', 'Cave A');
       INSERT INTO wine (id, cave_id, match_key, producer, appellation_raw, color) VALUES
         ('w1', 'cave-a', 'k1', 'Domaine Tempier', 'Bandol', 'ROUGE'),
-        ('w2', 'cave-a', 'k2', 'Trimbach', 'Alsace', 'BLANC');
-      INSERT INTO pairing (id, wine_id, status, updated_at) VALUES
-        ('p1', 'w1', 'PENDING', '2026-10-01 08:00:00'),
-        ('p2', 'w2', 'DONE', '2026-10-02 09:00:00');
-      INSERT INTO producer_profile (id, producer_key, display_name, status, updated_at) VALUES
-        ('pp1', 'domaine tempier', 'Domaine Tempier', 'PENDING', '2026-10-03 10:00:00'),
-        ('pp2', 'trimbach', 'Trimbach', 'UNKNOWN', '2026-10-04 11:00:00');
+        ('w2', 'cave-a', 'k2', 'Trimbach', 'Alsace', 'BLANC'),
+        ('w3', 'cave-a', 'k3', 'Mas Jullien', 'Languedoc', 'ROUGE'),
+        ('w4', 'cave-a', 'k4', 'Clos Rougeard', 'Saumur', 'ROUGE');
+      INSERT INTO pairing (id, wine_id, status, updated_at, error_message, generated_at) VALUES
+        ('p1', 'w1', 'PENDING', '2026-10-01 08:00:00', NULL, NULL),
+        ('p2', 'w2', 'DONE', '2026-10-02 09:00:00', NULL, '2026-10-02 09:00:00'),
+        ('p3', 'w3', 'PENDING', (now() AT TIME ZONE 'UTC') - interval '1 hour', NULL, NULL),
+        ('p4', 'w4', 'FAILED', '2026-10-03 09:00:00', 'Réponse de Gemini inexploitable', NULL);
+      INSERT INTO producer_profile (id, producer_key, display_name, status, source, description, error_message, updated_at) VALUES
+        ('pp1', 'domaine tempier', 'Domaine Tempier', 'PENDING', 'GEMINI', NULL, NULL, '2026-10-03 10:00:00'),
+        ('pp2', 'trimbach', 'Trimbach', 'UNKNOWN', 'GEMINI', NULL, NULL, '2026-10-04 11:00:00'),
+        ('pp3', 'mas jullien', 'Mas Jullien', 'FAILED', 'GEMINI', NULL, 'Génération impossible : configuration Gemini à vérifier', '2026-10-04 11:00:00'),
+        ('pp4', 'clos rougeard', 'Clos Rougeard', 'FAILED', 'MANUEL', 'Texte saisi', 'ancien échec', '2026-10-04 11:00:00');
     `);
+    dbNow = (await q<{ now: Date }>(`SELECT (now() AT TIME ZONE 'UTC') AS now`))[0].now;
     execute(migrationSql(MIGRATION));
   }, 120_000);
 
@@ -80,17 +90,38 @@ describeIfDb('migration lots d’accords et de descriptifs (base au format préc
     expect(columns[2].column_default).toMatch(/AT TIME ZONE 'UTC'/);
   });
 
-  it('date les demandes déjà en attente de leur dernière mise à jour, sans toucher aux autres colonnes', async () => {
-    const pairings = await q<{ id: string; status: string; requested_at: Date; attempts: number; next_attempt_at: Date | null; reserved_until: Date | null }>(
-      `SELECT id, status::text AS status, requested_at, attempts, next_attempt_at, reserved_until FROM "${schema}".pairing ORDER BY id`,
+  it('date les demandes déjà en attente de leur dernière mise à jour, jamais plus d’un jour en arrière', async () => {
+    const pairings = await q<{ id: string; status: string; requested_at: Date; updated_at: Date; attempts: number; next_attempt_at: Date | null; reserved_until: Date | null }>(
+      `SELECT id, status::text AS status, requested_at, updated_at, attempts, next_attempt_at, reserved_until FROM "${schema}".pairing ORDER BY id`,
     );
-    expect(pairings[0]).toEqual({ id: 'p1', status: 'PENDING', requested_at: new Date('2026-10-01T08:00:00.000Z'), attempts: 0, next_attempt_at: null, reserved_until: null });
-    expect(pairings[1]).toMatchObject({ id: 'p2', status: 'DONE', attempts: 0, next_attempt_at: null, reserved_until: null });
+    const byId = new Map(pairings.map((p) => [p.id, p]));
+    // p1 : mise à jour il y a plus d'un jour → un jour en arrière (à la seconde près, l'horloge avance pendant le test).
+    expect(Math.abs(byId.get('p1')!.requested_at.getTime() - (dbNow.getTime() - DAY))).toBeLessThan(60_000);
+    expect(byId.get('p1')).toMatchObject({ status: 'PENDING', attempts: 0, next_attempt_at: null, reserved_until: null });
+    // p3 : mise à jour il y a une heure → sa propre date.
+    expect(byId.get('p3')!.requested_at).toEqual(byId.get('p3')!.updated_at);
+    expect(byId.get('p2')).toMatchObject({ status: 'DONE', attempts: 0, next_attempt_at: null, reserved_until: null });
     const profiles = await q<{ id: string; status: string; requested_at: Date }>(
       `SELECT id, status::text AS status, requested_at FROM "${schema}".producer_profile ORDER BY id`,
     );
-    expect(profiles[0]).toEqual({ id: 'pp1', status: 'PENDING', requested_at: new Date('2026-10-03T10:00:00.000Z') });
+    expect(profiles[0].status).toBe('PENDING');
+    expect(Math.abs(profiles[0].requested_at.getTime() - (dbNow.getTime() - DAY))).toBeLessThan(60_000);
     expect(profiles[1]).toMatchObject({ id: 'pp2', status: 'UNKNOWN' });
+  });
+
+  it('relance une fois les accords et descriptifs Gemini en échec, jamais un texte saisi à la main', async () => {
+    const [p4] = await q<{ status: string; attempts: number; next_attempt_at: Date | null; error_message: string | null; requested_at: Date }>(
+      `SELECT status::text AS status, attempts, next_attempt_at, error_message, requested_at FROM "${schema}".pairing WHERE id = 'p4'`,
+    );
+    expect(p4).toMatchObject({ status: 'PENDING', attempts: 0, next_attempt_at: null, error_message: null });
+    expect(Math.abs(p4.requested_at.getTime() - dbNow.getTime())).toBeLessThan(60_000);
+    const profiles = await q<{ id: string; status: string; error_message: string | null; description: string | null; source: string }>(
+      `SELECT id, status::text AS status, error_message, description, source FROM "${schema}".producer_profile WHERE id IN ('pp3', 'pp4') ORDER BY id`,
+    );
+    expect(profiles).toEqual([
+      { id: 'pp3', status: 'PENDING', error_message: null, description: null, source: 'GEMINI' },
+      { id: 'pp4', status: 'FAILED', error_message: 'ancien échec', description: 'Texte saisi', source: 'MANUEL' },
+    ]);
   });
 
   it('indexe la requête de choix du lot (statut, date de demande)', async () => {

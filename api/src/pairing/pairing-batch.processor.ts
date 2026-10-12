@@ -43,17 +43,16 @@ export class PairingBatchProcessor extends GenerationBatchProcessor<PairingWine,
     return requests.flatMap((request) => {
       const wine = wineOf.get(request.id);
       if (!wine) return [];
-      return [{
-        request,
-        input: {
-          producer: wine.producer,
-          cuvee: wine.cuvee,
-          appellation: wine.appellation?.canonicalName ?? wine.appellationRaw,
-          region: wine.appellation?.region ?? null,
-          color: wine.color,
-          vintage: wine.vintage,
-        },
-      }];
+      const input: PairingWine = {
+        producer: wine.producer,
+        cuvee: wine.cuvee,
+        appellation: wine.appellation?.canonicalName ?? wine.appellationRaw,
+        region: wine.appellation?.region ?? null,
+        color: wine.color,
+        vintage: wine.vintage,
+      };
+      // Même producteur, cuvée, appellation, couleur et millésime : une seule ligne dans l'appel.
+      return [{ request, input, dedupKey: JSON.stringify([input.producer, input.cuvee, input.appellation, input.color, input.vintage]) }];
     });
   }
 

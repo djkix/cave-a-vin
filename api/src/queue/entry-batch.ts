@@ -42,9 +42,16 @@ export function shouldRun(candidates: EntryCandidate[], now: Date): boolean {
   return candidates.some((c) => c.nextAttemptAt !== null && c.nextAttemptAt.getTime() <= t);
 }
 
-/** Coût d'un appel réparti sur ses photos, arrondi au centime supérieur. */
-export function splitCost(total: number, n: number): number {
-  return Math.ceil(total / n);
+/**
+ * Coût d'un appel réparti exactement sur `n` éléments : chacun porte la part
+ * entière, les `total % n` premiers un centime de plus. La somme des parts
+ * vaut toujours le coût de l'appel (jamais de dépense comptée en trop).
+ */
+export function splitCostExact(total: number, n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(total / n);
+  const rest = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < rest ? 1 : 0));
 }
 
 /**

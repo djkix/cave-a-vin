@@ -5,7 +5,7 @@ import {
   RESERVATION_MS,
   createEntryBatchLoop,
   shouldRun,
-  splitCost,
+  splitCostExact,
 } from './entry-batch';
 
 const NOW = new Date('2026-10-05T12:00:00.000Z');
@@ -51,12 +51,14 @@ describe('shouldRun', () => {
   });
 });
 
-describe('splitCost', () => {
-  it('répartit le coût en arrondissant au centime supérieur', () => {
-    expect(splitCost(10, 8)).toBe(2);
-    expect(splitCost(16, 8)).toBe(2);
-    expect(splitCost(0, 8)).toBe(0);
-    expect(splitCost(3, 1)).toBe(3);
+describe('splitCostExact', () => {
+  it('répartit le coût exactement : les premiers éléments portent le centime restant, la somme vaut le coût de l’appel', () => {
+    expect(splitCostExact(10, 8)).toEqual([2, 2, 1, 1, 1, 1, 1, 1]);
+    expect(splitCostExact(16, 8)).toEqual([2, 2, 2, 2, 2, 2, 2, 2]);
+    expect(splitCostExact(0, 3)).toEqual([0, 0, 0]);
+    expect(splitCostExact(3, 1)).toEqual([3]);
+    expect(splitCostExact(1, 10).reduce((a, b) => a + b, 0)).toBe(1);
+    expect(splitCostExact(5, 0)).toEqual([]);
   });
 });
 

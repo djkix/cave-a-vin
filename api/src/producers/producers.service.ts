@@ -36,7 +36,11 @@ export class ProducersService {
   /** Texte saisi à la main : il prime, le worker ne le remplace jamais. */
   async setDescription(producerKey: string, description: string, userId: string): Promise<ProducerProfileView | null> {
     const displayName = await this.displayNameOf(producerKey);
-    const manual = { status: 'DONE' as const, source: 'MANUEL', description, errorMessage: null, updatedById: userId };
+    // La réservation d'un lot en cours est levée : sa réponse ne peut plus rien écrire.
+    const manual = {
+      status: 'DONE' as const, source: 'MANUEL', description, errorMessage: null, updatedById: userId,
+      attempts: 0, nextAttemptAt: null, reservedUntil: null,
+    };
     const saved = await retryOnceOnUniqueConflict(() =>
       this.prisma.producerProfile.upsert({
         where: { producerKey },
@@ -67,6 +71,7 @@ export class ProducersService {
       requestedAt,
       attempts: 0,
       nextAttemptAt: null,
+      reservedUntil: null, // un lot en cours n'enregistre plus sa réponse, périmée
       ...(current?.source === 'MANUEL' ? { description: null, updatedById: null } : {}),
     };
     await retryOnceOnUniqueConflict(() =>

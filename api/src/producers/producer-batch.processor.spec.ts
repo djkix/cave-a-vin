@@ -45,7 +45,7 @@ describe('ProducerBatchProcessor', () => {
       { producer: 'Trimbach', appellations: ['Alsace'], region: null },
     ]);
     expect(h.row('a')).toMatchObject({ status: 'DONE', description: TEXT, model: 'gemini-test', costCents: 2, attempts: 0, reservedUntil: null, generatedAt: expect.any(Date) });
-    expect(h.row('b')).toMatchObject({ status: 'UNKNOWN', description: null, costCents: 2, reservedUntil: null });
+    expect(h.row('b')).toMatchObject({ status: 'UNKNOWN', description: null, costCents: 1, reservedUntil: null });
   });
 
   it('ne prend jamais un descriptif saisi à la main, et ne l’écrase pas s’il est saisi pendant la génération', async () => {
@@ -63,12 +63,12 @@ describe('ProducerBatchProcessor', () => {
     expect(h.row('b')).toMatchObject({ source: 'MANUEL', description: 'Texte saisi' });
   });
 
-  it('retire la demande d’un domaine qui n’a plus aucun vin, sans appeler Gemini pour lui', async () => {
+  it('laisse en attente, sans appel ni tentative, un domaine qui n’a plus aucun vin, réexaminé 6 h plus tard', async () => {
     const h = harness();
     h.add({ id: 'gone', producerKey: 'clos disparu' });
     await h.processor.tick(NOW);
     expect(h.provider.describeProducersBatch).not.toHaveBeenCalled();
-    expect(h.rows.find((r) => r.id === 'gone')).toBeUndefined();
+    expect(h.row('gone')).toMatchObject({ status: 'PENDING', attempts: 0, reservedUntil: null, nextAttemptAt: at(6 * 60 * MIN) });
   });
 
   it('un domaine absent de la réponse revient en attente avec une tentative ; échec après cinq', async () => {
@@ -96,6 +96,7 @@ describe('ProducerBatchProcessor', () => {
     const until = new Date('2026-10-16T13:00:00.000Z');
     const paused = harness({ answer: async () => { throw new GeminiPausedError(until, 'quota épuisé'); } });
     paused.add({ id: 'a', producerKey: 'domaine tempier', attempts: 4 });
+    // Seule en tête avec des tentatives : elle part seule, et la pause ne lui en coûte aucune.
     await paused.processor.tick(NOW);
     expect(paused.row('a')).toMatchObject({ status: 'PENDING', attempts: 4, nextAttemptAt: until, errorMessage: `Gemini en pause jusqu'à 15:00 (quota épuisé)` });
 
