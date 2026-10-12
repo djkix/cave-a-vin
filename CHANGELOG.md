@@ -9,6 +9,19 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.7.0](https://github.com/djkix/cave-a-vin/compare/v2.6.0...v2.7.0) (2026-10-12)
+
+
+### Fonctionnalités
+
+* **db:** file des accords et descriptifs dans leurs tables ([cd32241](https://github.com/djkix/cave-a-vin/commit/cd32241df50ee6e2aaeae3a09d944739c1bd795f))
+* **gemini:** accords et descriptifs par lots de dix ([75b3a3f](https://github.com/djkix/cave-a-vin/commit/75b3a3f9257af1774a3dc61ae5de478775a824d6))
+
+
+### Corrections
+
+* **gemini:** pannes sans tentative, demande difficile seule, coût exact ([3bbedfa](https://github.com/djkix/cave-a-vin/commit/3bbedfa23a4ab1691dd1d7e86936e6e938808259))
+
 ## [2.6.0](https://github.com/djkix/cave-a-vin/compare/v2.5.0...v2.6.0) (2026-10-08)
 
 ### Résumé
