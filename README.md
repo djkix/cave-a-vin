@@ -1130,6 +1130,15 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.7.0 — 12 octobre 2026
+
+Publiée ([v2.7.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.7.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.7.0` et `-web:2.7.0`.
+
+**Accords et descriptifs par lots de dix.** Moins d'appels à Gemini, reprises
+patientes (abandon après 7 jours de panne seulement), coût réparti exactement.
+Migration `20261016000000_lots_accords`.
+
 ### 2.6.0 — 8 octobre 2026
 
 Publiée ([v2.6.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.6.0)),

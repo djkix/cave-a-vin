@@ -11,6 +11,31 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.7.0](https://github.com/djkix/cave-a-vin/compare/v2.6.0...v2.7.0) (2026-10-12)
 
+### Résumé
+
+**Accords et descriptifs par lots.** Les accords mets-vins et les descriptifs de
+domaine sont désormais demandés à Gemini **par lots de dix au plus**, un type de
+lot pour chacun, comme les photos d'entrée : un lot part dès qu'il est plein, ou
+quand la plus ancienne demande attend depuis 2 minutes. « Régénérer » rejoint le
+lot suivant (la fiche affiche « en préparation » en attendant). Une rafale de
+douze bouteilles de douze domaines passe ainsi d'environ vingt-quatre appels à
+quatre. Les reprises sont plus patientes : une panne réseau, un Gemini saturé,
+un quota épuisé ou une clé à corriger ne coûtent aucune tentative et ne font
+abandonner qu'après 7 jours ; une réponse inexploitable compte une tentative
+(cinq au plus) et la demande repart alors seule. Des vins identiques dans un
+même lot ne font qu'une ligne. Le coût d'un lot est réparti exactement entre ses
+vins (il était arrondi au centime supérieur pour chacun, y compris pour les
+photos d'entrée). Le worker a 150 s pour finir un lot en cours quand le
+conteneur s'arrête.
+
+**Mise à jour** : une migration (`20261016000000_lots_accords`, ajout de
+colonnes) ; les accords et descriptifs en échec sont relancés une fois. Les
+travaux d'accords déjà en file dans Redis sont simplement versés dans les lots,
+sans appel à Gemini. Aucune nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
