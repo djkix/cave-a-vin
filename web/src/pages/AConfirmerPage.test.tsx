@@ -266,7 +266,7 @@ it('pré-remplit l’emplacement de chaque fiche et l’envoie avec la fiche', a
     toConfirm: [done('p-a', ext('Domaine A', 0.95, 6)), done('p-b', ext('Domaine B', 0.95, 12))],
   }));
   vi.spyOn(api, 'getLocations').mockResolvedValue([{ id: 'l1', zoneId: 'z1', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: true }]);
-  vi.spyOn(api, 'getZones').mockResolvedValue([{ id: 'z1', name: 'Garage', indication: null, hasPhoto: false, sortOrder: 0 }]);
+  vi.spyOn(api, 'getZones').mockResolvedValue([{ id: 'z1', name: 'Garage', indication: null, hasPhoto: false, sortOrder: 0, marker: null }]);
   const bulk = vi.spyOn(api, 'createMovementsBulk').mockImplementation(async (items) => items.map((i) => okResult(i.idempotencyKey)));
   renderPage();
   await screen.findAllByRole('article');

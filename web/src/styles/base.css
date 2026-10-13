@@ -215,3 +215,20 @@ a.bars__row .bars__text > span:first-child { text-decoration: underline; text-un
 .zone-row__actions input[type="file"] { max-width: 100%; min-width: 0; }
 .zone-form { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .zone-form textarea { width: 100%; min-width: 0; font: inherit; }
+
+/* Plan de la cave : image à la largeur disponible, repères en pourcentage (PlanView). */
+.plan-view { position: relative; width: 100%; border-radius: var(--radius-lg); overflow: hidden; background: var(--color-outline-subtle); }
+.plan-view--placing { cursor: crosshair; }
+.plan-view__image { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: fill; }
+.plan-view__marker {
+  position: absolute; transform: translate(-50%, -50%); box-sizing: border-box;
+  min-width: 32px; height: 32px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-primary-action); color: var(--color-on-primary); font: 600 14px/1 var(--font-sans);
+  /* Lisible sur une image claire comme sombre : bord blanc et ombre foncée. */
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+button.plan-view__marker { cursor: pointer; }
+.plan-view__marker:focus-visible { outline: 3px solid var(--color-primary-container); outline-offset: 2px; }
+.plan-view__marker--highlight { background: #c62828; transform: translate(-50%, -50%) scale(1.25); z-index: 1; }
+.plan-mini { display: block; padding: 0; border: 0; background: none; width: 160px; max-width: 100%; cursor: zoom-in; margin-bottom: var(--space-sm); }
+.plan-chooser { display: grid; gap: var(--space-xs); }

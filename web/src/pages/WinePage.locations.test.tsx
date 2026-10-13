@@ -32,8 +32,8 @@ const cellar: api.Location[] = [
 ];
 
 const zones: api.Zone[] = [
-  { id: 'z1', name: 'Garage', indication: 'Au fond, derrière l’escalier', hasPhoto: true, sortOrder: 0 },
-  { id: 'z2', name: 'Cave 2', indication: null, hasPhoto: false, sortOrder: 1 },
+  { id: 'z1', name: 'Garage', indication: 'Au fond, derrière l’escalier', hasPhoto: true, sortOrder: 0, marker: null },
+  { id: 'z2', name: 'Cave 2', indication: null, hasPhoto: false, sortOrder: 1, marker: null },
 ];
 
 beforeEach(() => {
@@ -103,6 +103,55 @@ it('membre : voit les emplacements et le détail des zones, mais aucun bouton ni
   expect(locations).not.toHaveBeenCalled();
   expect(recent).not.toHaveBeenCalled();
   expect(move).not.toHaveBeenCalled();
+});
+
+describe('plan de la cave', () => {
+  const plan = { width: 1200, height: 800, updatedAt: '2026-10-13T10:00:00.000Z' };
+  const markers = [{ zoneId: 'z1', name: 'Garage', number: 1, x: 0.2, y: 0.3 }, { zoneId: 'z2', name: 'Cave 2', number: 2, x: 0.6, y: 0.7 }];
+  const placed: api.Zone[] = [{ ...zones[0], marker: { x: 0.2, y: 0.3 } }, { ...zones[1], marker: { x: 0.6, y: 0.7 } }];
+
+  it('toucher un emplacement dont la zone a un repère montre le plan, ce repère en avant, sous l’indication et la photo', async () => {
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    vi.spyOn(api, 'getPlan').mockResolvedValue({ plan, markers });
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    mount();
+    await screen.findByRole('region', { name: 'Emplacements' });
+    // Zone sans indication ni photo, mais placée sur le plan : son détail se révèle aussi.
+    await userEvent.click(await section().findByRole('button', { name: /Cave 2/ }));
+    const cave2 = section().getByRole('img', { name: 'Zone 2 : Cave 2' });
+    expect(cave2).toHaveAttribute('aria-current', 'true');
+    expect(section().getByRole('img', { name: 'Zone 1 : Garage' })).not.toHaveAttribute('aria-current');
+    await userEvent.click(section().getByRole('button', { name: /Garage/ }));
+    const planImg = section().getAllByRole('img', { name: 'Plan de la cave' })[1];
+    expect(planImg).toHaveAttribute('src', '/api/caves/plans/c1/image?v=2026-10-13T10%3A00%3A00.000Z');
+    const photo = section().getByRole('img', { name: 'Photo de la zone Garage' });
+    expect(photo.compareDocumentPosition(planImg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('sans plan, ou sans repère dans la cave : pas de plan, et le plan n’est lu que si une zone a un repère', async () => {
+    const getPlan = vi.spyOn(api, 'getPlan').mockResolvedValue({ plan: null, markers: [] });
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    mount();
+    await screen.findByRole('region', { name: 'Emplacements' });
+    await userEvent.click(await section().findByRole('button', { name: /Garage/ }));
+    expect(section().queryByRole('img', { name: 'Plan de la cave' })).not.toBeInTheDocument();
+    expect(getPlan).not.toHaveBeenCalled();
+  });
+
+  it('membre : voit le plan et le repère, sans aucune commande', async () => {
+    vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    vi.spyOn(api, 'getPlan').mockResolvedValue({ plan, markers });
+    vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+    const set = vi.spyOn(api, 'setZoneMarker');
+    mount();
+    await screen.findByRole('region', { name: 'Emplacements' });
+    await userEvent.click(await section().findByRole('button', { name: /Garage/ }));
+    expect(await section().findByRole('img', { name: 'Zone 1 : Garage' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.queryByRole('button', { name: /Zone \d/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/plan/i, { selector: 'input' })).not.toBeInTheDocument();
+    expect(set).not.toHaveBeenCalled();
+  });
 });
 
 it('sortie depuis la fiche : question avec la pré-sélection de la fiche', async () => {

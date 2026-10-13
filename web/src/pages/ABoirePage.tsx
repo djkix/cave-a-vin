@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { BottomNav } from '../components/BottomNav';
 import { ZoneDetails } from '../components/LocationFields';
+import { ZonePlan } from '../components/PlanView';
 import { TopBar } from '../components/TopBar';
 import { apogeeShortLabel } from '../lib/apogee';
 import { groupByPlace, useDrinkSoon } from '../lib/drink-soon';
 import { useZones } from '../lib/locations';
 
-/** À boire prochainement, regroupé par emplacement : où descendre chercher les bouteilles (indication et photo de la zone). */
+/** À boire prochainement, regroupé par emplacement : où descendre chercher les bouteilles (indication, photo et petit plan de la zone). */
 export function ABoirePage() {
   const soon = useDrinkSoon();
   const zones = useZones();
@@ -18,10 +19,13 @@ export function ABoirePage() {
         <p className="list__meta">Vins dont l’apogée se termine au plus tard l’an prochain, rangés par emplacement.</p>
         {soon.isError && <p role="alert" className="text-error">{(soon.error as Error).message}</p>}
         {soon.data?.length === 0 && <p className="centered">Rien d’urgent à boire.</p>}
-        {groups.map((g) => (
+        {groups.map((g) => {
+          const zone = zones.data?.find((z) => z.id === g.zoneId);
+          return (
           <section key={g.label} aria-label={g.label}>
             <h2 style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--color-secondary)' }}>{g.label.toUpperCase()}</h2>
-            <ZoneDetails zone={zones.data?.find((z) => z.id === g.zoneId)} />
+            <ZoneDetails zone={zone} />
+            {zone?.marker && <ZonePlan zoneId={zone.id} mini />}
             <div className="list">
               {g.wines.map(({ wine: w, quantity }) => (
                 <Link key={w.id} to={`/cave/${w.id}`} className="cave-row">
@@ -36,7 +40,8 @@ export function ABoirePage() {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
       </main>
       <BottomNav />
     </>

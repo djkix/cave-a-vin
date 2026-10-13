@@ -3,11 +3,13 @@ import { ChangeEvent, FormEvent, useId, useState } from 'react';
 import { BottomNav } from '../components/BottomNav';
 import { Button } from '../components/Button';
 import { ZoneDetails } from '../components/LocationFields';
+import { PlanView } from '../components/PlanView';
 import { TopBar } from '../components/TopBar';
 import {
-  createZone, deleteZone, getMembers, inviteMember, MemberView, removeMember, removeZonePhoto, renameCave, reorderZones, updateZone, uploadZonePhoto, Zone,
+  createZone, deleteZone, getMembers, inviteMember, MemberView, planImageUrl, removeMember, removePlan, removeZoneMarker, removeZonePhoto, renameCave,
+  reorderZones, setZoneMarker, updateZone, uploadPlan, uploadZonePhoto, Zone,
 } from '../lib/api-client';
-import { useZones } from '../lib/locations';
+import { usePlan, useZones } from '../lib/locations';
 import { shrinkPhoto } from '../lib/shrink-photo';
 import { useCurrentCave } from '../lib/use-current-cave';
 
@@ -211,7 +213,121 @@ function ZonesCard() {
   );
 }
 
-/** Propriétaire : nom de la cave, zones, puis membres en lecture seule (inviter, retirer). */
+/** Ce que montre le plan en dehors de l'image : un repère à attribuer, une zone choisie, ou une zone à déplacer. */
+type PlanMode = { kind: 'idle' } | { kind: 'pending'; x: number; y: number } | { kind: 'selected'; zoneId: string } | { kind: 'moving'; zoneId: string };
+
+/**
+ * Plan de la cave : envoyer, remplacer ou retirer l'image, puis y placer les
+ * zones. Toucher le plan pose un repère numéroté et demande de quelle zone il
+ * s'agit (zones sans repère, puis celles à déplacer) ; toucher un repère montre
+ * sa zone, avec « Déplacer » et « Retirer le repère ». Erreurs de l'api telles quelles.
+ */
+function PlanCard() {
+  const qc = useQueryClient();
+  const { caveId } = useCurrentCave();
+  const query = usePlan();
+  const zones = useZones();
+  const titleId = useId();
+  const inputId = useId();
+  const [mode, setMode] = useState<PlanMode>({ kind: 'idle' });
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const plan = query.data?.plan ?? null;
+  const markers = query.data?.markers ?? [];
+  const list = zones.data ?? [];
+
+  async function act(run: () => Promise<unknown>, done?: string) {
+    setBusy(true);
+    setError(null);
+    setStatus(null);
+    try {
+      await run();
+      setMode({ kind: 'idle' });
+      if (done) setStatus(done);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Action impossible');
+    } finally {
+      setBusy(false);
+      void qc.invalidateQueries({ predicate: (q) => ['plan', 'zones'].includes(String(q.queryKey[0])) });
+    }
+  }
+
+  function pick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    // Envoyé tel quel : l'api le redresse et le réduit à 2400 px (plus fin qu'une photo d'étiquette).
+    if (file) void act(() => uploadPlan(file));
+  }
+
+  function confirmRemove() {
+    if (window.confirm('Retirer le plan de la cave ? Les repères des zones sont gardés.')) void act(removePlan, 'Plan retiré. Les repères des zones sont gardés.');
+  }
+
+  function tap(x: number, y: number) {
+    if (busy) return;
+    if (mode.kind === 'moving') void act(() => setZoneMarker(mode.zoneId, x, y));
+    else if (list.length > 0) setMode({ kind: 'pending', x, y });
+  }
+
+  const selected = mode.kind === 'selected' || mode.kind === 'moving' ? list.find((z) => z.id === mode.zoneId) : undefined;
+
+  return (
+    <section className="card" aria-labelledby={titleId} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+      <h2 id={titleId} style={{ fontSize: 18, margin: 0 }}>Plan de la cave</h2>
+      {query.isError && <p role="alert" className="text-error">{(query.error as Error).message}</p>}
+      {query.isSuccess && !plan && (
+        <p className="list__meta" style={{ margin: 0 }}>Photographiez la pièce ou un schéma dessiné à la main, puis placez vos zones dessus.</p>
+      )}
+      {plan && caveId && (
+        <>
+          {zones.isSuccess && list.length === 0 && <p className="list__meta" style={{ margin: 0 }}>Créez d'abord des zones</p>}
+          {list.length > 0 && mode.kind === 'idle' && <p className="list__meta" style={{ margin: 0 }}>Touchez le plan à l’endroit d’une zone pour y poser son repère.</p>}
+          <PlanView src={planImageUrl(caveId, plan.updatedAt)} plan={plan} markers={markers}
+            pending={mode.kind === 'pending' ? { x: mode.x, y: mode.y } : null} highlightZoneId={selected?.id} onPlanClick={tap} onMarkerClick={(zoneId) => setMode({ kind: 'selected', zoneId })} />
+        </>
+      )}
+      {mode.kind === 'pending' && (
+        <div role="group" aria-label="Quelle zone est ici ?" className="plan-chooser">
+          <p className="field__label" style={{ margin: 0 }}>Quelle zone est ici ?</p>
+          {list.filter((z) => !z.marker).map((z) => (
+            <Button key={z.id} variant="outline" disabled={busy} onClick={() => void act(() => setZoneMarker(z.id, mode.x, mode.y))}>{z.name}</Button>
+          ))}
+          {list.filter((z) => z.marker).map((z) => (
+            <Button key={z.id} variant="link" disabled={busy} onClick={() => void act(() => setZoneMarker(z.id, mode.x, mode.y))}>{`${z.name} (déplacer)`}</Button>
+          ))}
+          <Button variant="link" onClick={() => setMode({ kind: 'idle' })}>Annuler</Button>
+        </div>
+      )}
+      {mode.kind === 'selected' && selected && (
+        <div className="plan-chooser">
+          <p className="list__title" style={{ margin: 0 }}>{selected.name}</p>
+          {selected.indication && <p className="zone-details__text">{selected.indication}</p>}
+          <div className="zone-row__actions">
+            <Button variant="outline" disabled={busy} onClick={() => setMode({ kind: 'moving', zoneId: selected.id })}>Déplacer</Button>
+            <Button variant="link" disabled={busy} onClick={() => void act(() => removeZoneMarker(selected.id))}>Retirer le repère</Button>
+            <Button variant="link" onClick={() => setMode({ kind: 'idle' })}>Fermer</Button>
+          </div>
+        </div>
+      )}
+      {mode.kind === 'moving' && selected && (
+        <div className="zone-row__actions">
+          <p className="list__meta" style={{ margin: 0 }}>{`Touchez le nouvel endroit de ${selected.name} sur le plan.`}</p>
+          <Button variant="link" onClick={() => setMode({ kind: 'idle' })}>Annuler</Button>
+        </div>
+      )}
+      {error && <p role="alert" className="text-error" style={{ margin: 0 }}>{error}</p>}
+      {status && <p role="status" className="list__meta" style={{ margin: 0 }}>{status}</p>}
+      <div className="zone-row__actions">
+        <label className="field__label" htmlFor={inputId}>{plan ? 'Remplacer le plan' : 'Ajouter le plan de la cave'}</label>
+        <input id={inputId} type="file" accept="image/*" capture="environment" disabled={busy} onChange={pick} />
+        {plan && <Button variant="link" disabled={busy} onClick={confirmRemove}>Retirer le plan</Button>}
+      </div>
+    </section>
+  );
+}
+
+/** Propriétaire : nom de la cave, plan, zones, puis membres en lecture seule (inviter, retirer). */
 export function MaCavePage() {
   const qc = useQueryClient();
   const members = useQuery({ queryKey: ['members'], queryFn: getMembers });
@@ -247,6 +363,8 @@ export function MaCavePage() {
       <TopBar title="Ma cave" back="/" />
       <main className="page">
         <RenameCard />
+
+        <PlanCard />
 
         <ZonesCard />
 

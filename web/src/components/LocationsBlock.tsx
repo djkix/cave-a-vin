@@ -1,16 +1,20 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useId, useMemo, useState } from 'react';
 import { LocationInput, moveWine, Place, Zone } from '../lib/api-client';
-import { EMPTY_LOCATION, toLocationInput, useLocations, useZones } from '../lib/locations';
+import { EMPTY_LOCATION, toLocationInput, useLocations, usePlan, useZones } from '../lib/locations';
 import { Button } from './Button';
 import { LocationFields, ZoneDetails } from './LocationFields';
+import { ZonePlan } from './PlanView';
 
-/** Une zone a quelque chose à montrer : son indication ou sa photo. */
-const hasDetails = (z: Zone | undefined): z is Zone => !!z && (!!z.indication || z.hasPhoto);
-
-/** Un endroit du vin ; touché, il montre ou cache l'indication et la photo de sa zone (pour tous, membre compris). */
+/**
+ * Un endroit du vin ; touché, il montre ou cache l'indication et la photo de sa
+ * zone, puis le plan avec son repère (pour tous, membre compris). Le plan n'est
+ * lu que pour une zone qui a un repère.
+ */
 function PlaceItem({ place, zone }: { place: Place; zone: Zone | undefined }) {
   const [open, setOpen] = useState(false);
+  const plan = usePlan(!!zone?.marker);
+  const onPlan = !!zone?.marker && !!plan.data?.markers.some((m) => m.zoneId === zone.id);
   const detailsId = useId();
   const text = (
     <>
@@ -18,13 +22,13 @@ function PlaceItem({ place, zone }: { place: Place; zone: Zone | undefined }) {
       <span className="num">{` × ${place.quantity}`}</span>
     </>
   );
-  if (!hasDetails(zone)) return <li>{text}</li>;
+  if (!zone || (!zone.indication && !zone.hasPhoto && !onPlan)) return <li>{text}</li>;
   return (
     <li className="locations-list__item--zone">
       <button type="button" className="locations-list__toggle" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen((o) => !o)}>
         {text}
       </button>
-      <div id={detailsId}>{open && <ZoneDetails zone={zone} />}</div>
+      <div id={detailsId}>{open && <><ZoneDetails zone={zone} />{onPlan && <ZonePlan zoneId={zone.id} />}</>}</div>
     </li>
   );
 }
