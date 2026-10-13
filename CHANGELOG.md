@@ -9,6 +9,19 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.8.0](https://github.com/djkix/cave-a-vin/compare/v2.7.0...v2.8.0) (2026-10-13)
+
+
+### Fonctionnalités
+
+* **plan:** plan de la cave et repères des zones ([4f4de56](https://github.com/djkix/cave-a-vin/commit/4f4de56590b8fbecd1a38b439f6a823171f05fd4))
+* **web:** plan de la cave dans Ma cave, la fiche et À boire ([ec833f1](https://github.com/djkix/cave-a-vin/commit/ec833f1c38054b5699a5438610269be9fb3cb612))
+
+
+### Corrections
+
+* **plan:** relecture du plan après les zones, repère « + », envoi réduit ([c38b29d](https://github.com/djkix/cave-a-vin/commit/c38b29d6c83c3ae35eb8e2241684dd18afb93651))
+
 ## [2.7.0](https://github.com/djkix/cave-a-vin/compare/v2.6.0...v2.7.0) (2026-10-12)
 
 ### Résumé
