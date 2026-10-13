@@ -23,7 +23,8 @@ utilisée depuis un téléphone (PWA installable).
   déplacement, filtre) et cote iDealwine saisie à la main (le relevé
   automatique prévu au cahier des charges a été abandonné, voir *Limites*).
   Depuis la 2.6.0 : page « Ma cave » et zones de la cave (nom, indication,
-  photo, ordre).
+  photo, ordre). Depuis la 2.8.0 : plan de la cave (une image) avec le repère
+  numéroté de chaque zone, montré sur la fiche et dans « À boire ».
 - **Reporté** : aucune alerte hors de l'application (notification ou e-mail) :
   la liste « à boire en priorité » se consulte dans l'application. Voir
   `cahier-des-charges.md`.
@@ -56,8 +57,8 @@ et une cave à laquelle le compte n'a pas accès répond « Cave introuvable ».
 
 **Ma cave.** Depuis l'accueil ou *Mon compte*, le lien *Ma cave* (page
 `/ma-cave`, propriétaire seulement ; l'ancienne adresse `/membres` y mène)
-regroupe, dans cet ordre, le **nom de la cave**, ses **zones** et ses
-**membres**.
+regroupe, dans cet ordre, le **nom de la cave**, son **plan**, ses **zones**
+et ses **membres**.
 
 **Zones de la cave.** Une zone est un endroit de la cave où l'on range des
 bouteilles (« Cave 1 », « Garage »). Dans *Ma cave*, le propriétaire en ajoute
@@ -89,6 +90,38 @@ sans pouvoir les changer. API : `GET`, `POST /api/caves/current/zones`,
 /api/caves/current/zones/order` (`{ ids }` : nouvel ordre), `PUT`, `DELETE
 /api/caves/current/zones/:id/photo` et `GET /api/caves/zones/:id/photo`
 (toute cave du compte).
+
+**Plan de la cave.** Une image par cave : une photo de la pièce, ou d'un
+schéma dessiné à la main. Dans *Ma cave*, la carte *Plan de la cave* (avant
+*Zones*) l'envoie (*Ajouter le plan de la cave*, puis *Remplacer le plan* ;
+réduite à 2400 px par le téléphone avant l'envoi, 15 Mo au plus, redressée
+selon l'EXIF, ramenée à 2400 px sur le grand côté, en
+JPEG) et la retire (*Retirer le plan*, après confirmation). Sans plan, elle
+explique : « Photographiez la pièce ou un schéma dessiné à la main, puis
+placez vos zones dessus. » ; sans zone : « Créez d'abord des zones ». Pour
+placer une zone, le propriétaire **touche le plan** à son endroit : un repère
+numéroté y apparaît, et un petit choix demande « Quelle zone est ici ? » (les
+zones sans repère, puis celles déjà placées, à déplacer). Toucher un repère
+montre sa zone (nom, indication), avec *Déplacer* (puis toucher le nouvel
+endroit) et *Retirer le repère*. Une zone a au plus un repère ; les repères
+sont **numérotés dans l'ordre d'affichage des zones** (1, 2, 3… parmi les
+zones qui en ont un : changer l'ordre des zones change les numéros), et une
+zone archivée n'apparaît jamais sur le plan (son repère reste en base).
+**Retirer le plan garde les repères** (*Ma cave* le dit : « Les repères des
+zones sont gardés ») : un plan équivalent remis ensuite les retrouve à leur
+place ; poser un repère sans plan est refusé (« Ajoutez d'abord un plan de la
+cave »). Le plan se retrouve sur la **fiche du vin** (toucher un emplacement
+montre, sous l'indication et la photo de sa zone, le plan avec son repère mis
+en avant) et dans **« À boire prochainement »** (un petit plan sous chaque
+en-tête d'une zone placée, qui s'agrandit au toucher). Un membre en lecture
+seule voit le plan et les repères depuis la fiche et À boire (*Ma cave* est
+réservée au propriétaire), sans rien pouvoir changer. API : `GET /api/caves/current/plan`
+(`{ plan: { width, height, updatedAt } | null, markers: [{ zoneId, name,
+number, x, y }] }`, aucun repère sans plan), `PUT` (champ `file`) et `DELETE
+/api/caves/current/plan`, `GET /api/caves/plans/:caveId/image` (toute cave du
+compte), `PUT /api/caves/current/zones/:id/marker` (`{ x, y }`, fractions de
+la largeur et de la hauteur entre 0 et 1, sinon « Position invalide sur le
+plan ») et `DELETE` ; chaque zone porte `marker: { x, y } | null`.
 
 **Membres en lecture seule.** Dans *Ma cave* (propriétaire seulement), la
 section *Membres* liste les membres, invite une adresse Google (« Cette
@@ -786,6 +819,18 @@ Si les images sont construites localement, remplacer `docker compose pull` par
 fusionner la demande de version proposée par release-please puis renseigner
 `IMAGE_TAG=<version>` dans le `.env`.
 
+### Passage à la 2.8.0 (plan de la cave)
+
+La migration `20261017000000_plan_cave` est **additive** : elle ajoute à
+`cave` les colonnes du plan (`plan_path`, `plan_width`, `plan_height`,
+`plan_updated_at`) et aux zones celles du repère (`plan_x`, `plan_y`, avec la
+contrainte `cave_zone_plan_position_check`), sans rien modifier ni supprimer.
+**Faire tout de même une sauvegarde avant la mise à jour** (même commande
+qu'au passage à la 2.0.0, fichier `backups/cave-avant-2.8.0.sql.gz`). Les
+images des plans sont rangées sous `plans/` dans le volume `photo_data`, avec
+les photos (même synchronisation vers le NAS). Une image 2.7.x peut encore tourner sur la base migrée (retour arrière
+sans restauration) ; elle ignore le plan et les repères.
+
 ### Passage à la 2.7.0 (accords et descriptifs par lots)
 
 Rien à faire : la migration `20261016000000_lots_accords` ajoute seulement
@@ -984,7 +1029,9 @@ Les index uniques partiels (`idx_movement_reverses_id`,
 archivées), l'index unique sur expressions `location_place_key` (cave, zone,
 casier et position en minuscules), les contraintes CHECK
 (`location_not_empty_check`, `cave_zone_name_length_check`,
-`cave_zone_indication_length_check`, `price_quote_cote_cents_check`,
+`cave_zone_indication_length_check`, `cave_zone_plan_position_check` (repère
+d'une zone : les deux coordonnées nulles, ou les deux entre 0 et 1),
+`price_quote_cote_cents_check`,
 `price_quote_n_transactions_check`, celles de `gemini_call`) et la fonction de
 déclencheur `check_stock_non_negative` ne sont pas exprimables dans le schéma
 Prisma :

@@ -18,7 +18,7 @@ import { createTestCave, deleteTestCaves } from './test-utils/cave';
  *
  *   cave-viewer-read  lecture d'une cave, ouverte au membre (sans prix) ;
  *   cave-owner        réservée au propriétaire de la cave courante ;
- *   photo-image       image d'une photo ou d'une zone, servie pour toute cave du compte ;
+ *   photo-image       image d'une photo, d'une zone ou du plan, servie pour toute cave du compte ;
  *   admin             réservée à l'administrateur ;
  *   auth-public       connexion, session, santé.
  *
@@ -76,6 +76,7 @@ const draft = (name: string) => ({ producer: `Domaine Iso ${run} ${name}`, appel
 const NOT_FOUND_WINE: Expected = { status: 404, message: 'Vin introuvable' };
 const NOT_FOUND_PHOTO: Expected = { status: 404, message: 'Photo introuvable' };
 const NOT_FOUND_ZONE: Expected = { status: 404, message: 'Zone introuvable' };
+const NOT_FOUND_PLAN: Expected = { status: 404, message: 'Plan introuvable' };
 const contains = (id: keyof Ids) => (res: supertest.Response, ids: Ids) => expect(res.text).toContain(ids[id]);
 
 /** La table : une ligne par route HTTP de l'application. */
@@ -196,6 +197,28 @@ const ROUTES: Route[] = [
     method: 'DELETE', path: '/api/caves/current/zones/:id/photo', kind: 'cave-owner', req: (i) => ({ url: `/api/caves/current/zones/${i.zoneA}/photo` }),
     foreign: NOT_FOUND_ZONE, happy: { status: 200, check: (res) => expect(res.body.hasPhoto).toBe(false) },
   },
+
+  // ── Plan de la cave et repères des zones ────────────────────────────────────
+  // Lus (membre compris) avec le plan et le repère de A, puis repère déplacé et
+  // retiré, plan remplacé et retiré. B, sans plan : sa cave seulement.
+  {
+    method: 'GET', path: '/api/caves/current/plan', kind: 'cave-viewer-read', req: () => ({ url: '/api/caves/current/plan' }), foreign: 'own',
+    readable: (res, i) => expect(res.body).toEqual({ plan: { width: 120, height: 160, updatedAt: expect.any(String) }, markers: [{ zoneId: i.zoneA, name: 'Cave A', number: 1, x: 0.5, y: 0.5 }] }),
+  },
+  { method: 'GET', path: '/api/caves/plans/:caveId/image', kind: 'photo-image', req: (i) => ({ url: `/api/caves/plans/${i.caveA}/image` }), foreign: NOT_FOUND_PLAN, happy: { status: 200 } },
+  {
+    method: 'PUT', path: '/api/caves/current/zones/:id/marker', kind: 'cave-owner', req: (i) => ({ url: `/api/caves/current/zones/${i.zoneA}/marker`, body: { x: 0.25, y: 0.75 } }),
+    foreign: NOT_FOUND_ZONE, happy: { status: 200, check: (res) => expect(res.body.marker).toEqual({ x: 0.25, y: 0.75 }) },
+  },
+  {
+    method: 'DELETE', path: '/api/caves/current/zones/:id/marker', kind: 'cave-owner', req: (i) => ({ url: `/api/caves/current/zones/${i.zoneA}/marker` }),
+    foreign: NOT_FOUND_ZONE, happy: { status: 200, check: (res) => expect(res.body.marker).toBeNull() },
+  },
+  {
+    method: 'PUT', path: '/api/caves/current/plan', kind: 'cave-owner', req: () => ({ url: '/api/caves/current/plan', upload: true }), foreign: 'own',
+    happy: { status: 200, check: (res) => expect(res.body).toEqual({ width: 120, height: 160, updatedAt: expect.any(String) }) },
+  },
+  { method: 'DELETE', path: '/api/caves/current/plan', kind: 'cave-owner', req: () => ({ url: '/api/caves/current/plan' }), foreign: 'own', happy: { status: 204 } },
 
   // ── Propriétaire : photos, « À confirmer », suivi ───────────────────────────
   { method: 'POST', path: '/api/photos', kind: 'cave-owner', req: () => ({ url: '/api/photos', upload: true }), foreign: 'own', happy: { status: 202 } },
@@ -339,7 +362,9 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     ids.zoneDeleteA = (await prisma.caveZone.create({ data: { caveId: ids.caveA, name: 'Iso à supprimer', sortOrder: 1 } })).id;
     ids.locationA = (await prisma.location.create({ data: { caveId: ids.caveA, zoneId: ids.zoneA, casier: 'Iso' } })).id;
     // Photo de la zone de A, sur disque.
-    await prisma.caveZone.update({ where: { id: ids.zoneA }, data: { photoPath: `zones/${ids.zoneA}.jpg` } });
+    await prisma.caveZone.update({ where: { id: ids.zoneA }, data: { photoPath: `zones/${ids.zoneA}.jpg`, planX: 0.5, planY: 0.5 } });
+    // Plan de A, sur disque (écrit plus bas avec les photos).
+    await prisma.cave.update({ where: { id: ids.caveA }, data: { planPath: `plans/${ids.caveA}.jpg`, planWidth: 120, planHeight: 160, planUpdatedAt: new Date() } });
 
     // Photo d'entrée lue, sans mouvement : « À confirmer » de A, avec son image sur disque.
     const photo = (name: string) =>
@@ -350,6 +375,8 @@ describeIfInfra('étanchéité entre caves, route par route (HTTP)', () => {
     writeFileSync(join(storage, 'normalized', `${ids.photoA}.jpg`), jpeg);
     mkdirSync(join(storage, 'zones'), { recursive: true });
     writeFileSync(join(storage, 'zones', `${ids.zoneA}.jpg`), jpeg);
+    mkdirSync(join(storage, 'plans'), { recursive: true });
+    writeFileSync(join(storage, 'plans', `${ids.caveA}.jpg`), jpeg);
     ids.candidateA = candidateFor(ids.wineA);
 
     ids.producerKeyA = producerKeyOf(a.producer);

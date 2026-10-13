@@ -79,6 +79,17 @@ describe('caves, membres et administration', () => {
     expect(api.zonePhotoUrl('z1', 3)).toBe('/api/caves/zones/z1/photo?v=3');
   });
 
+  it('plan de la cave : lecture, envoi, retrait, repères des zones, image', async () => {
+    expect(await call(() => api.getPlan(), '{"plan":null,"markers":[]}')).toEqual({ url: '/api/caves/current/plan', method: 'GET', body: undefined });
+    const upload = await call(() => api.uploadPlan(new Blob(['x'], { type: 'image/jpeg' })));
+    expect({ url: upload.url, method: upload.method }).toEqual({ url: '/api/caves/current/plan', method: 'PUT' });
+    expect((upload.body as FormData).get('file')).toBeInstanceOf(Blob);
+    expect(await call(() => api.removePlan(), '', 204)).toEqual({ url: '/api/caves/current/plan', method: 'DELETE', body: undefined });
+    expect(await call(() => api.setZoneMarker('z1', 0.25, 0.5))).toEqual({ url: '/api/caves/current/zones/z1/marker', method: 'PUT', body: '{"x":0.25,"y":0.5}' });
+    expect(await call(() => api.removeZoneMarker('z1'))).toEqual({ url: '/api/caves/current/zones/z1/marker', method: 'DELETE', body: undefined });
+    expect(api.planImageUrl('c1', '2026-10-13T10:00:00.000Z')).toBe('/api/caves/plans/c1/image?v=2026-10-13T10%3A00%3A00.000Z');
+  });
+
   it('gère les inscriptions, la cave d’un compte et le budget', async () => {
     expect(await call(() => api.getRegistrations(), '[]')).toEqual({ url: '/api/admin/registrations', method: 'GET', body: undefined });
     expect(await call(() => api.validateRegistration('u1'))).toEqual({ url: '/api/admin/registrations/u1/validate', method: 'POST', body: undefined });

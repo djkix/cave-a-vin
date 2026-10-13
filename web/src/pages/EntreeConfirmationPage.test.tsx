@@ -155,8 +155,8 @@ describe('emplacement à l’entrée', () => {
     { id: 'l1', zoneId: 'z2', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: true },
   ];
   const zones: api.Zone[] = [
-    { id: 'z1', name: 'Armoire', indication: null, hasPhoto: false, sortOrder: 0 },
-    { id: 'z2', name: 'Cave 2', indication: 'Au fond à droite', hasPhoto: false, sortOrder: 1 },
+    { id: 'z1', name: 'Armoire', indication: null, hasPhoto: false, sortOrder: 0, marker: null },
+    { id: 'z2', name: 'Cave 2', indication: 'Au fond à droite', hasPhoto: false, sortOrder: 1, marker: null },
   ];
   beforeEach(() => {
     vi.spyOn(api, 'getZones').mockResolvedValue(zones);

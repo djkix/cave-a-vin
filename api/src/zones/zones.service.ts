@@ -2,24 +2,51 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { CaveZone, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { CaveContextService } from '../caves/cave-context.service';
 import { ImageNormalizationService } from '../photos/image-normalization.service';
 import { PHOTO_STORAGE_DIR } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  CreateZoneInput, UpdateZoneInput, ZONE_NAME_TAKEN, ZONE_NOT_FOUND, ZONE_PHOTO_NOT_FOUND, ZONE_STOCKED, zonePhotoPath, ZoneView, zoneView,
+  CreateZoneInput, PLAN_MISSING, UpdateZoneInput, ZONE_NAME_TAKEN, ZONE_NOT_FOUND, ZONE_PHOTO_NOT_FOUND, ZONE_STOCKED, zonePhotoPath, ZoneView, zoneView,
 } from './zone';
 
 function isUniqueViolation(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
 }
 
-async function unlinkIgnoringMissing(path: string): Promise<void> {
+export async function unlinkIgnoringMissing(path: string): Promise<void> {
   try {
     await unlink(path);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+  }
+}
+
+/**
+ * Image normalisée (400 si illisible), écrite dans un fichier temporaire à côté
+ * de `path` (relatif à `dir`), puis `commit(place)` : `place()` la met en place
+ * (rename, atomique) et s'appelle sous le verrou de l'enregistrement. Le
+ * temporaire est effacé quoi qu'il arrive : jamais de fichier orphelin ni à moitié écrit.
+ */
+export async function placeImage(
+  normalized: Promise<{ buffer: Buffer; width: number; height: number }>, dir: string, path: string,
+  commit: (place: () => Promise<void>, size: { width: number; height: number }) => Promise<void>,
+): Promise<void> {
+  let image: { buffer: Buffer; width: number; height: number };
+  try {
+    image = await normalized;
+  } catch {
+    throw new BadRequestException('Image illisible ou format non pris en charge');
+  }
+  const final = join(dir, path);
+  const tmp = `${final}.${randomUUID()}.tmp`;
+  await mkdir(dirname(final), { recursive: true });
+  await writeFile(tmp, image.buffer);
+  try {
+    await commit(() => rename(tmp, final), image);
+  } finally {
+    await unlinkIgnoringMissing(tmp);
   }
 }
 
@@ -151,25 +178,33 @@ export class ZonesService {
    */
   async setPhoto(caveId: string, id: string, input: Buffer): Promise<ZoneView> {
     await this.findOwn(caveId, id);
-    let buffer: Buffer;
-    try {
-      ({ buffer } = await this.normalization.normalize(input));
-    } catch {
-      throw new BadRequestException('Image illisible ou format non pris en charge');
-    }
     const path = zonePhotoPath(id);
-    const tmp = join(this.dir, 'zones', `${id}.${randomUUID()}.tmp`);
-    await mkdir(join(this.dir, 'zones'), { recursive: true });
-    await writeFile(tmp, buffer);
-    try {
-      await this.prisma.$transaction(async (tx) => {
+    await placeImage(this.normalization.normalize(input), this.dir, path, (place) =>
+      this.prisma.$transaction(async (tx) => {
         await this.lockOwn(tx, caveId, id);
-        await rename(tmp, join(this.dir, path));
+        await place();
         await tx.caveZone.update({ where: { id }, data: { photoPath: path } });
-      });
-    } finally {
-      await unlinkIgnoringMissing(tmp);
-    }
+      }));
+    return zoneView(await this.findOwn(caveId, id));
+  }
+
+  /**
+   * Pose ou déplace le repère de la zone sur le plan : 404 pour une zone d'une
+   * autre cave ou archivée, puis 409 si la cave n'a pas de plan.
+   */
+  async setMarker(caveId: string, id: string, marker: { x: number; y: number }): Promise<ZoneView> {
+    await this.findOwn(caveId, id);
+    const cave = await this.prisma.cave.findUniqueOrThrow({ where: { id: caveId }, select: { planPath: true } });
+    if (!cave.planPath) throw new ConflictException(PLAN_MISSING);
+    const { count } = await this.prisma.caveZone.updateMany({ where: { id, caveId, archivedAt: null }, data: { planX: marker.x, planY: marker.y } });
+    if (count === 0) throw new NotFoundException(ZONE_NOT_FOUND);
+    return zoneView(await this.findOwn(caveId, id));
+  }
+
+  /** Retire le repère de la zone (possible sans plan). */
+  async removeMarker(caveId: string, id: string): Promise<ZoneView> {
+    const { count } = await this.prisma.caveZone.updateMany({ where: { id, caveId, archivedAt: null }, data: { planX: null, planY: null } });
+    if (count === 0) throw new NotFoundException(ZONE_NOT_FOUND);
     return zoneView(await this.findOwn(caveId, id));
   }
 

@@ -70,6 +70,24 @@ describe('shrinkPhoto', () => {
     expect(result).toBe(file);
   });
 
+  it('accepts a larger limit (plan of the cave: 4800x2400 -> 2400x1200), and keeps a photo already within it', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 4800, height: 2400, close: vi.fn() }));
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    const reduced = new Blob([new Uint8Array(5)], { type: 'image/jpeg' });
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb: BlobCallback) {
+      cb(reduced);
+    });
+    expect(await shrinkPhoto(original(), 2400)).toBe(reduced);
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 2400, 1200);
+
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 2000, height: 1500, close: vi.fn() }));
+    const file = original();
+    expect(await shrinkPhoto(file, 2400)).toBe(file);
+    vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('format non lisible')));
+    expect(await shrinkPhoto(file, 2400)).toBe(file);
+  });
+
   it('never upscales a photo already within the limit', async () => {
     vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 800, height: 600, close: vi.fn() }));
     const toBlob = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob');

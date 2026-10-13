@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as api from '../lib/api-client';
@@ -8,14 +8,15 @@ import { MaCavePage } from './MaCavePage';
 afterEach(() => vi.restoreAllMocks());
 
 const zones: api.Zone[] = [
-  { id: 'z1', name: 'Cave 1', indication: 'À gauche en entrant', hasPhoto: true, sortOrder: 0 },
-  { id: 'z2', name: 'Garage', indication: null, hasPhoto: false, sortOrder: 1 },
-  { id: 'z3', name: 'Cellier', indication: 'Au fond, derrière l’escalier', hasPhoto: false, sortOrder: 2 },
+  { id: 'z1', name: 'Cave 1', indication: 'À gauche en entrant', hasPhoto: true, sortOrder: 0, marker: null },
+  { id: 'z2', name: 'Garage', indication: null, hasPhoto: false, sortOrder: 1, marker: null },
+  { id: 'z3', name: 'Cellier', indication: 'Au fond, derrière l’escalier', hasPhoto: false, sortOrder: 2, marker: null },
 ];
 
 // Zones lues par défaut (vide) : les tests des membres et du nom n'en dépendent pas.
 beforeEach(() => {
   vi.spyOn(api, 'getZones').mockResolvedValue([]);
+  vi.spyOn(api, 'getPlan').mockResolvedValue({ plan: null, markers: [] });
 });
 
 const members: api.MemberView[] = [
@@ -40,12 +41,12 @@ const rowOf = (email: string) => screen.getByText(email).closest<HTMLElement>('.
 const zonesCard = () => within(screen.getByRole('region', { name: 'Zones' }));
 const zoneRow = (name: string) => within(zonesCard().getByRole('listitem', { name }));
 
-it('regroupe le nom de la cave, les zones puis les membres, sous le titre « Ma cave »', async () => {
+it('regroupe le nom de la cave, le plan, les zones puis les membres, sous le titre « Ma cave »', async () => {
   vi.spyOn(api, 'getMembers').mockResolvedValue(members);
   mount();
   expect(screen.getByRole('heading', { level: 1, name: 'Ma cave' })).toBeInTheDocument();
   await screen.findByText('franck@example.com');
-  const order = [screen.getByLabelText('Nom de la cave'), screen.getByRole('region', { name: 'Zones' }), screen.getByRole('region', { name: 'Membres' })];
+  const order = [screen.getByLabelText('Nom de la cave'), screen.getByRole('region', { name: 'Plan de la cave' }), screen.getByRole('region', { name: 'Zones' }), screen.getByRole('region', { name: 'Membres' })];
   for (let i = 1; i < order.length; i++) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
@@ -81,7 +82,7 @@ describe('zones', () => {
 
   it('ajoute une zone (nom et indication) puis relit la liste', async () => {
     const list = vi.spyOn(api, 'getZones').mockResolvedValue(zones);
-    const create = vi.spyOn(api, 'createZone').mockResolvedValue({ id: 'z4', name: 'Placard', indication: null, hasPhoto: false, sortOrder: 3 });
+    const create = vi.spyOn(api, 'createZone').mockResolvedValue({ id: 'z4', name: 'Placard', indication: null, hasPhoto: false, sortOrder: 3, marker: null });
     mount();
     await zonesCard().findByText('Cave 1');
     await userEvent.type(zonesCard().getByLabelText('Nom de la nouvelle zone'), '  Placard ');
@@ -284,4 +285,131 @@ it('affiche le refus de l’api au renommage', async () => {
   await waitFor(() => expect(input).toHaveValue('Cave de Franck'));
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Le nom de la cave doit faire de 1 à 80 caractères');
+});
+
+describe('plan de la cave', () => {
+  const plan = { width: 2000, height: 1000, updatedAt: '2026-10-13T10:00:00.000Z' };
+  const placed: api.Zone[] = [{ ...zones[0], marker: { x: 0.1, y: 0.2 } }, zones[1], zones[2]];
+  const withPlan = { plan, markers: [{ zoneId: 'z1', name: 'Cave 1', number: 1, x: 0.1, y: 0.2 }] };
+  const planCard = () => within(screen.getByRole('region', { name: 'Plan de la cave' }));
+  /** Toucher le plan à (x, y) en fractions : boîte rendue simulée de 400 × 200 px. */
+  async function tapPlan(x: number, y: number) {
+    const box = (await planCard().findByRole('img', { name: 'Plan de la cave' })).parentElement!;
+    box.getBoundingClientRect = () => ({ left: 10, top: 50, width: 400, height: 200, right: 410, bottom: 250, x: 10, y: 50, toJSON: () => ({}) });
+    fireEvent.click(box, { clientX: 10 + x * 400, clientY: 50 + y * 200 });
+  }
+
+  beforeEach(() => {
+    vi.spyOn(api, 'getMembers').mockResolvedValue([]);
+  });
+
+  it('sans plan : l’explique et propose d’en ajouter un (photo), sans « Retirer le plan »', async () => {
+    mount();
+    expect(await planCard().findByText('Photographiez la pièce ou un schéma dessiné à la main, puis placez vos zones dessus.')).toBeInTheDocument();
+    const input = planCard().getByLabelText('Ajouter le plan de la cave');
+    expect(input).toHaveAttribute('type', 'file');
+    expect(input).toHaveAttribute('accept', 'image/*');
+    expect(input).toHaveAttribute('capture', 'environment');
+    expect(planCard().queryByRole('button', { name: 'Retirer le plan' })).not.toBeInTheDocument();
+  });
+
+  it('envoie le plan choisi puis le relit ; l’image montre les repères', async () => {
+    const get = vi.spyOn(api, 'getPlan').mockResolvedValueOnce({ plan: null, markers: [] }).mockResolvedValue(withPlan);
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    const upload = vi.spyOn(api, 'uploadPlan').mockResolvedValue(plan);
+    mount();
+    const file = new File(['x'], 'plan.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(await planCard().findByLabelText('Ajouter le plan de la cave'), file);
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(file));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    expect(await planCard().findByRole('img', { name: 'Plan de la cave' })).toHaveAttribute('src', '/api/caves/plans/c1/image?v=2026-10-13T10%3A00%3A00.000Z');
+    expect(planCard().getByRole('button', { name: 'Zone 1 : Cave 1' })).toBeInTheDocument();
+    expect(planCard().getByLabelText('Remplacer le plan')).toBeInTheDocument();
+  });
+
+  it('plan sans zone : « Créez d’abord des zones »', async () => {
+    vi.spyOn(api, 'getPlan').mockResolvedValue({ plan, markers: [] });
+    mount();
+    expect(await planCard().findByText("Créez d'abord des zones")).toBeInTheDocument();
+  });
+
+  it('toucher le plan pose un repère numéroté, puis on choisit parmi les zones sans repère', async () => {
+    vi.spyOn(api, 'getPlan').mockResolvedValue(withPlan);
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    const set = vi.spyOn(api, 'setZoneMarker').mockResolvedValue({ ...zones[2], marker: { x: 0.5, y: 0.25 } });
+    mount();
+    await planCard().findByRole('button', { name: 'Zone 1 : Cave 1' });
+    await tapPlan(0.5, 0.25);
+    expect(planCard().getByRole('img', { name: 'Nouveau repère' })).toHaveTextContent('+');
+    const chooser = within(planCard().getByRole('group', { name: 'Quelle zone est ici ?' }));
+    expect(chooser.getAllByRole('button').map((b) => b.textContent)).toEqual(['Garage', 'Cellier', 'Cave 1 (déplacer)', 'Annuler']);
+    await userEvent.click(chooser.getByRole('button', { name: 'Cellier' }));
+    await waitFor(() => expect(set).toHaveBeenCalledWith('z3', 0.5, 0.25));
+    await waitFor(() => expect(planCard().queryByRole('group', { name: 'Quelle zone est ici ?' })).not.toBeInTheDocument());
+  });
+
+  it('toucher un repère montre sa zone ; « Déplacer » puis un toucher le déplace ; « Retirer le repère »', async () => {
+    vi.spyOn(api, 'getPlan').mockResolvedValue(withPlan);
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    const set = vi.spyOn(api, 'setZoneMarker').mockResolvedValue(placed[0]);
+    const remove = vi.spyOn(api, 'removeZoneMarker').mockResolvedValue(zones[0]);
+    mount();
+    await userEvent.click(await planCard().findByRole('button', { name: 'Zone 1 : Cave 1' }));
+    expect(planCard().getByText('À gauche en entrant')).toBeInTheDocument();
+    await userEvent.click(planCard().getByRole('button', { name: 'Déplacer' }));
+    expect(planCard().getByText('Touchez le nouvel endroit de Cave 1 sur le plan.')).toBeInTheDocument();
+    // Pendant le déplacement, les repères ne captent pas le toucher : on peut poser tout près d'un autre.
+    expect(planCard().queryByRole('button', { name: /^Zone \d/ })).not.toBeInTheDocument();
+    await tapPlan(0.75, 0.5);
+    await waitFor(() => expect(set).toHaveBeenCalledWith('z1', 0.75, 0.5));
+    await userEvent.click(await planCard().findByRole('button', { name: 'Zone 1 : Cave 1' }));
+    await userEvent.click(planCard().getByRole('button', { name: 'Retirer le repère' }));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('z1'));
+  });
+
+  it('affiche tel quel le refus de l’api', async () => {
+    vi.spyOn(api, 'getPlan').mockResolvedValue(withPlan);
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    vi.spyOn(api, 'setZoneMarker').mockRejectedValue(new api.ApiError(409, "Ajoutez d'abord un plan de la cave"));
+    mount();
+    await planCard().findByRole('button', { name: 'Zone 1 : Cave 1' });
+    await tapPlan(0.3, 0.3);
+    await userEvent.click(planCard().getByRole('button', { name: 'Garage' }));
+    expect(await planCard().findByRole('alert')).toHaveTextContent("Ajoutez d'abord un plan de la cave");
+  });
+
+  it('« Retirer le plan » demande confirmation et dit que les repères sont gardés', async () => {
+    vi.spyOn(api, 'getPlan').mockResolvedValue(withPlan);
+    vi.spyOn(api, 'getZones').mockResolvedValue(placed);
+    const remove = vi.spyOn(api, 'removePlan').mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    mount();
+    await userEvent.click(await planCard().findByRole('button', { name: 'Retirer le plan' }));
+    expect(confirm).toHaveBeenLastCalledWith('Retirer le plan de la cave ? Les repères des zones sont gardés.');
+    expect(remove).not.toHaveBeenCalled();
+    await userEvent.click(planCard().getByRole('button', { name: 'Retirer le plan' }));
+    await waitFor(() => expect(remove).toHaveBeenCalled());
+    expect(await planCard().findByRole('status')).toHaveTextContent('Plan retiré. Les repères des zones sont gardés.');
+  });
+
+  it('archiver une zone placée ou changer l’ordre relit le plan : repère disparu, numéros échangés', async () => {
+    const two = { plan, markers: [{ zoneId: 'z1', name: 'Cave 1', number: 1, x: 0.1, y: 0.2 }, { zoneId: 'z3', name: 'Cellier', number: 2, x: 0.8, y: 0.8 }] };
+    const swapped = { plan, markers: [{ zoneId: 'z3', name: 'Cellier', number: 1, x: 0.8, y: 0.8 }, { zoneId: 'z1', name: 'Cave 1', number: 2, x: 0.1, y: 0.2 }] };
+    const archived = { plan, markers: [{ zoneId: 'z1', name: 'Cave 1', number: 1, x: 0.1, y: 0.2 }] };
+    const getPlan = vi.spyOn(api, 'getPlan').mockResolvedValueOnce(two).mockResolvedValueOnce(swapped).mockResolvedValue(archived);
+    const both: api.Zone[] = [placed[0], zones[1], { ...zones[2], marker: { x: 0.8, y: 0.8 } }];
+    vi.spyOn(api, 'getZones').mockResolvedValue(both);
+    vi.spyOn(api, 'reorderZones').mockResolvedValue(both);
+    vi.spyOn(api, 'deleteZone').mockResolvedValue({ archived: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mount();
+    expect(await planCard().findByRole('button', { name: 'Zone 2 : Cellier' })).toBeInTheDocument();
+    await userEvent.click(zoneRow('Cellier').getByRole('button', { name: 'Monter Cellier' }));
+    expect(await planCard().findByRole('button', { name: 'Zone 1 : Cellier' })).toBeInTheDocument();
+    expect(planCard().getByRole('button', { name: 'Zone 2 : Cave 1' })).toBeInTheDocument();
+    await userEvent.click(zoneRow('Cellier').getByRole('button', { name: 'Supprimer' }));
+    await waitFor(() => expect(planCard().queryByRole('button', { name: /Cellier/ })).not.toBeInTheDocument());
+    expect(planCard().getByRole('button', { name: 'Zone 1 : Cave 1' })).toBeInTheDocument();
+    expect(getPlan).toHaveBeenCalledTimes(3);
+  });
 });
