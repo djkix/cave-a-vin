@@ -11,6 +11,25 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.8.0](https://github.com/djkix/cave-a-vin/compare/v2.7.0...v2.8.0) (2026-10-13)
 
+### Résumé
+
+**Plan de la cave.** Dans « Ma cave », le propriétaire ajoute un plan : une
+photo de la pièce ou d'un schéma dessiné à la main (réduite à 2400 px par le
+téléphone avant l'envoi). Il touche le plan à l'endroit d'une zone pour y poser
+un repère numéroté, puis choisit la zone ; un repère se déplace ou se retire.
+Le plan apparaît en touchant un emplacement sur la fiche d'un vin (repère de sa
+zone mis en évidence), en petit dans chaque groupe d'« À boire prochainement »
+(touché, il s'agrandit), et en entier dans « Ma cave ». Les membres en lecture
+seule le voient depuis la fiche et « À boire », sans pouvoir le modifier.
+Retirer le plan garde les repères, pour un plan de remplacement équivalent.
+
+**Mise à jour** : une migration (`20261017000000_plan_cave`, ajout de colonnes
+seulement) ; faire la sauvegarde habituelle avant. Les plans sont rangés sous
+`plans/` dans le volume des photos. Aucune nouvelle variable d'environnement.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
