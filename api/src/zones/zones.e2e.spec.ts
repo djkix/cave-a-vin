@@ -118,13 +118,13 @@ describeIfInfra('zones de la cave (HTTP)', () => {
     it('crée une zone en fin de liste, avec ou sans indication ; le membre lit la liste mais ne crée rien', async () => {
       const a = await newZone(`Liste ${run} 1`, '  à gauche en entrant  ');
       const b = await newZone(`Liste ${run} 2`);
-      expect(a).toEqual({ id: expect.any(String), name: `Liste ${run} 1`, indication: 'à gauche en entrant', hasPhoto: false, sortOrder: expect.any(Number) });
+      expect(a).toEqual({ id: expect.any(String), name: `Liste ${run} 1`, indication: 'à gauche en entrant', hasPhoto: false, sortOrder: expect.any(Number), marker: null });
       expect(b.indication).toBeNull();
       expect(b.sortOrder).toBe(a.sortOrder + 1);
       const listed = await zones(viewerA);
       expect(listed.map((z) => z.id)).toEqual(expect.arrayContaining([a.id, b.id]));
       expect(listed.findIndex((z) => z.id === a.id)).toBeLessThan(listed.findIndex((z) => z.id === b.id));
-      expect(Object.keys(listed[0]).sort()).toEqual(['hasPhoto', 'id', 'indication', 'name', 'sortOrder']);
+      expect(Object.keys(listed[0]).sort()).toEqual(['hasPhoto', 'id', 'indication', 'marker', 'name', 'sortOrder']);
       expectStatus(await create('Interdite', undefined, viewerA), 403, 'Lecture seule');
       expect((await zones()).some((z) => z.name === 'Interdite')).toBe(false);
     });

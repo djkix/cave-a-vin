@@ -203,6 +203,13 @@ model Cave {
   ownerId          String?           @map("owner_id")
   owner            AppUser?          @relation("CaveOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   createdAt        DateTime          @default(now()) @map("created_at")
+  /// Plan de la cave (image) : chemin relatif à PHOTO_STORAGE_DIR
+  /// (`plans/<id>.jpg`), taille en pixels après normalisation, date du dernier
+  /// envoi ; tous nuls sans plan.
+  planPath         String?           @map("plan_path")
+  planWidth        Int?              @map("plan_width")
+  planHeight       Int?              @map("plan_height")
+  planUpdatedAt    DateTime?         @map("plan_updated_at")
   members          CaveMember[]
   wines            Wine[]
   photos           Photo[]
@@ -406,6 +413,11 @@ model CaveZone {
   indication String?
   photoPath  String?    @map("photo_path")
   sortOrder  Int        @default(0) @map("sort_order")
+  /// Repère sur le plan de la cave : fractions de la largeur et de la hauteur
+  /// de l'image. CHECK en migration (cave_zone_plan_position_check) : les deux
+  /// nuls, ou les deux dans [0, 1].
+  planX      Float?     @map("plan_x")
+  planY      Float?     @map("plan_y")
   archivedAt DateTime?  @map("archived_at")
   createdAt  DateTime   @default(now()) @map("created_at")
   locations  Location[]

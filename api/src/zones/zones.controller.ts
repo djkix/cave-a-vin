@@ -12,11 +12,11 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { CaveRole, CurrentCave } from '../caves/cave-access.decorators';
 import { CaveAccessGuard } from '../caves/cave-access.guard';
 import type { CaveAccess } from '../caves/cave-context.service';
-import { createZoneSchema, PHOTO_TOO_LARGE, updateZoneSchema, ZONE_NOT_FOUND, zoneOrderSchema } from './zone';
+import { createZoneSchema, markerSchema, PHOTO_TOO_LARGE, updateZoneSchema, ZONE_NOT_FOUND, zoneOrderSchema } from './zone';
 import { ZonesService } from './zones.service';
 
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
+export const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 
 function parse<T>(schema: ZodSchema<T>, body: unknown): T {
   const parsed = schema.safeParse(body ?? {});
@@ -26,10 +26,17 @@ function parse<T>(schema: ZodSchema<T>, body: unknown): T {
 
 /** Fichier au-delà de la limite de multer (413 « File too large ») : message en français. */
 @Catch(PayloadTooLargeException)
-class PhotoTooLargeFilter implements ExceptionFilter {
+export class PhotoTooLargeFilter implements ExceptionFilter {
   catch(_e: PayloadTooLargeException, host: ArgumentsHost) {
     host.switchToHttp().getResponse<Response>().status(413).json({ statusCode: 413, message: PHOTO_TOO_LARGE, error: 'Payload Too Large' });
   }
+}
+
+/** Fichier envoyé (photo de zone, plan) : présent et dans un format accepté, sinon 400. */
+export function checkImage(file?: Express.Multer.File): Buffer {
+  if (!file) throw new BadRequestException('Fichier « file » manquant');
+  if (!ALLOWED.has(file.mimetype)) throw new BadRequestException('Format d’image non pris en charge');
+  return file.buffer;
 }
 
 /** Une zone se désigne par un UUID : tout autre identifiant est « introuvable », comme une zone d'une autre cave. */
@@ -86,9 +93,20 @@ export class CurrentCaveZonesController {
   @UseFilters(PhotoTooLargeFilter)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_PHOTO_BYTES } }))
   setPhoto(@CurrentCave() cave: CaveAccess, @Param('id', zoneId) id: string, @UploadedFile() file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException('Fichier « file » manquant');
-    if (!ALLOWED.has(file.mimetype)) throw new BadRequestException('Format d’image non pris en charge');
-    return this.zones.setPhoto(cave.caveId, id, file.buffer);
+    return this.zones.setPhoto(cave.caveId, id, checkImage(file));
+  }
+
+  /** Pose ou déplace le repère de la zone sur le plan : `{ x, y }`, fractions entre 0 et 1. */
+  @Put(':id/marker')
+  @CaveRole('OWNER')
+  setMarker(@CurrentCave() cave: CaveAccess, @Param('id', zoneId) id: string, @Body() body: unknown) {
+    return this.zones.setMarker(cave.caveId, id, parse(markerSchema, body));
+  }
+
+  @Delete(':id/marker')
+  @CaveRole('OWNER')
+  removeMarker(@CurrentCave() cave: CaveAccess, @Param('id', zoneId) id: string) {
+    return this.zones.removeMarker(cave.caveId, id);
   }
 
   @Delete(':id/photo')
