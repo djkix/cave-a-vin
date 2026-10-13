@@ -52,3 +52,11 @@ it('sans action : les repères sont des images nommées, pas des boutons', () =>
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
   expect(screen.getByRole('img', { name: 'Zone 2 : Garage' })).toHaveTextContent('2');
 });
+
+it('repère qui vient d’être posé : « + », nommé « Nouveau repère », mis en avant, jamais un bouton', () => {
+  render(<PlanView src="/plan.jpg" plan={plan} markers={markers} pending={{ x: 0.4, y: 0.6 }} onMarkerClick={() => undefined} />);
+  const pending = screen.getByRole('img', { name: 'Nouveau repère' });
+  expect(pending).toHaveTextContent('+');
+  expect(pending).toHaveAttribute('aria-current', 'true');
+  expect(pending.style.left).toBe('40%');
+});

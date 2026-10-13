@@ -1,14 +1,14 @@
-const MAX_DIMENSION = 1600;
+const DEFAULT_MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.8;
 
 /**
  * Réduit une photo prise au téléphone pour accélérer son envoi : côté le plus
- * long ramené à 1600 px, encodée en JPEG qualité 0,8. N'agrandit jamais une
+ * long ramené à `maxDimension` (1600 px par défaut, 2400 pour le plan de la cave), encodée en JPEG qualité 0,8. N'agrandit jamais une
  * photo déjà plus petite. Si une étape échoue ou que l'API manque (navigateur
  * trop ancien, format illisible…), la photo d'origine est renvoyée telle quelle
  * — la réduction est une optimisation, jamais un blocage.
  */
-export async function shrinkPhoto(file: Blob): Promise<Blob> {
+export async function shrinkPhoto(file: Blob, maxDimension = DEFAULT_MAX_DIMENSION): Promise<Blob> {
   if (typeof createImageBitmap !== 'function') return file;
   try {
     // `imageOrientation: 'from-image'` applique la rotation EXIF à la bitmap
@@ -19,8 +19,8 @@ export async function shrinkPhoto(file: Blob): Promise<Blob> {
     try {
       const { width, height } = bitmap;
       const longest = Math.max(width, height);
-      if (longest <= MAX_DIMENSION) return file;
-      const scale = MAX_DIMENSION / longest;
+      if (longest <= maxDimension) return file;
+      const scale = maxDimension / longest;
       const targetWidth = Math.round(width * scale);
       const targetHeight = Math.round(height * scale);
 

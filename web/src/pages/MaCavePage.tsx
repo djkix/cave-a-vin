@@ -11,6 +11,9 @@ import {
 } from '../lib/api-client';
 import { usePlan, useZones } from '../lib/locations';
 import { shrinkPhoto } from '../lib/shrink-photo';
+
+/** Plus grand côté du plan envoyé : celui que garde l'api. */
+const PLAN_MAX_SIDE = 2400;
 import { useCurrentCave } from '../lib/use-current-cave';
 
 const NAME_MAX = 80;
@@ -179,7 +182,7 @@ function ZonesCard() {
     } finally {
       setBusy(false);
       // Zones et libellés (emplacements, fiches, cave) suivent un renommage ou un nouvel ordre.
-      void qc.invalidateQueries({ predicate: (q) => ['zones', 'locations', 'wine', 'cave', 'movements'].includes(String(q.queryKey[0])) });
+      void qc.invalidateQueries({ predicate: (q) => ['zones', 'plan', 'locations', 'wine', 'cave', 'movements'].includes(String(q.queryKey[0])) });
     }
   }
 
@@ -256,8 +259,8 @@ function PlanCard() {
   function pick(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
-    // Envoyé tel quel : l'api le redresse et le réduit à 2400 px (plus fin qu'une photo d'étiquette).
-    if (file) void act(() => uploadPlan(file));
+    // Réduit à 2400 px (ce que garde l'api, plus fin qu'une photo d'étiquette) ; l'original si la réduction échoue.
+    if (file) void act(async () => uploadPlan(await shrinkPhoto(file, PLAN_MAX_SIDE)));
   }
 
   function confirmRemove() {
@@ -284,7 +287,7 @@ function PlanCard() {
           {zones.isSuccess && list.length === 0 && <p className="list__meta" style={{ margin: 0 }}>Créez d'abord des zones</p>}
           {list.length > 0 && mode.kind === 'idle' && <p className="list__meta" style={{ margin: 0 }}>Touchez le plan à l’endroit d’une zone pour y poser son repère.</p>}
           <PlanView src={planImageUrl(caveId, plan.updatedAt)} plan={plan} markers={markers}
-            pending={mode.kind === 'pending' ? { x: mode.x, y: mode.y } : null} highlightZoneId={selected?.id} onPlanClick={tap} onMarkerClick={(zoneId) => setMode({ kind: 'selected', zoneId })} />
+            pending={mode.kind === 'pending' ? { x: mode.x, y: mode.y } : null} highlightZoneId={selected?.id} onPlanClick={tap} onMarkerClick={mode.kind === 'moving' ? undefined : (zoneId) => setMode({ kind: 'selected', zoneId })} />
         </>
       )}
       {mode.kind === 'pending' && (

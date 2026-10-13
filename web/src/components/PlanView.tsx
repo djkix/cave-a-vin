@@ -17,7 +17,7 @@ export function PlanView({ src, plan, markers, highlightZoneId, pending, onPlanC
   src: string; plan: CavePlan; markers: PlanMarker[]; highlightZoneId?: string | null; pending?: { x: number; y: number } | null;
   onPlanClick?: (x: number, y: number) => void; onMarkerClick?: (zoneId: string) => void; maxWidth?: number; alt?: string;
 }) {
-  function click(e: MouseEvent<HTMLDivElement>) {
+  function click(e: MouseEvent<HTMLSpanElement>) {
     if (!onPlanClick) return;
     const box = e.currentTarget.getBoundingClientRect();
     if (box.width === 0 || box.height === 0) return;
@@ -25,23 +25,24 @@ export function PlanView({ src, plan, markers, highlightZoneId, pending, onPlanC
   }
   return (
     // Placement au toucher (souris ou doigt) ; les repères restent des boutons accessibles au clavier.
-    <div className={`plan-view${onPlanClick ? ' plan-view--placing' : ''}`} style={{ aspectRatio: `${plan.width} / ${plan.height}`, maxWidth }} onClick={click}>
+    // span (affiché en bloc) : le petit plan d'« À boire » vit dans un bouton, qui n'admet pas de div.
+    <span className={`plan-view${onPlanClick ? ' plan-view--placing' : ''}`} style={{ aspectRatio: `${plan.width} / ${plan.height}`, maxWidth }} onClick={click}>
       <img className="plan-view__image" src={src} alt={alt} width={plan.width} height={plan.height} decoding="async" />
-      {[...markers, ...(pending ? [{ zoneId: '', name: 'Nouveau repère', number: markers.length + 1, ...pending }] : [])].map((m) => {
+      {[...markers, ...(pending ? [{ zoneId: '', name: 'Nouveau repère', number: 0, ...pending }] : [])].map((m) => {
         const highlighted = m.zoneId === '' || m.zoneId === highlightZoneId;
         const props = {
           className: `plan-view__marker${highlighted ? ' plan-view__marker--highlight' : ''}`,
           style: { left: `${m.x * 100}%`, top: `${m.y * 100}%` },
-          'aria-label': `Zone ${m.number} : ${m.name}`,
+          'aria-label': m.zoneId === '' ? m.name : `Zone ${m.number} : ${m.name}`,
           'aria-current': highlighted ? ('true' as const) : undefined,
         };
         return onMarkerClick && m.zoneId !== '' ? (
           <button key={m.zoneId} type="button" {...props} onClick={(e) => { e.stopPropagation(); onMarkerClick(m.zoneId); }}>{m.number}</button>
         ) : (
-          <span key={m.zoneId || 'pending'} role="img" {...props}>{m.number}</span>
+          <span key={m.zoneId || 'pending'} role="img" {...props}>{m.zoneId === '' ? '+' : m.number}</span>
         );
       })}
-    </div>
+    </span>
   );
 }
 

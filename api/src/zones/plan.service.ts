@@ -56,13 +56,25 @@ export class PlanService {
     return saved!;
   }
 
-  /** Retire le plan (fichier et taille), sous verrou de la cave ; les repères des zones sont gardés. Sans plan : rien. */
+  /**
+   * Retire le plan (taille, puis fichier), sous verrou de la cave ; les repères
+   * des zones sont gardés. Sans plan : rien. Le fichier n'est effacé qu'une fois
+   * la transaction validée : un échec de l'écriture en base ne laisse jamais un
+   * plan enregistré sans son image.
+   */
   async remove(caveId: string): Promise<void> {
+    const removed = await this.prisma.$transaction(async (tx) => {
+      const [cave] = await tx.$queryRaw<{ planPath: string | null }[]>`SELECT plan_path AS "planPath" FROM cave WHERE id = ${caveId} FOR UPDATE`;
+      if (!cave?.planPath) return null;
+      await tx.cave.update({ where: { id: caveId }, data: { planPath: null, planWidth: null, planHeight: null, planUpdatedAt: null } });
+      return cave.planPath;
+    });
+    if (!removed) return;
+    // Effacé sous un nouveau verrou, et seulement si la cave n'a toujours pas de
+    // plan : un envoi validé entre-temps (même chemin) garde son image.
     await this.prisma.$transaction(async (tx) => {
       const [cave] = await tx.$queryRaw<{ planPath: string | null }[]>`SELECT plan_path AS "planPath" FROM cave WHERE id = ${caveId} FOR UPDATE`;
-      if (!cave?.planPath) return;
-      await tx.cave.update({ where: { id: caveId }, data: { planPath: null, planWidth: null, planHeight: null, planUpdatedAt: null } });
-      await unlinkIgnoringMissing(join(this.dir, cave.planPath));
+      if (cave && !cave.planPath) await unlinkIgnoringMissing(join(this.dir, removed));
     });
   }
 

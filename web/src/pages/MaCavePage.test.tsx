@@ -340,7 +340,7 @@ describe('plan de la cave', () => {
     mount();
     await planCard().findByRole('button', { name: 'Zone 1 : Cave 1' });
     await tapPlan(0.5, 0.25);
-    expect(planCard().getByRole('img', { name: 'Zone 2 : Nouveau repère' })).toBeInTheDocument();
+    expect(planCard().getByRole('img', { name: 'Nouveau repère' })).toHaveTextContent('+');
     const chooser = within(planCard().getByRole('group', { name: 'Quelle zone est ici ?' }));
     expect(chooser.getAllByRole('button').map((b) => b.textContent)).toEqual(['Garage', 'Cellier', 'Cave 1 (déplacer)', 'Annuler']);
     await userEvent.click(chooser.getByRole('button', { name: 'Cellier' }));
@@ -358,6 +358,8 @@ describe('plan de la cave', () => {
     expect(planCard().getByText('À gauche en entrant')).toBeInTheDocument();
     await userEvent.click(planCard().getByRole('button', { name: 'Déplacer' }));
     expect(planCard().getByText('Touchez le nouvel endroit de Cave 1 sur le plan.')).toBeInTheDocument();
+    // Pendant le déplacement, les repères ne captent pas le toucher : on peut poser tout près d'un autre.
+    expect(planCard().queryByRole('button', { name: /^Zone \d/ })).not.toBeInTheDocument();
     await tapPlan(0.75, 0.5);
     await waitFor(() => expect(set).toHaveBeenCalledWith('z1', 0.75, 0.5));
     await userEvent.click(await planCard().findByRole('button', { name: 'Zone 1 : Cave 1' }));
@@ -388,5 +390,26 @@ describe('plan de la cave', () => {
     await userEvent.click(planCard().getByRole('button', { name: 'Retirer le plan' }));
     await waitFor(() => expect(remove).toHaveBeenCalled());
     expect(await planCard().findByRole('status')).toHaveTextContent('Plan retiré. Les repères des zones sont gardés.');
+  });
+
+  it('archiver une zone placée ou changer l’ordre relit le plan : repère disparu, numéros échangés', async () => {
+    const two = { plan, markers: [{ zoneId: 'z1', name: 'Cave 1', number: 1, x: 0.1, y: 0.2 }, { zoneId: 'z3', name: 'Cellier', number: 2, x: 0.8, y: 0.8 }] };
+    const swapped = { plan, markers: [{ zoneId: 'z3', name: 'Cellier', number: 1, x: 0.8, y: 0.8 }, { zoneId: 'z1', name: 'Cave 1', number: 2, x: 0.1, y: 0.2 }] };
+    const archived = { plan, markers: [{ zoneId: 'z1', name: 'Cave 1', number: 1, x: 0.1, y: 0.2 }] };
+    const getPlan = vi.spyOn(api, 'getPlan').mockResolvedValueOnce(two).mockResolvedValueOnce(swapped).mockResolvedValue(archived);
+    const both: api.Zone[] = [placed[0], zones[1], { ...zones[2], marker: { x: 0.8, y: 0.8 } }];
+    vi.spyOn(api, 'getZones').mockResolvedValue(both);
+    vi.spyOn(api, 'reorderZones').mockResolvedValue(both);
+    vi.spyOn(api, 'deleteZone').mockResolvedValue({ archived: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mount();
+    expect(await planCard().findByRole('button', { name: 'Zone 2 : Cellier' })).toBeInTheDocument();
+    await userEvent.click(zoneRow('Cellier').getByRole('button', { name: 'Monter Cellier' }));
+    expect(await planCard().findByRole('button', { name: 'Zone 1 : Cellier' })).toBeInTheDocument();
+    expect(planCard().getByRole('button', { name: 'Zone 2 : Cave 1' })).toBeInTheDocument();
+    await userEvent.click(zoneRow('Cellier').getByRole('button', { name: 'Supprimer' }));
+    await waitFor(() => expect(planCard().queryByRole('button', { name: /Cellier/ })).not.toBeInTheDocument());
+    expect(planCard().getByRole('button', { name: 'Zone 1 : Cave 1' })).toBeInTheDocument();
+    expect(getPlan).toHaveBeenCalledTimes(3);
   });
 });

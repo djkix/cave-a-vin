@@ -286,5 +286,14 @@ describeIfInfra('plan de la cave (HTTP)', () => {
       expect((await upload(await png(600, 300))).status).toBe(200);
       expect((await read()).markers).toEqual([{ zoneId: z1.id, name: z1.name, number: 1, x: 0.1, y: 0.2 }]);
     });
+
+    it('retrait et envoi simultanés : l’image existe si et seulement si la base enregistre un plan', async () => {
+      for (let i = 0; i < 5; i++) {
+        const [del, up] = await Promise.all([ownerA.delete('/api/caves/current/plan'), upload(await png(400, 200))]);
+        expect([del.status, up.status]).toEqual([204, 200]);
+        const { plan } = await read();
+        expect(existsSync(planFile())).toBe(plan !== null);
+      }
+    });
   });
 });

@@ -94,7 +94,8 @@ sans pouvoir les changer. API : `GET`, `POST /api/caves/current/zones`,
 **Plan de la cave.** Une image par cave : une photo de la pièce, ou d'un
 schéma dessiné à la main. Dans *Ma cave*, la carte *Plan de la cave* (avant
 *Zones*) l'envoie (*Ajouter le plan de la cave*, puis *Remplacer le plan* ;
-15 Mo au plus, redressée selon l'EXIF, réduite à 2400 px sur le grand côté, en
+réduite à 2400 px par le téléphone avant l'envoi, 15 Mo au plus, redressée
+selon l'EXIF, ramenée à 2400 px sur le grand côté, en
 JPEG) et la retire (*Retirer le plan*, après confirmation). Sans plan, elle
 explique : « Photographiez la pièce ou un schéma dessiné à la main, puis
 placez vos zones dessus. » ; sans zone : « Créez d'abord des zones ». Pour
@@ -113,7 +114,8 @@ cave »). Le plan se retrouve sur la **fiche du vin** (toucher un emplacement
 montre, sous l'indication et la photo de sa zone, le plan avec son repère mis
 en avant) et dans **« À boire prochainement »** (un petit plan sous chaque
 en-tête d'une zone placée, qui s'agrandit au toucher). Un membre en lecture
-seule voit le plan et les repères, sans rien pouvoir changer. API : `GET /api/caves/current/plan`
+seule voit le plan et les repères depuis la fiche et À boire (*Ma cave* est
+réservée au propriétaire), sans rien pouvoir changer. API : `GET /api/caves/current/plan`
 (`{ plan: { width, height, updatedAt } | null, markers: [{ zoneId, name,
 number, x, y }] }`, aucun repère sans plan), `PUT` (champ `file`) et `DELETE
 /api/caves/current/plan`, `GET /api/caves/plans/:caveId/image` (toute cave du
