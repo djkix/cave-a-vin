@@ -1,9 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
-  <rect width="160" height="160" fill="#5C2423"/>
-  <g transform="translate(80 83) scale(0.78) translate(-80 -83)">
-    <path d="M52 38 H108 C108 72 96 90 80 92 C64 90 52 72 52 38 Z" fill="#FCF9F3"/>
-    <path d="M54 60 H106 C103 78 93 89 80 90 C67 89 57 78 54 60 Z" fill="#8B2E2C"/>
-    <rect x="77" y="91" width="6" height="34" fill="#FCF9F3"/>
-    <rect x="58" y="123" width="44" height="6" rx="3" fill="#FCF9F3"/>
+  <!-- Variante « maskable » (Android) : fond plein, dessin réduit à 80 % dans la zone sûre. -->
+  <rect width="160" height="160" fill="#E8DECB"/>
+  <g transform="translate(16 12) scale(0.8)">
+  <path d="M32 132 V76 A48 48 0 0 1 128 76 V132 Z" fill="#3B1A1C"/>
+  <path d="M32 132 V76 A48 48 0 0 1 128 76 V132" fill="none" stroke="#9C8566" stroke-width="6"/>
+  <path d="M30 132 H130" stroke="#9C8566" stroke-width="5"/>
+  <g transform="translate(0 46)">
+    <g fill="#1C241A" stroke="#C9A97A" stroke-width="1.4">
+      <path d="M45 84 V34 C45 28 50 27 50 22 V4 H55 V22 C55 27 60 28 60 34 V84 Z"/>
+      <path d="M70 84 V46 C70 34 77 28 77 20 V8 H83 V20 C83 28 90 34 90 46 V84 Z"/>
+      <path d="M98 84 V44 C98 32 104 26 104 18 V4 H110 V18 C110 26 116 32 116 44 V84 Z"/>
+    </g>
+    <g fill="#F0D9B5">
+      <rect x="46" y="50" width="12" height="14"/>
+      <rect x="73" y="54" width="14" height="13"/>
+      <rect x="100" y="52" width="14" height="14"/>
+    </g>
+    <rect x="76" y="7" width="8" height="16" fill="#C9A97A"/>
+  </g>
   </g>
 </svg>
