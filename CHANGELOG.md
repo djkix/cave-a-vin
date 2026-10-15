@@ -11,6 +11,18 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.10.0](https://github.com/djkix/cave-a-vin/compare/v2.9.1...v2.10.0) (2026-10-15)
 
+### Résumé
+
+**Fiche vin réordonnée.** Le descriptif du domaine puis les accords mets-vins
+suivent directement la photo du vin ; l'apogée, la note, la cote, les
+emplacements, la sortie et les mouvements viennent ensuite. Une icône
+d'emplacement, en bas à droite du bloc de la photo, ouvre une fenêtre avec la
+photo de chaque emplacement, son indication et le plan de la cave (repère de
+la zone mis en évidence). Aucune migration.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 

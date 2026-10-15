@@ -1183,6 +1183,14 @@ conserver ce SQL écrit à la main, sinon Prisma proposera de le supprimer.
 Le détail par version, avec le lien vers chaque commit, est dans
 [`CHANGELOG.md`](CHANGELOG.md) ; voici les versions publiées.
 
+### 2.10.0 — 15 octobre 2026
+
+Publiée ([v2.10.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.10.0)),
+images `ghcr.io/djkix/cave-a-vin-api:2.10.0` et `-web:2.10.0`.
+
+**Fiche vin réordonnée** : domaine et accords sous la photo, icône
+d'emplacement qui ouvre la photo de la zone et le plan.
+
 ### 2.9.1 — 15 octobre 2026
 
 Publiée ([v2.9.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.9.1)),
