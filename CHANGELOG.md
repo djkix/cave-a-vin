@@ -11,6 +11,18 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.9.0](https://github.com/djkix/cave-a-vin/compare/v2.8.0...v2.9.0) (2026-10-15)
 
+### Résumé
+
+**Nouvelle icône.** Une niche voûtée en pierre claire où se tiennent trois
+bouteilles debout, alignées : Bordeaux, Champagne (capsule dorée), Bourgogne.
+Elle remplace le verre de vin sur fond bordeaux, en favicon, en icône Android
+(y compris la variante découpée en rond) et en icône iPhone. Une application
+déjà installée garde l'ancienne icône : la supprimer de l'écran d'accueil puis
+la réinstaller (Mon compte › Installer l'application). Aucune migration.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
