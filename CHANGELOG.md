@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.9.1](https://github.com/djkix/cave-a-vin/compare/v2.9.0...v2.9.1) (2026-10-15)
+
+
+### Corrections
+
+* **web:** plan et photo de zone, appareil photo ou galerie au choix ([cdb719c](https://github.com/djkix/cave-a-vin/commit/cdb719c4e27f5026fd2217785292dbd013ca7a84))
+
 ## [2.9.0](https://github.com/djkix/cave-a-vin/compare/v2.8.0...v2.9.0) (2026-10-15)
 
 ### Résumé
