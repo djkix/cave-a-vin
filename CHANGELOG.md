@@ -9,6 +9,13 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.9.0](https://github.com/djkix/cave-a-vin/compare/v2.8.0...v2.9.0) (2026-10-15)
+
+
+### Fonctionnalités
+
+* **web:** nouvelle icône, une niche de cave et trois bouteilles ([2ae5b8d](https://github.com/djkix/cave-a-vin/commit/2ae5b8d57d13ec0de9e435a5add637fbe7e4d4ac))
+
 ## [2.8.0](https://github.com/djkix/cave-a-vin/compare/v2.7.0...v2.8.0) (2026-10-13)
 
 ### Résumé
