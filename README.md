@@ -195,9 +195,12 @@ photo ou qu'elle ne charge pas), domaine, cuvée, appellation, millésime,
 couleur et quantité ; la recherche porte sur domaine/cuvée/appellation sans
 tenir compte des accents ni de la casse (« chateauneuf » trouve
 « Châteauneuf-du-Pape »), un filtre par couleur s'ajoute, et les vins épuisés
-restent masqués sauf à cocher « Vins épuisés ». La fiche vin affiche la photo
-de référence (celle de la première entrée), le stock et les 10 derniers
-mouvements ; *Sortir* propose un sélecteur de quantité borné par le stock puis
+restent masqués sauf à cocher « Vins épuisés ». La fiche vin affiche, dans
+l'ordre : la photo de référence (celle de la première entrée) avec le stock et,
+en bas à droite, une icône d'emplacement (elle ouvre une fenêtre avec la photo
+de la zone, son indication et le plan) ; le descriptif du domaine ; les accords
+mets-vins ; puis l'apogée, la note, la cote, les emplacements et les 10
+derniers mouvements ; *Sortir* propose un sélecteur de quantité borné par le stock puis
 confirme « Sorti — il en reste N » (le message survit au rafraîchissement du
 stock, y compris pour la dernière bouteille) ; *Corriger le stock* permet un
 inventaire physique — le nombre compté, l'écart annoncé avant d'enregistrer

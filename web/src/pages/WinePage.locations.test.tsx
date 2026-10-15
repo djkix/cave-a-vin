@@ -96,8 +96,8 @@ it('membre : voit les emplacements et le détail des zones, mais aucun bouton ni
   expect(section().getAllByRole('listitem')).toHaveLength(3);
   expect(screen.queryByRole('button', { name: 'Ranger / déplacer' })).not.toBeInTheDocument();
   expect(screen.queryByRole('group', { name: 'D\'où sort-elle ?' })).not.toBeInTheDocument();
-  // Seul bouton : révéler le détail de la zone « Garage », ouvert au membre.
-  expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual([expect.stringContaining('Garage')]);
+  // Seuls boutons, ouverts au membre : l'icône d'emplacement de l'en-tête et le détail de la zone « Garage ».
+  expect(screen.queryAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(['Voir l’emplacement', expect.stringContaining('Garage')]);
   await userEvent.click(section().getByRole('button', { name: /Garage/ }));
   expect(section().getByText('Au fond, derrière l’escalier')).toBeInTheDocument();
   expect(locations).not.toHaveBeenCalled();
@@ -275,4 +275,13 @@ it('« Vers » est un groupe de champs nommé', async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'Ranger / déplacer' }));
   const to = screen.getByRole('group', { name: 'Vers' });
   expect(within(to).getByLabelText('Zone')).toBeInTheDocument();
+});
+
+it('l’icône d’emplacement de l’en-tête ouvre la fenêtre avec la photo de la zone', async () => {
+  vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
+  vi.spyOn(api, 'getWine').mockResolvedValue(detail);
+  mount();
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) { this.open = true; };
+  await userEvent.click(await screen.findByRole('button', { name: 'Voir l’emplacement' }));
+  expect(await screen.findByRole('img', { name: 'Photo de la zone Garage' })).toBeInTheDocument();
 });

@@ -7,7 +7,7 @@ import { Button } from '../components/Button';
 import { DomaineBlock, producerPollInterval } from '../components/DomaineBlock';
 import { ImageSearchBlock } from '../components/ImageSearchBlock';
 import { LocationFields, PlacePicker } from '../components/LocationFields';
-import { LocationsBlock } from '../components/LocationsBlock';
+import { LocationButton, LocationsBlock } from '../components/LocationsBlock';
 import { PairingBlock, pairingPollInterval } from '../components/PairingBlock';
 import { QuoteBlock } from '../components/QuoteBlock';
 import { RatingBlock } from '../components/RatingBlock';
@@ -124,9 +124,14 @@ export function WinePage() {
               <p className="list__meta">{wine.appellationRaw} · {wine.vintage ?? 'NV'} · {wine.formatCl} cl</p>
               <p className="num" style={{ fontSize: 22, margin: 0 }}>{wine.quantity} en stock</p>
             </div>
+            {places && places.length > 0 && <LocationButton places={places} />}
           </div>
           <ImageSearchBlock wine={wine} readOnly={readOnly} />
         </section>
+
+        {/* Le domaine, puis les accords, juste sous la photo du vin. */}
+        <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} canEdit={isAdmin} />
+        <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} readOnly={readOnly} />
 
         {/* Clé distincte de celle de SortieConfirmation : deux enfants du même
             <main> partageant la même clé troublent la réconciliation de React
@@ -138,8 +143,6 @@ export function WinePage() {
           <QuoteBlock key={`quote-${wine.id}`} wineId={wine.id} quote={detail.data.quote ?? null}
             idealwineUrl={detail.data.idealwineUrl} savedUrl={detail.data.savedUrl ?? null} />
         )}
-        <DomaineBlock key={`domaine-${wine.id}`} wineId={wine.id} producerKey={wine.producerKey} producerProfile={wine.producerProfile} canEdit={isAdmin} />
-        <PairingBlock key={`pairing-${wine.id}`} wineId={wine.id} pairing={wine.pairing} readOnly={readOnly} />
 
         {places && places.length > 0 && <LocationsBlock key={`locations-${wine.id}`} wineId={wine.id} places={places} readOnly={readOnly} />}
 
