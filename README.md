@@ -1,4 +1,4 @@
-<p align="center"><img src="web/public/icons/icon.svg" width="96" alt="Icône de Cave & Terroir : un verre de vin sur fond bordeaux" /></p>
+<p align="center"><img src="web/public/icons/icon.svg" width="96" alt="Icône de Cave & Terroir : une niche voûtée avec trois bouteilles debout" /></p>
 
 # Cave & Terroir
 
@@ -801,10 +801,11 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
    `Stock`.
 4. **Mon compte → Application sur le téléphone** : bouton « Installer
    l'application » sur Android, indication *Partager → Sur l'écran d'accueil*
-   sur iPhone. L'icône est un verre de vin sur fond bordeaux
-   (`web/public/icons/icon.svg`, déclinée en PNG 192, 512, « maskable » pour
-   Android et 180 pour iOS). Un raccourci installé avant la 1.9.0 garde l'ancien
-   carré brun : le supprimer de l'écran d'accueil puis le réinstaller.
+   sur iPhone. L'icône est une niche voûtée en pierre claire où se tiennent
+   trois bouteilles debout — Bordeaux, Champagne, Bourgogne
+   (`web/public/icons/icon.svg`, déclinée en PNG 32, 192, 512, « maskable » pour
+   Android et 180 pour iOS). Une application déjà installée garde son ancienne
+   icône : la supprimer de l'écran d'accueil puis la réinstaller.
 
 ## Mise à jour
 
