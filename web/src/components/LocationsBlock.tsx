@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useId, useMemo, useState } from 'react';
+import { FormEvent, useId, useMemo, useRef, useState } from 'react';
 import { LocationInput, moveWine, Place, Zone } from '../lib/api-client';
 import { EMPTY_LOCATION, toLocationInput, useLocations, usePlan, useZones } from '../lib/locations';
 import { Button } from './Button';
+import { Icon } from './Icon';
 import { LocationFields, ZoneDetails } from './LocationFields';
 import { ZonePlan } from './PlanView';
 
@@ -30,6 +31,47 @@ function PlaceItem({ place, zone }: { place: Place; zone: Zone | undefined }) {
       </button>
       <div id={detailsId}>{open && <><ZoneDetails zone={zone} />{onPlan && <ZonePlan zoneId={zone.id} />}</>}</div>
     </li>
+  );
+}
+
+/** Contenu de la fenêtre « Emplacement » : chaque endroit, la photo et l'indication de sa zone, puis le plan. */
+function PlaceDetails({ place, zone }: { place: Place; zone: Zone | undefined }) {
+  const plan = usePlan(!!zone?.marker);
+  const onPlan = !!zone?.marker && !!plan.data?.markers.some((m) => m.zoneId === zone.id);
+  return (
+    <li>
+      <p className="locations-list__label" style={{ margin: 0 }}>{place.label}<span className="num">{` × ${place.quantity}`}</span></p>
+      <ZoneDetails zone={zone} />
+      {onPlan && zone && <ZonePlan zoneId={zone.id} />}
+    </li>
+  );
+}
+
+/**
+ * Icône d'emplacement de l'en-tête de la fiche : ouvre une fenêtre avec la photo
+ * de l'emplacement (zone), son indication et le plan. `<dialog>` natif : focus,
+ * Échap et fond gérés par le navigateur.
+ */
+export function LocationButton({ places }: { places: Place[] }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  const zones = useZones();
+  const titleId = useId();
+  return (
+    <>
+      <button type="button" className="wine-head__location" aria-label="Voir l’emplacement" onClick={() => { setOpen(true); dialog.current?.showModal(); }}>
+        <Icon name="location_on" />
+      </button>
+      <dialog ref={dialog} className="location-dialog" aria-labelledby={titleId} onClose={() => setOpen(false)}>
+        <h2 id={titleId} style={{ fontSize: 18, marginTop: 0 }}>Emplacement</h2>
+        {open && (
+          <ul className="locations-list">
+            {places.map((p) => <PlaceDetails key={p.id ?? ''} place={p} zone={zones.data?.find((z) => z.id === p.zoneId)} />)}
+          </ul>
+        )}
+        <form method="dialog"><Button type="submit" variant="outline">Fermer</Button></form>
+      </dialog>
+    </>
   );
 }
 
