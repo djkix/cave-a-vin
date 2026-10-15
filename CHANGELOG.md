@@ -11,6 +11,16 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.9.1](https://github.com/djkix/cave-a-vin/compare/v2.9.0...v2.9.1) (2026-10-15)
 
+### Résumé
+
+Dans « Ma cave », le plan et la photo d'une zone ne forcent plus l'appareil
+photo : le téléphone propose de prendre une photo ou d'en choisir une dans la
+galerie. L'entrée et la sortie de bouteilles gardent l'appareil photo direct,
+plus rapide en rafale. Aucune migration.
+
+### Détail par commit
+
+
 
 ### Corrections
 
