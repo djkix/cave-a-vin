@@ -96,7 +96,9 @@ schéma dessiné à la main. Dans *Ma cave*, la carte *Plan de la cave* (avant
 *Zones*) l'envoie (*Ajouter le plan de la cave*, puis *Remplacer le plan* ;
 réduite à 2400 px par le téléphone avant l'envoi, 15 Mo au plus, redressée
 selon l'EXIF, ramenée à 2400 px sur le grand côté, en
-JPEG) et la retire (*Retirer le plan*, après confirmation). Sans plan, elle
+JPEG) et la retire (*Retirer le plan*, après confirmation). Pour le plan comme
+pour la photo d'une zone, le téléphone propose de prendre une photo ou d'en
+choisir une dans la galerie. Sans plan, elle
 explique : « Photographiez la pièce ou un schéma dessiné à la main, puis
 placez vos zones dessus. » ; sans zone : « Créez d'abord des zones ». Pour
 placer une zone, le propriétaire **touche le plan** à son endroit : un repère

@@ -71,7 +71,8 @@ describe('zones', () => {
     expect(input).not.toHaveAttribute('aria-label');
     expect(input).toHaveAttribute('type', 'file');
     expect(input).toHaveAttribute('accept', 'image/*');
-    expect(input).toHaveAttribute('capture', 'environment');
+    // Sans « capture » : le téléphone propose l'appareil photo ou la galerie.
+    expect(input).not.toHaveAttribute('capture');
   });
 
   it('sans zone : le dit, et propose d’en ajouter une', async () => {
@@ -309,7 +310,8 @@ describe('plan de la cave', () => {
     const input = planCard().getByLabelText('Ajouter le plan de la cave');
     expect(input).toHaveAttribute('type', 'file');
     expect(input).toHaveAttribute('accept', 'image/*');
-    expect(input).toHaveAttribute('capture', 'environment');
+    // Sans « capture » : le téléphone propose l'appareil photo ou la galerie.
+    expect(input).not.toHaveAttribute('capture');
     expect(planCard().queryByRole('button', { name: 'Retirer le plan' })).not.toBeInTheDocument();
   });
 
