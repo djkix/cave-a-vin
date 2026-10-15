@@ -145,7 +145,7 @@ function ZoneRow({ zone, index, count, busy, photoVersion, onMove, onAction, onP
       )}
       <div className="zone-row__actions">
         <label className="field__label" htmlFor={`${id}-photo`}>{`${zone.hasPhoto ? 'Changer la photo' : 'Ajouter une photo'} de ${zone.name}`}</label>
-        <input id={`${id}-photo`} type="file" accept="image/*" capture="environment" disabled={busy} onChange={pickPhoto} />
+        <input id={`${id}-photo`} type="file" accept="image/*" disabled={busy} onChange={pickPhoto} />
         {zone.hasPhoto && <Button variant="link" disabled={busy} onClick={() => onAction(() => removeZonePhoto(zone.id))}>Retirer la photo</Button>}
       </div>
     </li>
@@ -323,7 +323,7 @@ function PlanCard() {
       {status && <p role="status" className="list__meta" style={{ margin: 0 }}>{status}</p>}
       <div className="zone-row__actions">
         <label className="field__label" htmlFor={inputId}>{plan ? 'Remplacer le plan' : 'Ajouter le plan de la cave'}</label>
-        <input id={inputId} type="file" accept="image/*" capture="environment" disabled={busy} onChange={pick} />
+        <input id={inputId} type="file" accept="image/*" disabled={busy} onChange={pick} />
         {plan && <Button variant="link" disabled={busy} onClick={confirmRemove}>Retirer le plan</Button>}
       </div>
     </section>
