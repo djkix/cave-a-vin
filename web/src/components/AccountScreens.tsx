@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { logout } from '../lib/api-client';
 import { APP_VERSION } from '../lib/version';
 import { Button } from './Button';
-import { Icon } from './Icon';
 
 export function LogoutButton() {
   const qc = useQueryClient();
@@ -20,7 +19,7 @@ export function LogoutButton() {
 function AccountScreen({ children }: { children: React.ReactNode }) {
   return (
     <main className="login">
-      <Icon name="wine_bar" className="login__logo" />
+      <img src="/icons/icon.svg" alt="" className="login__logo" width={72} height={72} />
       <h1 className="login__title">Ma Cave</h1>
       {children}
       <LogoutButton />

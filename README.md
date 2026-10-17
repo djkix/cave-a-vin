@@ -802,7 +802,10 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
 
 ### 9. Installer la PWA et vérifier
 
-1. Ouvrir <https://cave.djkix.ovh/> : l'écran de connexion s'affiche.
+1. Ouvrir <https://cave.djkix.ovh/> : l'écran de connexion s'affiche, avec le
+   logo de l'application. Si la connexion Google échoue, il l'explique
+   simplement (« La connexion n’a pas abouti », puis quoi faire) ; un lien
+   *Confidentialité* mène aux règles de confidentialité.
 2. « Se connecter avec Google » puis rentrer une bouteille avec une vraie photo
    d'étiquette : la fiche doit arriver dans « À confirmer » en moins d'une
    minute.

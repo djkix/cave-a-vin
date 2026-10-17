@@ -27,7 +27,8 @@ h1, h2, h3, .serif { font-family: var(--font-serif); font-weight: 500; margin: 0
    mais toujours lisible : l'empreinte de commit d'une image `latest` peut
    allonger le libellé, d'où le retour à la ligne interdit. */
 .topbar__account { margin-left: auto; color: var(--color-primary); display: inline-flex; width: var(--size-touch-target); height: var(--size-touch-target); align-items: center; justify-content: center; }
-.topbar__logo, .topbar__back { color: var(--color-primary); display: inline-flex; width: var(--size-touch-target); height: var(--size-touch-target); align-items: center; justify-content: center; }
+.topbar__logo { width: 32px; height: 32px; border-radius: 8px; margin-inline: 8px; }
+.topbar__back { color: var(--color-primary); display: inline-flex; width: var(--size-touch-target); height: var(--size-touch-target); align-items: center; justify-content: center; }
 
 .bottomnav {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 50; height: calc(var(--size-bottomnav-height) + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
@@ -66,7 +67,10 @@ h1, h2, h3, .serif { font-family: var(--font-serif); font-weight: 500; margin: 0
 .action__text small { font-size: 12px; opacity: 0.85; }
 
 .login { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-md); padding: var(--space-md); }
-.login__logo { font-size: 48px; color: var(--color-primary); }
+.login__logo { width: 72px; height: 72px; border-radius: 16px; }
+.login__notice { max-width: 340px; padding: var(--space-md); border-radius: 12px; background: var(--color-surface-container); text-align: center; }
+.login__notice p { margin: 0; }
+.login__notice-title { font-weight: 600; margin-bottom: var(--space-xs) !important; color: var(--color-primary); }
 .login__title { font-size: 28px; color: var(--color-primary); }
 .login__form { display: flex; flex-direction: column; gap: var(--space-sm); width: min(100%, 360px); }
 .login__version { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--color-secondary); margin: 0; }
