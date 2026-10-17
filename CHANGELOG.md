@@ -9,6 +9,18 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
+## [2.11.0](https://github.com/djkix/ma-cave/compare/v2.10.0...v2.11.0) (2026-10-17)
+
+
+### Fonctionnalités
+
+* l'application s'appelle désormais Ma Cave ([5517543](https://github.com/djkix/ma-cave/commit/55175434ba48f61d5710d522b3bdc29693e1f160))
+
+
+### Corrections
+
+* **web:** message de connexion clair et nouveau logo partout ([81fddd8](https://github.com/djkix/ma-cave/commit/81fddd8c6651e22aa17bdabd7c0bace9e7d40cfa))
+
 ## [2.10.0](https://github.com/djkix/ma-cave/compare/v2.9.1...v2.10.0) (2026-10-15)
 
 ### Résumé
