@@ -11,6 +11,23 @@ tout premiers lots sont en anglais ; les suivants sont en français.
 
 ## [2.11.0](https://github.com/djkix/ma-cave/compare/v2.10.0...v2.11.0) (2026-10-17)
 
+### Résumé
+
+**L'application s'appelle désormais Ma Cave.** Le nom change partout : titre,
+écran de connexion, application installée, export Excel. La page de réglages
+du propriétaire devient « Ma cave › Réglages ». Le dépôt devient
+`djkix/ma-cave` et les images `ghcr.io/djkix/ma-cave-api` et `-web` ; les
+anciennes images `cave-a-vin-*` ne sont plus mises à jour. Sur le serveur, la
+stack passe de `/opt/stacks/cave-a-vin` à `/opt/stacks/ma-cave` : suivre la
+section « Passage à Ma Cave » du README (sauvegarde, copie du `.env` et des
+volumes, démarrage). Une page publique `/confidentialite`, liée depuis l'écran
+de connexion, décrit les données conservées ; elle permet de publier l'écran de
+consentement Google. L'écran de connexion montre le nouveau logo et, en cas
+d'échec, un message clair au lieu d'un code d'erreur. Aucune migration de base.
+
+### Détail par commit
+
+
 
 ### Fonctionnalités
 
