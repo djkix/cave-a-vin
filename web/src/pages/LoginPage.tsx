@@ -1,16 +1,20 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Icon } from '../components/Icon';
 import { localLogin } from '../lib/api-client';
 import { APP_VERSION } from '../lib/version';
 
-// Messages posés par l'api quand le retour Google échoue (OAuthRedirectFilter,
-// `?error=session`) : la navigation revient ici, il faut dire pourquoi.
-const REDIRECT_ERRORS: Record<string, string> = {
-  // OAuthRedirectFilter renvoie ce code pour tout ForbiddenException/UnauthorizedException
-  // côté connexion Google, y compris un compte bloqué depuis l'espace d'administration.
-  unauthorized: 'Connexion refusée. Si votre compte a été bloqué, contactez l’administrateur.',
-  session: 'La session n’a pas pu être créée. Réessayez.',
+// Retour de Google en échec (OAuthRedirectFilter, `?error=…`) : un titre et une
+// explication simple, sans jargon. `unauthorized` couvre tous les refus (Google
+// indisponible, connexion annulée, compte pas encore ouvert ou bloqué).
+const REDIRECT_ERRORS: Record<string, { title: string; text: string }> = {
+  unauthorized: {
+    title: 'La connexion n’a pas abouti',
+    text: 'Réessayez dans un instant. Si le problème continue, votre accès n’est peut-être pas encore ouvert : contactez l’administrateur de la cave.',
+  },
+  session: {
+    title: 'La connexion a été interrompue',
+    text: 'Réessayez : cela suffit le plus souvent.',
+  },
 };
 
 export function LoginPage() {
@@ -34,9 +38,14 @@ export function LoginPage() {
 
   return (
     <main className="login">
-      <Icon name="wine_bar" className="login__logo" />
+      <img src="/icons/icon.svg" alt="" className="login__logo" width={72} height={72} />
       <h1 className="login__title">Ma Cave</h1>
-      {redirectError && <p role="alert" className="text-error">{redirectError}</p>}
+      {redirectError && (
+        <div role="alert" className="login__notice">
+          <p className="login__notice-title">{redirectError.title}</p>
+          <p>{redirectError.text}</p>
+        </div>
+      )}
       <a className="btn btn--primary" href="/api/auth/google">
         Se connecter avec Google
       </a>

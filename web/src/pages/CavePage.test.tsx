@@ -38,7 +38,8 @@ it('affiche un pictogramme, jamais une image cassée, pour un vin sans photo', a
   vi.spyOn(api, 'getCave').mockResolvedValue(rows);
   const { container } = mount();
   await screen.findByText(/Domaine Leflaive/);
-  expect(container.querySelectorAll('img')).toHaveLength(1);
+  // Seule image : le logo de la barre de titre ; les vignettes des vins sont dans la liste.
+  expect(container.querySelectorAll('.cave-row img')).toHaveLength(1);
   expect(screen.getByLabelText('Pas de photo')).toBeInTheDocument();
 });
 

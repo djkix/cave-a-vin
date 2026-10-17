@@ -10,7 +10,7 @@ export function TopBar({ title, back }: { title?: string; back?: string }) {
           <Icon name="arrow_back" />
         </Link>
       ) : (
-        <Icon name="wine_bar" className="topbar__logo" />
+        <img src="/icons/icon.svg" alt="" className="topbar__logo" width={32} height={32} />
       )}
       <h1 className="topbar__title">{title ?? 'Ma Cave'}</h1>
       <CaveSwitcher />
