@@ -8,7 +8,7 @@
 
 **Tech Stack:** NestJS 10, Prisma 5 (migrations SQL écrites à la main, `migrate deploy`), PostgreSQL 16, BullMQ, `@google/generative-ai`, Jest ; React 18, TanStack Query 5, Vitest + Testing Library.
 
-**Spec:** `docs/superpowers/specs/2026-10-05-cave-a-vin-lot4bc-notes-accords-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-05-ma-cave-lot4bc-notes-accords-design.md`
 
 ## Global Constraints
 

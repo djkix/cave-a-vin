@@ -1,4 +1,4 @@
-# Cave & Terroir — Design : photos plus nettes, image trouvée sur le web, icône
+# Ma Cave — Design : photos plus nettes, image trouvée sur le web, icône
 
 2026-10-07 · Franck Laval
 
@@ -67,8 +67,8 @@ usage manuel, donc gratuit en pratique). Pas de Brave, pas de Google Custom Sear
      le nom ou la marque, ou, sans mot significatif, le nom complet (la recherche
      d'Open Food Facts est floue et ramènerait l'image d'un autre vin). Ceux qui
      portent aussi l'appellation ou le millésime passent devant ; au plus 5 images
-     de face (`image_front_url`). En-tête `User-Agent: CaveEtTerroir
-     (+https://github.com/djkix/cave-a-vin)`, sans numéro de version (le
+     de face (`image_front_url`). En-tête `User-Agent: MaCave
+     (+https://github.com/djkix/ma-cave)`, sans numéro de version (le
      `package.json` de l'api reste à 0.0.0). Source affichée : « Open Food Facts
      (CC BY-SA) » + lien vers la fiche produit.
   2. Si Open Food Facts ne donne rien : **Gemini avec la recherche Google**

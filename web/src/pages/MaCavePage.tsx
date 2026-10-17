@@ -363,7 +363,7 @@ export function MaCavePage() {
 
   return (
     <>
-      <TopBar title="Ma cave" back="/" />
+      <TopBar title="Ma cave › Réglages" back="/" />
       <main className="page">
         <RenameCard />
 

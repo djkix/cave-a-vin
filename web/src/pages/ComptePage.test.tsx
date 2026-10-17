@@ -36,17 +36,17 @@ it('ne propose pas la sauvegarde à un membre en lecture seule, mais la déconne
   expect(screen.queryByRole('link', { name: /sauvegarde Excel/ })).not.toBeInTheDocument();
 });
 
-it('mène le propriétaire à « Ma cave »', async () => {
+it('mène le propriétaire à « Ma cave › Réglages »', async () => {
   vi.spyOn(api, 'getMe').mockResolvedValue(meFixture());
   mount();
-  expect(await screen.findByRole('link', { name: 'Ma cave' })).toHaveAttribute('href', '/ma-cave');
+  expect(await screen.findByRole('link', { name: 'Ma cave › Réglages' })).toHaveAttribute('href', '/ma-cave');
 });
 
-it('n’offre pas « Ma cave » à un membre en lecture seule', async () => {
+it('n’offre pas « Ma cave › Réglages » à un membre en lecture seule', async () => {
   vi.spyOn(api, 'getMe').mockResolvedValue(viewerMe());
   mount();
   await screen.findByRole('button', { name: 'Se déconnecter' });
-  expect(screen.queryByRole('link', { name: 'Ma cave' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Ma cave › Réglages' })).not.toBeInTheDocument();
 });
 
 it('liste les caves, dont celles où l’on est invité, et permet d’en afficher une autre', async () => {

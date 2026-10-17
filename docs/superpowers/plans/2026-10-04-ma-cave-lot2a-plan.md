@@ -8,7 +8,7 @@
 
 **Tech Stack:** NestJS 10, Prisma 5, PostgreSQL 16 (`pg_trgm`), BullMQ, Jest ; React 18, Vite 5, TanStack Query 5, React Router 6, Vitest + Testing Library.
 
-**Spec:** [`docs/superpowers/specs/2026-10-04-cave-a-vin-lot2a-cave-et-sortie-design.md`](../specs/2026-10-04-cave-a-vin-lot2a-cave-et-sortie-design.md)
+**Spec:** [`docs/superpowers/specs/2026-10-04-ma-cave-lot2a-cave-et-sortie-design.md`](../specs/2026-10-04-ma-cave-lot2a-cave-et-sortie-design.md)
 
 ## Global Constraints
 

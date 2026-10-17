@@ -1,14 +1,14 @@
-# Cave & Terroir — Lot 0 + Lot 1 Implementation Plan
+# Ma Cave — Lot 0 + Lot 1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the deployable socle (Lot 0) and the photo-based stock-entry flow with Excel export (Lot 1) of the Cave & Terroir wine-cellar PWA, ready to run on the existing homelab next to `magazine-search`.
+**Goal:** Build the deployable socle (Lot 0) and the photo-based stock-entry flow with Excel export (Lot 1) of the Ma Cave wine-cellar PWA, ready to run on the existing homelab next to `magazine-search`.
 
 **Architecture:** A NestJS/TypeScript codebase serves two processes from one Docker image — `api` (REST + SSE + auth) and `worker` (BullMQ jobs calling Gemini vision). PostgreSQL 16 (Prisma ORM + raw SQL for the `pg_trgm` extension, the no-negative-stock trigger and the `stock_courant` materialized view) holds an append-only movement journal. A React + Vite PWA (`web`) captures photos with the native camera, queues them offline in IndexedDB, and confirms every stock write on screen.
 
 **Tech Stack:** Node.js 22, TypeScript 5 (strict), NestJS 10, Prisma 5, PostgreSQL 16 + `pg_trgm`, Redis 7 + BullMQ, `@google/generative-ai` (Gemini), `sharp`, `exceljs`, Passport (`passport-google-oauth20`), `express-session` + `connect-redis`, `argon2`, Jest (api), React 18 + Vite 5 + `vite-plugin-pwa` + React Router + TanStack Query + `idb`, Vitest + Testing Library (web), Docker Compose, GitHub Actions + GHCR + release-please.
 
-**Spec:** [`docs/superpowers/specs/2026-09-20-cave-a-vin-lot0-1-design.md`](../specs/2026-09-20-cave-a-vin-lot0-1-design.md) — which itself builds on [`cahier-des-charges.md`](../../../cahier-des-charges.md) and the mockups in [`docs/design-reference/`](../../design-reference/).
+**Spec:** [`docs/superpowers/specs/2026-09-20-ma-cave-lot0-1-design.md`](../specs/2026-09-20-ma-cave-lot0-1-design.md) — which itself builds on [`cahier-des-charges.md`](../../../cahier-des-charges.md) and the mockups in [`docs/design-reference/`](../../design-reference/).
 
 ## Global Constraints
 
@@ -26,14 +26,14 @@
 - Excel export is regenerated in full on every request; there is no scheduled or automatic export, and no export ever triggers a price lookup.
 - Design tokens live in one versioned JSON file compiled to CSS custom properties; **no colour, spacing or radius value is hardcoded in a component**. Serif (Noto Serif) for producer/cuvée/appellation names and screen titles; sans (Manrope) for every number, quantity, label and form field.
 - All user-facing copy is in **French**.
-- Deployment conventions mirror `djkix/magazine-search`: images on `ghcr.io/djkix/cave-a-vin-api` and `ghcr.io/djkix/cave-a-vin-web`, only `web` publishes a host port, everything else stays on the Docker network `internal`.
+- Deployment conventions mirror `djkix/magazine-search`: images on `ghcr.io/djkix/ma-cave-api` and `ghcr.io/djkix/ma-cave-web`, only `web` publishes a host port, everything else stays on the Docker network `internal`.
 
 ---
 
 ## File structure
 
 ```
-cave-a-vin/
+ma-cave/
 ├── api/                                # NestJS — api + worker
 │   ├── package.json
 │   ├── tsconfig.json / tsconfig.build.json
@@ -94,7 +94,7 @@ cave-a-vin/
 - Create: `.gitignore`, `.prettierrc`, `.editorconfig`
 
 **Interfaces:**
-- Produces: `GET /api/health` → `{ status: 'ok' }`; the Nest app is created with global prefix `api`; `web` renders `<App />` with a French title « Cave & Terroir ».
+- Produces: `GET /api/health` → `{ status: 'ok' }`; the Nest app is created with global prefix `api`; `web` renders `<App />` with a French title « Ma Cave ».
 
 - [ ] **Step 1: Root files**
 
@@ -132,7 +132,7 @@ insert_final_newline = true
 `api/package.json`:
 ```json
 {
-  "name": "cave-a-vin-api",
+  "name": "ma-cave-api",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -323,7 +323,7 @@ Expected: PASS (1 test).
 `web/package.json`:
 ```json
 {
-  "name": "cave-a-vin-web",
+  "name": "ma-cave-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -426,7 +426,7 @@ import 'fake-indexeddb/auto';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Cave & Terroir</title>
+    <title>Ma Cave</title>
   </head>
   <body>
     <div id="root"></div>
@@ -451,7 +451,7 @@ import { App } from './App';
 
 it('affiche le titre de l’application', () => {
   render(<App />);
-  expect(screen.getByRole('heading', { name: 'Cave & Terroir' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Ma Cave' })).toBeInTheDocument();
 });
 ```
 
@@ -467,7 +467,7 @@ Expected: FAIL — `Failed to resolve import "./App"`.
 export function App() {
   return (
     <main>
-      <h1>Cave &amp; Terroir</h1>
+      <h1>Ma Cave</h1>
     </main>
   );
 }
@@ -948,7 +948,7 @@ dist
 ```yaml
 services:
   web:
-    image: ghcr.io/djkix/cave-a-vin-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/djkix/ma-cave-web:${IMAGE_TAG:-latest}
     build: ./web
     restart: unless-stopped
     ports:
@@ -958,7 +958,7 @@ services:
     networks: [internal]
 
   api:
-    image: ghcr.io/djkix/cave-a-vin-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/djkix/ma-cave-api:${IMAGE_TAG:-latest}
     build: ./api
     restart: unless-stopped
     env_file: .env
@@ -976,7 +976,7 @@ services:
     networks: [internal]
 
   worker:
-    image: ghcr.io/djkix/cave-a-vin-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/djkix/ma-cave-api:${IMAGE_TAG:-latest}
     build: ./api
     restart: unless-stopped
     command: ["node", "dist/worker.js"]
@@ -1500,7 +1500,7 @@ git commit -m "feat(auth): Google OIDC with e-mail whitelist, Redis sessions and
 - Create: `.github/workflows/ci.yml`, `.github/workflows/docker-build.yml`, `.github/workflows/release-please.yml`, `release-please-config.json`, `.release-please-manifest.json`, `README.md`, `LICENSE`
 
 **Interfaces:**
-- Produces: on every push/PR — api lint+tests (with a Postgres service so `stock.integration.spec.ts` runs) and web lint+tests; on push to `main` or tag `v*` — images `ghcr.io/djkix/cave-a-vin-api` and `-web` tagged `latest` and the version.
+- Produces: on every push/PR — api lint+tests (with a Postgres service so `stock.integration.spec.ts` runs) and web lint+tests; on push to `main` or tag `v*` — images `ghcr.io/djkix/ma-cave-api` and `-web` tagged `latest` and the version.
 
 - [ ] **Step 1: ci.yml**
 
@@ -1651,7 +1651,7 @@ jobs:
 
 `README.md`:
 ```markdown
-# Cave & Terroir
+# Ma Cave
 
 Gestion de cave à vin sans saisie clavier : une photo à l'achat crédite le stock,
 une photo au moment de boire le débite, un classeur Excel exportable donne l'état
@@ -1731,7 +1731,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Cave & Terroir',
+        name: 'Ma Cave',
         short_name: 'Cave',
         lang: 'fr',
         start_url: '/',
@@ -1879,7 +1879,7 @@ export function TopBar({ title, back }: { title?: string; back?: string }) {
       ) : (
         <span className="material-symbols-outlined topbar__logo">wine_bar</span>
       )}
-      <h1 className="topbar__title">{title ?? 'Cave & Terroir'}</h1>
+      <h1 className="topbar__title">{title ?? 'Ma Cave'}</h1>
     </header>
   );
 }
@@ -1958,7 +1958,7 @@ export function LoginPage() {
   return (
     <main className="login">
       <span className="material-symbols-outlined login__logo">wine_bar</span>
-      <h1 className="login__title">Cave &amp; Terroir</h1>
+      <h1 className="login__title">Ma Cave</h1>
       <a className="btn btn--primary" href="/api/auth/google">
         Se connecter avec Google
       </a>
@@ -2064,7 +2064,7 @@ it('rend l’application (route /login sans session)', async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"message":"Connexion requise"}', { status: 401 }));
   window.history.pushState({}, '', '/');
   render(<App />);
-  expect(await screen.findByRole('heading', { name: 'Cave & Terroir' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Ma Cave' })).toBeInTheDocument();
 });
 ```
 
@@ -2075,7 +2075,7 @@ Expected: PASS (4 tests: App, api-client ×2, HomePage).
 
 - [ ] **Step 10: Manual check in the browser**
 
-Run api (`npm run start:dev`) and web (`npm run dev`), open `http://localhost:5173`: unauthenticated → `/login`; break-glass login → home with *Rentrer du vin* active, *Sortir* disabled, bottom nav present; Chrome DevTools → Application → Manifest shows « Cave & Terroir », installable.
+Run api (`npm run start:dev`) and web (`npm run dev`), open `http://localhost:5173`: unauthenticated → `/login`; break-glass login → home with *Rentrer du vin* active, *Sortir* disabled, bottom nav present; Chrome DevTools → Application → Manifest shows « Ma Cave », installable.
 
 - [ ] **Step 11: Commit**
 
@@ -3865,7 +3865,7 @@ export class ExportService {
     });
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Cave & Terroir';
+    wb.creator = 'Ma Cave';
     wb.created = new Date();
 
     const stock = wb.addWorksheet('Stock', { views: [{ state: 'frozen', ySplit: 1 }] });
@@ -4369,7 +4369,7 @@ Run: `cd web && npm test` → PASS (all).
 
 ```bash
 git add web
-git commit -m "feat(web): Cave & Terroir design tokens, base styles and confirmation-screen components"
+git commit -m "feat(web): Ma Cave design tokens, base styles and confirmation-screen components"
 ```
 
 ---

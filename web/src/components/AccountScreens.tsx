@@ -21,7 +21,7 @@ function AccountScreen({ children }: { children: React.ReactNode }) {
   return (
     <main className="login">
       <Icon name="wine_bar" className="login__logo" />
-      <h1 className="login__title">Cave &amp; Terroir</h1>
+      <h1 className="login__title">Ma Cave</h1>
       {children}
       <LogoutButton />
       {/* Pas de barre de titre ici : la version y est répétée, comme sur l'écran de connexion. */}

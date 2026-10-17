@@ -98,7 +98,7 @@ it('reste sur la liste de la cave après un changement de cave', async () => {
     getMe.mockResolvedValue(viewerSession);
     return viewerSession;
   });
-  mount({ title: 'Ma cave' }, '/cave');
+  mount({ title: 'Ma cave › Réglages' }, '/cave');
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Cave' }), 'c2');
   expect(await screen.findByText('Lecture seule')).toBeInTheDocument();
   expect(screen.getByTestId('where')).toHaveTextContent('/cave');

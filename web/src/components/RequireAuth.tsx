@@ -33,7 +33,7 @@ export function RequireAuth() {
 
 /**
  * Pages réservées au propriétaire de la cave courante (entrée, sortie, journal,
- * « À confirmer », « Ma cave ») : un membre en lecture seule revient à l'accueil,
+ * « À confirmer », « Ma cave › Réglages ») : un membre en lecture seule revient à l'accueil,
  * y compris juste après avoir changé de cave depuis l'une d'elles.
  */
 export function RequireOwner() {

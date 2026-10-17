@@ -44,7 +44,7 @@ changement de conception et son motif.*
 
 **Hors périmètre.** Pas de gestion de commandes ou de fournisseurs, pas de cave à vin connectée (sondes de température), pas de partage public de la cave, pas de multi-foyer. L'application est mono-cave et mono-foyer, avec comptes locaux.
 
-*Révision (2026-10-07) : l'application est désormais multi-caves. Chaque compte a sa propre cave, l'inscription d'une adresse Google inconnue attend la validation d'un administrateur, et un propriétaire peut inviter des membres en lecture seule (sans prix d'achat, sans journal ni export, sans écriture). Le référentiel des appellations, les règles d'apogée et les descriptifs de domaine restent communs. Voir `docs/superpowers/specs/2026-10-07-cave-a-vin-multi-caves-design.md`.*
+*Révision (2026-10-07) : l'application est désormais multi-caves. Chaque compte a sa propre cave, l'inscription d'une adresse Google inconnue attend la validation d'un administrateur, et un propriétaire peut inviter des membres en lecture seule (sans prix d'achat, sans journal ni export, sans écriture). Le référentiel des appellations, les règles d'apogée et les descriptifs de domaine restent communs. Voir `docs/superpowers/specs/2026-10-07-ma-cave-multi-caves-design.md`.*
 
 **Volumétrie cible.** Environ **4 000 bouteilles** en stock pour **100 à 150 références** distinctes, soit 25 à 40 bouteilles par référence — cohérent avec des achats par caisses de 6, 12 ou 18. Le journal des mouvements atteint quelques milliers de lignes après dix ans d'exploitation, pour un trafic courant de 20 à 40 photos par mois. Ces ordres de grandeur restent très en deçà des limites de PostgreSQL. Le seul vrai pic de charge est la reprise de l'existant, traitée en section *Architecture technique*.
 
@@ -469,7 +469,7 @@ La reprise des 4 000 bouteilles déjà en cave est le seul moment où le systèm
 
 ## Charte graphique et interface
 
-Le jeu de tokens **Cave & Terroir — Bastide Provençale & Travertin Doré** fait référence unique pour toute l'interface. Il suit le format W3C Design Tokens, donc il se consomme directement : une étape de build (Style Dictionary ou équivalent) génère les variables CSS à partir du fichier, versionné dans le dépôt. **Aucune valeur de couleur, d'espacement ou de rayon n'est écrite en dur dans un composant.**
+Le jeu de tokens **Ma Cave — Bastide Provençale & Travertin Doré** fait référence unique pour toute l'interface. Il suit le format W3C Design Tokens, donc il se consomme directement : une étape de build (Style Dictionary ou équivalent) génère les variables CSS à partir du fichier, versionné dans le dépôt. **Aucune valeur de couleur, d'espacement ou de rayon n'est écrite en dur dans un composant.**
 
 ### Ce que la charte apporte
 

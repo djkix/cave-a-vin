@@ -41,10 +41,10 @@ const rowOf = (email: string) => screen.getByText(email).closest<HTMLElement>('.
 const zonesCard = () => within(screen.getByRole('region', { name: 'Zones' }));
 const zoneRow = (name: string) => within(zonesCard().getByRole('listitem', { name }));
 
-it('regroupe le nom de la cave, le plan, les zones puis les membres, sous le titre « Ma cave »', async () => {
+it('regroupe le nom de la cave, le plan, les zones puis les membres, sous le titre « Ma cave › Réglages »', async () => {
   vi.spyOn(api, 'getMembers').mockResolvedValue(members);
   mount();
-  expect(screen.getByRole('heading', { level: 1, name: 'Ma cave' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 1, name: 'Ma cave › Réglages' })).toBeInTheDocument();
   await screen.findByText('franck@example.com');
   const order = [screen.getByLabelText('Nom de la cave'), screen.getByRole('region', { name: 'Plan de la cave' }), screen.getByRole('region', { name: 'Zones' }), screen.getByRole('region', { name: 'Membres' })];
   for (let i = 1; i < order.length; i++) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -1,6 +1,6 @@
 # Journal des modifications
 
-Toutes les modifications notables de Cave & Terroir sont consignées ici, la plus
+Toutes les modifications notables de Ma Cave sont consignées ici, la plus
 récente en premier. Le projet suit le [versionnage sémantique](https://semver.org/lang/fr/).
 Ce journal est repris dans le [README](README.md#journal-des-modifications) pour
 la version courante.
@@ -9,7 +9,7 @@ Chaque version commence par un résumé rédigé, suivi du détail par commit g�
 automatiquement par release-please à la publication. Les messages de commit des
 tout premiers lots sont en anglais ; les suivants sont en français.
 
-## [2.10.0](https://github.com/djkix/cave-a-vin/compare/v2.9.1...v2.10.0) (2026-10-15)
+## [2.10.0](https://github.com/djkix/ma-cave/compare/v2.9.1...v2.10.0) (2026-10-15)
 
 ### Résumé
 
@@ -26,13 +26,13 @@ la zone mis en évidence). Aucune migration.
 
 ### Fonctionnalités
 
-* **web:** fiche vin, domaine et accords sous la photo, icône d'emplacement ([e37bffb](https://github.com/djkix/cave-a-vin/commit/e37bffbf119ee017ee0ae992365d36ce3cb5c5ab))
+* **web:** fiche vin, domaine et accords sous la photo, icône d'emplacement ([e37bffb](https://github.com/djkix/ma-cave/commit/e37bffbf119ee017ee0ae992365d36ce3cb5c5ab))
 
-## [2.9.1](https://github.com/djkix/cave-a-vin/compare/v2.9.0...v2.9.1) (2026-10-15)
+## [2.9.1](https://github.com/djkix/ma-cave/compare/v2.9.0...v2.9.1) (2026-10-15)
 
 ### Résumé
 
-Dans « Ma cave », le plan et la photo d'une zone ne forcent plus l'appareil
+Dans « Ma cave › Réglages », le plan et la photo d'une zone ne forcent plus l'appareil
 photo : le téléphone propose de prendre une photo ou d'en choisir une dans la
 galerie. L'entrée et la sortie de bouteilles gardent l'appareil photo direct,
 plus rapide en rafale. Aucune migration.
@@ -43,9 +43,9 @@ plus rapide en rafale. Aucune migration.
 
 ### Corrections
 
-* **web:** plan et photo de zone, appareil photo ou galerie au choix ([cdb719c](https://github.com/djkix/cave-a-vin/commit/cdb719c4e27f5026fd2217785292dbd013ca7a84))
+* **web:** plan et photo de zone, appareil photo ou galerie au choix ([cdb719c](https://github.com/djkix/ma-cave/commit/cdb719c4e27f5026fd2217785292dbd013ca7a84))
 
-## [2.9.0](https://github.com/djkix/cave-a-vin/compare/v2.8.0...v2.9.0) (2026-10-15)
+## [2.9.0](https://github.com/djkix/ma-cave/compare/v2.8.0...v2.9.0) (2026-10-15)
 
 ### Résumé
 
@@ -62,19 +62,19 @@ la réinstaller (Mon compte › Installer l'application). Aucune migration.
 
 ### Fonctionnalités
 
-* **web:** nouvelle icône, une niche de cave et trois bouteilles ([2ae5b8d](https://github.com/djkix/cave-a-vin/commit/2ae5b8d57d13ec0de9e435a5add637fbe7e4d4ac))
+* **web:** nouvelle icône, une niche de cave et trois bouteilles ([2ae5b8d](https://github.com/djkix/ma-cave/commit/2ae5b8d57d13ec0de9e435a5add637fbe7e4d4ac))
 
-## [2.8.0](https://github.com/djkix/cave-a-vin/compare/v2.7.0...v2.8.0) (2026-10-13)
+## [2.8.0](https://github.com/djkix/ma-cave/compare/v2.7.0...v2.8.0) (2026-10-13)
 
 ### Résumé
 
-**Plan de la cave.** Dans « Ma cave », le propriétaire ajoute un plan : une
+**Plan de la cave.** Dans « Ma cave › Réglages », le propriétaire ajoute un plan : une
 photo de la pièce ou d'un schéma dessiné à la main (réduite à 2400 px par le
 téléphone avant l'envoi). Il touche le plan à l'endroit d'une zone pour y poser
 un repère numéroté, puis choisit la zone ; un repère se déplace ou se retire.
 Le plan apparaît en touchant un emplacement sur la fiche d'un vin (repère de sa
 zone mis en évidence), en petit dans chaque groupe d'« À boire prochainement »
-(touché, il s'agrandit), et en entier dans « Ma cave ». Les membres en lecture
+(touché, il s'agrandit), et en entier dans « Ma cave › Réglages ». Les membres en lecture
 seule le voient depuis la fiche et « À boire », sans pouvoir le modifier.
 Retirer le plan garde les repères, pour un plan de remplacement équivalent.
 
@@ -88,15 +88,15 @@ seulement) ; faire la sauvegarde habituelle avant. Les plans sont rangés sous
 
 ### Fonctionnalités
 
-* **plan:** plan de la cave et repères des zones ([4f4de56](https://github.com/djkix/cave-a-vin/commit/4f4de56590b8fbecd1a38b439f6a823171f05fd4))
-* **web:** plan de la cave dans Ma cave, la fiche et À boire ([ec833f1](https://github.com/djkix/cave-a-vin/commit/ec833f1c38054b5699a5438610269be9fb3cb612))
+* **plan:** plan de la cave et repères des zones ([4f4de56](https://github.com/djkix/ma-cave/commit/4f4de56590b8fbecd1a38b439f6a823171f05fd4))
+* **web:** plan de la cave dans Ma cave › Réglages, la fiche et À boire ([ec833f1](https://github.com/djkix/ma-cave/commit/ec833f1c38054b5699a5438610269be9fb3cb612))
 
 
 ### Corrections
 
-* **plan:** relecture du plan après les zones, repère « + », envoi réduit ([c38b29d](https://github.com/djkix/cave-a-vin/commit/c38b29d6c83c3ae35eb8e2241684dd18afb93651))
+* **plan:** relecture du plan après les zones, repère « + », envoi réduit ([c38b29d](https://github.com/djkix/ma-cave/commit/c38b29d6c83c3ae35eb8e2241684dd18afb93651))
 
-## [2.7.0](https://github.com/djkix/cave-a-vin/compare/v2.6.0...v2.7.0) (2026-10-12)
+## [2.7.0](https://github.com/djkix/ma-cave/compare/v2.6.0...v2.7.0) (2026-10-12)
 
 ### Résumé
 
@@ -126,19 +126,19 @@ sans appel à Gemini. Aucune nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **db:** file des accords et descriptifs dans leurs tables ([cd32241](https://github.com/djkix/cave-a-vin/commit/cd32241df50ee6e2aaeae3a09d944739c1bd795f))
-* **gemini:** accords et descriptifs par lots de dix ([75b3a3f](https://github.com/djkix/cave-a-vin/commit/75b3a3f9257af1774a3dc61ae5de478775a824d6))
+* **db:** file des accords et descriptifs dans leurs tables ([cd32241](https://github.com/djkix/ma-cave/commit/cd32241df50ee6e2aaeae3a09d944739c1bd795f))
+* **gemini:** accords et descriptifs par lots de dix ([75b3a3f](https://github.com/djkix/ma-cave/commit/75b3a3f9257af1774a3dc61ae5de478775a824d6))
 
 
 ### Corrections
 
-* **gemini:** pannes sans tentative, demande difficile seule, coût exact ([3bbedfa](https://github.com/djkix/cave-a-vin/commit/3bbedfa23a4ab1691dd1d7e86936e6e938808259))
+* **gemini:** pannes sans tentative, demande difficile seule, coût exact ([3bbedfa](https://github.com/djkix/ma-cave/commit/3bbedfa23a4ab1691dd1d7e86936e6e938808259))
 
-## [2.6.0](https://github.com/djkix/cave-a-vin/compare/v2.5.0...v2.6.0) (2026-10-08)
+## [2.6.0](https://github.com/djkix/ma-cave/compare/v2.5.0...v2.6.0) (2026-10-08)
 
 ### Résumé
 
-**Zones de la cave.** Une nouvelle page « Ma cave » (propriétaire, depuis
+**Zones de la cave.** Une nouvelle page « Ma cave › Réglages » (propriétaire, depuis
 l'accueil et « Mon compte ») réunit le nom de la cave, ses **zones** et ses
 membres (l'ancienne page Membres y est intégrée). Une zone a un nom, une
 indication facultative (« à gauche en entrant, au fond derrière l'escalier »),
@@ -169,17 +169,17 @@ variable d'environnement.
 
 ### Fonctionnalités
 
-* **web:** page Ma cave et choix de la zone ([796da2d](https://github.com/djkix/cave-a-vin/commit/796da2de67a316dc919b1b168de617d3cec3a59f))
-* **zones:** zones de la cave, indication et photo ([56a7aaa](https://github.com/djkix/cave-a-vin/commit/56a7aaa64897359e1929c7ca005725ccc85f5690))
+* **web:** page Ma cave › Réglages et choix de la zone ([796da2d](https://github.com/djkix/ma-cave/commit/796da2de67a316dc919b1b168de617d3cec3a59f))
+* **zones:** zones de la cave, indication et photo ([56a7aaa](https://github.com/djkix/ma-cave/commit/56a7aaa64897359e1929c7ca005725ccc85f5690))
 
 
 ### Corrections
 
-* **cote:** recherche iDealwine avec des espaces ([c9c55ce](https://github.com/djkix/cave-a-vin/commit/c9c55ce61c8a9268d2c32c4292a6eb39da575473))
-* **web:** choix de la zone en attente, état après suppression, photo accessible ([f1dde4c](https://github.com/djkix/cave-a-vin/commit/f1dde4cb5b57bc3b19f2d265c590b36131bbb86a))
-* **zones:** bouteilles jamais rangées dans une zone archivée, photo atomique ([c6597ac](https://github.com/djkix/cave-a-vin/commit/c6597acd527795456b84b4194e7bf2b26733d55f))
+* **cote:** recherche iDealwine avec des espaces ([c9c55ce](https://github.com/djkix/ma-cave/commit/c9c55ce61c8a9268d2c32c4292a6eb39da575473))
+* **web:** choix de la zone en attente, état après suppression, photo accessible ([f1dde4c](https://github.com/djkix/ma-cave/commit/f1dde4cb5b57bc3b19f2d265c590b36131bbb86a))
+* **zones:** bouteilles jamais rangées dans une zone archivée, photo atomique ([c6597ac](https://github.com/djkix/ma-cave/commit/c6597acd527795456b84b4194e7bf2b26733d55f))
 
-## [2.5.0](https://github.com/djkix/cave-a-vin/compare/v2.4.2...v2.5.0) (2026-10-08)
+## [2.5.0](https://github.com/djkix/ma-cave/compare/v2.4.2...v2.5.0) (2026-10-08)
 
 ### Résumé
 
@@ -207,15 +207,15 @@ d'environnement.
 
 ### Fonctionnalités
 
-* **gemini:** journal des appels et pause commune après un refus ([cbbb44e](https://github.com/djkix/cave-a-vin/commit/cbbb44e69d3e7b7c86b7f35acb2258d17f06a613))
-* **web:** consommation Gemini dans l'Administration ([1e3e0ec](https://github.com/djkix/cave-a-vin/commit/1e3e0ec5daac41669a606457777f48f89c629c3f))
+* **gemini:** journal des appels et pause commune après un refus ([cbbb44e](https://github.com/djkix/ma-cave/commit/cbbb44e69d3e7b7c86b7f35acb2258d17f06a613))
+* **web:** consommation Gemini dans l'Administration ([1e3e0ec](https://github.com/djkix/ma-cave/commit/1e3e0ec5daac41669a606457777f48f89c629c3f))
 
 
 ### Corrections
 
-* **gemini:** motif de pause affiché à la sortie, coûts et reprises affinés ([7582df5](https://github.com/djkix/cave-a-vin/commit/7582df5cc3b3da7a1f724a10094b43ae5ab6d305))
+* **gemini:** motif de pause affiché à la sortie, coûts et reprises affinés ([7582df5](https://github.com/djkix/ma-cave/commit/7582df5cc3b3da7a1f724a10094b43ae5ab6d305))
 
-## [2.4.2](https://github.com/djkix/cave-a-vin/compare/v2.4.1...v2.4.2) (2026-10-08)
+## [2.4.2](https://github.com/djkix/ma-cave/compare/v2.4.1...v2.4.2) (2026-10-08)
 
 ### Résumé
 
@@ -235,9 +235,9 @@ d'environnement.
 
 ### Corrections
 
-* **image:** quota Gemini épuisé signalé en clair ([ce07d52](https://github.com/djkix/cave-a-vin/commit/ce07d5263dba23633c186c8e9ffecd0f5ada4cb0))
+* **image:** quota Gemini épuisé signalé en clair ([ce07d52](https://github.com/djkix/ma-cave/commit/ce07d5263dba23633c186c8e9ffecd0f5ada4cb0))
 
-## [2.4.1](https://github.com/djkix/cave-a-vin/compare/v2.4.0...v2.4.1) (2026-10-08)
+## [2.4.1](https://github.com/djkix/ma-cave/compare/v2.4.0...v2.4.1) (2026-10-08)
 
 ### Résumé
 
@@ -256,9 +256,9 @@ d'environnement.
 
 ### Corrections
 
-* **image:** chaque recherche d'image journalisée, coupure du proxy signalée ([4c68588](https://github.com/djkix/cave-a-vin/commit/4c6858881dc1c035966ce746fbae6375df790f9a))
+* **image:** chaque recherche d'image journalisée, coupure du proxy signalée ([4c68588](https://github.com/djkix/ma-cave/commit/4c6858881dc1c035966ce746fbae6375df790f9a))
 
-## [2.4.0](https://github.com/djkix/cave-a-vin/compare/v2.3.0...v2.4.0) (2026-10-08)
+## [2.4.0](https://github.com/djkix/ma-cave/compare/v2.3.0...v2.4.0) (2026-10-08)
 
 ### Résumé
 
@@ -278,14 +278,14 @@ d'environnement.
 
 ### Fonctionnalités
 
-* **cave:** à boire prochainement, par emplacement ([df5cc3f](https://github.com/djkix/cave-a-vin/commit/df5cc3f782bfcae344e06793920d6f259d9729fc))
+* **cave:** à boire prochainement, par emplacement ([df5cc3f](https://github.com/djkix/ma-cave/commit/df5cc3f782bfcae344e06793920d6f259d9729fc))
 
 
 ### Corrections
 
-* **web:** lignes « À boire prochainement » au style de l'application ([75ea241](https://github.com/djkix/cave-a-vin/commit/75ea241a3d58a75d701004ebbd557eeb32e62b07))
+* **web:** lignes « À boire prochainement » au style de l'application ([75ea241](https://github.com/djkix/ma-cave/commit/75ea241a3d58a75d701004ebbd557eeb32e62b07))
 
-## [2.3.0](https://github.com/djkix/cave-a-vin/compare/v2.2.1...v2.3.0) (2026-10-08)
+## [2.3.0](https://github.com/djkix/ma-cave/compare/v2.2.1...v2.3.0) (2026-10-08)
 
 ### Résumé
 
@@ -306,9 +306,9 @@ aucune nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **web:** page « Mon compte » ([8e43314](https://github.com/djkix/cave-a-vin/commit/8e4331404ad1d32e811dc70942654a4356755c98))
+* **web:** page « Mon compte » ([8e43314](https://github.com/djkix/ma-cave/commit/8e4331404ad1d32e811dc70942654a4356755c98))
 
-## [2.2.1](https://github.com/djkix/cave-a-vin/compare/v2.2.0...v2.2.1) (2026-10-08)
+## [2.2.1](https://github.com/djkix/ma-cave/compare/v2.2.0...v2.2.1) (2026-10-08)
 
 ### Résumé
 
@@ -327,10 +327,10 @@ migration, aucune nouvelle variable d'environnement.
 
 ### Corrections
 
-* **cote:** lien de recherche iDealwine au bon format ([bd4ea25](https://github.com/djkix/cave-a-vin/commit/bd4ea258d16574fa1c0c9d4621049052456d54a4))
-* **web:** bouton « Se déconnecter » sur l'accueil ([588a8ae](https://github.com/djkix/cave-a-vin/commit/588a8aec77b98bb8eb825ac1632079adc1f23ce8))
+* **cote:** lien de recherche iDealwine au bon format ([bd4ea25](https://github.com/djkix/ma-cave/commit/bd4ea258d16574fa1c0c9d4621049052456d54a4))
+* **web:** bouton « Se déconnecter » sur l'accueil ([588a8ae](https://github.com/djkix/ma-cave/commit/588a8aec77b98bb8eb825ac1632079adc1f23ce8))
 
-## [2.2.0](https://github.com/djkix/cave-a-vin/compare/v2.1.1...v2.2.0) (2026-10-08)
+## [2.2.0](https://github.com/djkix/ma-cave/compare/v2.1.1...v2.2.0) (2026-10-08)
 
 ### Résumé
 
@@ -364,25 +364,25 @@ variable d'environnement.
 
 ### Fonctionnalités
 
-* **cote:** cote iDealwine saisie à la main ([4d804a0](https://github.com/djkix/cave-a-vin/commit/4d804a003b5f1e7aed8d7f296457c4eec77ea7dc))
-* **emplacements:** emplacements côté api ([c629c9e](https://github.com/djkix/cave-a-vin/commit/c629c9e67923a531ad14c79e544f76156cb7e199))
-* **emplacements:** schéma des emplacements et des cotes ([5507e06](https://github.com/djkix/cave-a-vin/commit/5507e064027dcd74c6a90c491623e77385330a8f))
-* **web:** cote iDealwine saisie à la main ([1777f4f](https://github.com/djkix/cave-a-vin/commit/1777f4f100c0da9a59f7da9a8ad30054e7395be3))
-* **web:** emplacements ([4db5699](https://github.com/djkix/cave-a-vin/commit/4db5699de17db305ad274a8c86edf515c67d6ab9))
+* **cote:** cote iDealwine saisie à la main ([4d804a0](https://github.com/djkix/ma-cave/commit/4d804a003b5f1e7aed8d7f296457c4eec77ea7dc))
+* **emplacements:** emplacements côté api ([c629c9e](https://github.com/djkix/ma-cave/commit/c629c9e67923a531ad14c79e544f76156cb7e199))
+* **emplacements:** schéma des emplacements et des cotes ([5507e06](https://github.com/djkix/ma-cave/commit/5507e064027dcd74c6a90c491623e77385330a8f))
+* **web:** cote iDealwine saisie à la main ([1777f4f](https://github.com/djkix/ma-cave/commit/1777f4f100c0da9a59f7da9a8ad30054e7395be3))
+* **web:** emplacements ([4db5699](https://github.com/djkix/ma-cave/commit/4db5699de17db305ad274a8c86edf515c67d6ab9))
 
 
 ### Corrections
 
-* **cote:** lien enregistré gardé, ligatures dans la recherche ([cfe7472](https://github.com/djkix/cave-a-vin/commit/cfe74728aaf5eeed40b2efc9c27657251a947917))
-* **cote:** valeur de cession hors frais, lien enregistré fourni par l'api ([2e8a5c8](https://github.com/djkix/cave-a-vin/commit/2e8a5c820edf65483bfdca91ba21605654012fba))
-* **emplacements:** annulation après déplacement, clé JSON, entrée en une transaction ([b5a595c](https://github.com/djkix/cave-a-vin/commit/b5a595c8be0c8d3854d90d1310ebe5c7a0126040))
-* **emplacements:** message d'annulation juste après un déplacement ou une sortie ([055cbd0](https://github.com/djkix/cave-a-vin/commit/055cbd00c504bf6372ea13f7c58797c6b2bafd3f))
-* **emplacements:** ordre d'annulation d'un déplacement, clé déjà utilisée, tests de concurrence ([ac25a80](https://github.com/djkix/cave-a-vin/commit/ac25a80f0199a3277848cb391f3e640ef4a03c76))
-* **emplacements:** pré-remplissage mémorisé côté serveur, sortie attendue sur la fiche ([294e674](https://github.com/djkix/cave-a-vin/commit/294e6742e2d2bde3d6596f15fed10cfc50661e42))
-* **web:** cote hors frais, lien enregistré de l'api, accessibilité du formulaire ([d2eeed3](https://github.com/djkix/cave-a-vin/commit/d2eeed379c6668a2a04d574d9c19e94fff968b61))
-* **web:** entrée et sortie jamais bloquées plus de 2 s, fiche relue après un 409 ([7497640](https://github.com/djkix/cave-a-vin/commit/7497640533457af61c102609d4a226360a069be1))
+* **cote:** lien enregistré gardé, ligatures dans la recherche ([cfe7472](https://github.com/djkix/ma-cave/commit/cfe74728aaf5eeed40b2efc9c27657251a947917))
+* **cote:** valeur de cession hors frais, lien enregistré fourni par l'api ([2e8a5c8](https://github.com/djkix/ma-cave/commit/2e8a5c820edf65483bfdca91ba21605654012fba))
+* **emplacements:** annulation après déplacement, clé JSON, entrée en une transaction ([b5a595c](https://github.com/djkix/ma-cave/commit/b5a595c8be0c8d3854d90d1310ebe5c7a0126040))
+* **emplacements:** message d'annulation juste après un déplacement ou une sortie ([055cbd0](https://github.com/djkix/ma-cave/commit/055cbd00c504bf6372ea13f7c58797c6b2bafd3f))
+* **emplacements:** ordre d'annulation d'un déplacement, clé déjà utilisée, tests de concurrence ([ac25a80](https://github.com/djkix/ma-cave/commit/ac25a80f0199a3277848cb391f3e640ef4a03c76))
+* **emplacements:** pré-remplissage mémorisé côté serveur, sortie attendue sur la fiche ([294e674](https://github.com/djkix/ma-cave/commit/294e6742e2d2bde3d6596f15fed10cfc50661e42))
+* **web:** cote hors frais, lien enregistré de l'api, accessibilité du formulaire ([d2eeed3](https://github.com/djkix/ma-cave/commit/d2eeed379c6668a2a04d574d9c19e94fff968b61))
+* **web:** entrée et sortie jamais bloquées plus de 2 s, fiche relue après un 409 ([7497640](https://github.com/djkix/ma-cave/commit/7497640533457af61c102609d4a226360a069be1))
 
-## [2.1.1](https://github.com/djkix/cave-a-vin/compare/v2.1.0...v2.1.1) (2026-10-07)
+## [2.1.1](https://github.com/djkix/ma-cave/compare/v2.1.0...v2.1.1) (2026-10-07)
 
 ### Résumé
 
@@ -400,9 +400,9 @@ d'environnement.
 
 ### Corrections
 
-* **image:** compter l'appel Gemini abandonné au délai, message clair pour une image du web ([a6c57d4](https://github.com/djkix/cave-a-vin/commit/a6c57d4afcccd7265df0a6fd2a96fd45a3d0b21f))
+* **image:** compter l'appel Gemini abandonné au délai, message clair pour une image du web ([a6c57d4](https://github.com/djkix/ma-cave/commit/a6c57d4afcccd7265df0a6fd2a96fd45a3d0b21f))
 
-## [2.1.0](https://github.com/djkix/cave-a-vin/compare/v2.0.1...v2.1.0) (2026-10-07)
+## [2.1.0](https://github.com/djkix/ma-cave/compare/v2.0.1...v2.1.0) (2026-10-07)
 
 ### Résumé
 
@@ -422,10 +422,10 @@ perdue. Aucune migration, aucune nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **budget:** part maximale pour l'ensemble des caves invitées ([60c44d1](https://github.com/djkix/cave-a-vin/commit/60c44d1a0531949d99d8c222806ed38f98798523))
-* **caves:** le compte de secours écrit dans la cave principale ([4276f1e](https://github.com/djkix/cave-a-vin/commit/4276f1eca8748de82415b6d0be3e0b8174758b52))
+* **budget:** part maximale pour l'ensemble des caves invitées ([60c44d1](https://github.com/djkix/ma-cave/commit/60c44d1a0531949d99d8c222806ed38f98798523))
+* **caves:** le compte de secours écrit dans la cave principale ([4276f1e](https://github.com/djkix/ma-cave/commit/4276f1eca8748de82415b6d0be3e0b8174758b52))
 
-## [2.0.1](https://github.com/djkix/cave-a-vin/compare/v2.0.0...v2.0.1) (2026-10-07)
+## [2.0.1](https://github.com/djkix/ma-cave/compare/v2.0.0...v2.0.1) (2026-10-07)
 
 ### Résumé
 
@@ -442,9 +442,9 @@ nouvelle variable d'environnement.
 
 ### Corrections
 
-* **gemini:** ne plus envoyer de température, refusée par les prochains modèles ([fc2bdb5](https://github.com/djkix/cave-a-vin/commit/fc2bdb5efba6c5336fb6c1fe0ad06b240859f1db))
+* **gemini:** ne plus envoyer de température, refusée par les prochains modèles ([fc2bdb5](https://github.com/djkix/ma-cave/commit/fc2bdb5efba6c5336fb6c1fe0ad06b240859f1db))
 
-## [2.0.0](https://github.com/djkix/cave-a-vin/compare/v1.9.0...v2.0.0) (2026-10-07)
+## [2.0.0](https://github.com/djkix/ma-cave/compare/v1.9.0...v2.0.0) (2026-10-07)
 
 ### Résumé
 
@@ -479,27 +479,27 @@ nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **caves:** garde d'accès et cave, mouvements, statistiques et export par cave ([6c2f8e0](https://github.com/djkix/cave-a-vin/commit/6c2f8e02468c28e17fdcaefa39127f6a0a923fbf))
-* **caves:** inscriptions validées par l'administrateur et cave courante ([033a0b3](https://github.com/djkix/cave-a-vin/commit/033a0b35160f8ff07374b6bd82aa57e159c5442b))
-* **caves:** membres en lecture seule, part de budget par cave, lots mono-cave ([1e21d8e](https://github.com/djkix/cave-a-vin/commit/1e21d8e3ac70205a0668ec27646c09608a7a48a1))
-* **caves:** photos, recherche d'image, accords et descriptifs par cave ([353080d](https://github.com/djkix/cave-a-vin/commit/353080d37f1c6e425850e2bba81ef76030bef0bb))
-* **caves:** une cave par compte, schéma et migration ([9292813](https://github.com/djkix/cave-a-vin/commit/9292813f0707a56c0629220d6a1a47106a4f8921))
-* **web:** sélecteur de cave, lecture seule, membres, inscriptions et budget ([ba89809](https://github.com/djkix/cave-a-vin/commit/ba8980959c5eb319b5abf85cd5c9688eeddfc611))
+* **caves:** garde d'accès et cave, mouvements, statistiques et export par cave ([6c2f8e0](https://github.com/djkix/ma-cave/commit/6c2f8e02468c28e17fdcaefa39127f6a0a923fbf))
+* **caves:** inscriptions validées par l'administrateur et cave courante ([033a0b3](https://github.com/djkix/ma-cave/commit/033a0b35160f8ff07374b6bd82aa57e159c5442b))
+* **caves:** membres en lecture seule, part de budget par cave, lots mono-cave ([1e21d8e](https://github.com/djkix/ma-cave/commit/1e21d8e3ac70205a0668ec27646c09608a7a48a1))
+* **caves:** photos, recherche d'image, accords et descriptifs par cave ([353080d](https://github.com/djkix/ma-cave/commit/353080d37f1c6e425850e2bba81ef76030bef0bb))
+* **caves:** une cave par compte, schéma et migration ([9292813](https://github.com/djkix/ma-cave/commit/9292813f0707a56c0629220d6a1a47106a4f8921))
+* **web:** sélecteur de cave, lecture seule, membres, inscriptions et budget ([ba89809](https://github.com/djkix/ma-cave/commit/ba8980959c5eb319b5abf85cd5c9688eeddfc611))
 
 
 ### Corrections
 
-* **analyse:** un report pour budget attend toujours 15 minutes ([f3873e9](https://github.com/djkix/cave-a-vin/commit/f3873e97569cf2fd043c6cb8ac9dc0c6b36ea8e3))
-* **analyse:** un report pour budget ne consomme plus de tentative ([ba36b48](https://github.com/djkix/cave-a-vin/commit/ba36b48613178e59b7514424399f6cc0b850ad08))
-* **auth:** refuser une adresse Google non vérifiée ([afbd47b](https://github.com/djkix/cave-a-vin/commit/afbd47ba939f1701697ef6aefd276619bfad6d07))
-* **auth:** un compte ADMIN_EMAILS en attente est activé à la connexion ([d4025b8](https://github.com/djkix/cave-a-vin/commit/d4025b8026d87a8e0a8e7330035a1526aaac30fa))
-* **caves:** statistiques sans prix dérivées de la liste, auteur des notes sans e-mail pour un membre ([43b15a9](https://github.com/djkix/cave-a-vin/commit/43b15a96113ca8b7c7ce42817485e7ac8313c888))
-* **image:** motif propre à la recherche d'image quand la part de la cave est atteinte ([ca00d44](https://github.com/djkix/cave-a-vin/commit/ca00d44c830596946a3160041ec8aede5194e07d))
-* **web:** changement de cave sans données de l'ancienne, file de photos rattachée au compte ([84a39dc](https://github.com/djkix/cave-a-vin/commit/84a39dcbedac97563bc005ab0f6068de1ca98947))
-* **web:** session posée avant la navigation au changement de cave, note des photos en attente pour un membre ([b628680](https://github.com/djkix/cave-a-vin/commit/b6286805a99a9a2df6888d3fd204de3048eeeeb9))
-* **web:** une photo en file n'est jamais effacée sur un 404 ([3c004b3](https://github.com/djkix/cave-a-vin/commit/3c004b3137c70a1a9a4f6daa0b8a4eb4b7de29c3))
+* **analyse:** un report pour budget attend toujours 15 minutes ([f3873e9](https://github.com/djkix/ma-cave/commit/f3873e97569cf2fd043c6cb8ac9dc0c6b36ea8e3))
+* **analyse:** un report pour budget ne consomme plus de tentative ([ba36b48](https://github.com/djkix/ma-cave/commit/ba36b48613178e59b7514424399f6cc0b850ad08))
+* **auth:** refuser une adresse Google non vérifiée ([afbd47b](https://github.com/djkix/ma-cave/commit/afbd47ba939f1701697ef6aefd276619bfad6d07))
+* **auth:** un compte ADMIN_EMAILS en attente est activé à la connexion ([d4025b8](https://github.com/djkix/ma-cave/commit/d4025b8026d87a8e0a8e7330035a1526aaac30fa))
+* **caves:** statistiques sans prix dérivées de la liste, auteur des notes sans e-mail pour un membre ([43b15a9](https://github.com/djkix/ma-cave/commit/43b15a96113ca8b7c7ce42817485e7ac8313c888))
+* **image:** motif propre à la recherche d'image quand la part de la cave est atteinte ([ca00d44](https://github.com/djkix/ma-cave/commit/ca00d44c830596946a3160041ec8aede5194e07d))
+* **web:** changement de cave sans données de l'ancienne, file de photos rattachée au compte ([84a39dc](https://github.com/djkix/ma-cave/commit/84a39dcbedac97563bc005ab0f6068de1ca98947))
+* **web:** session posée avant la navigation au changement de cave, note des photos en attente pour un membre ([b628680](https://github.com/djkix/ma-cave/commit/b6286805a99a9a2df6888d3fd204de3048eeeeb9))
+* **web:** une photo en file n'est jamais effacée sur un 404 ([3c004b3](https://github.com/djkix/ma-cave/commit/3c004b3137c70a1a9a4f6daa0b8a4eb4b7de29c3))
 
-## [1.9.0](https://github.com/djkix/cave-a-vin/compare/v1.8.0...v1.9.0) (2026-10-07)
+## [1.9.0](https://github.com/djkix/ma-cave/compare/v1.8.0...v1.9.0) (2026-10-07)
 
 ### Résumé
 
@@ -535,23 +535,23 @@ toujours au choix de l'utilisateur. Une migration
 
 ### Fonctionnalités
 
-* **photos:** chercher une image d'étiquette sur le web ([1a5a105](https://github.com/djkix/cave-a-vin/commit/1a5a1059676e0495f015dff29fec1fc151114b42))
-* **photos:** chercher une image depuis la fiche vin ([c599be8](https://github.com/djkix/cave-a-vin/commit/c599be8161d055fe6c425bc8ffdb1828ba64a4cf))
-* **photos:** version d'affichage recadrée et retouchée ([214ade0](https://github.com/djkix/cave-a-vin/commit/214ade03f6dff550448da4318a215abccb36c5aa))
-* **web:** icône de l'application, un verre de vin sur fond bordeaux ([11dadc1](https://github.com/djkix/cave-a-vin/commit/11dadc1b1c4eee8cab2ba573bc848ef8d6ca336d))
+* **photos:** chercher une image d'étiquette sur le web ([1a5a105](https://github.com/djkix/ma-cave/commit/1a5a1059676e0495f015dff29fec1fc151114b42))
+* **photos:** chercher une image depuis la fiche vin ([c599be8](https://github.com/djkix/ma-cave/commit/c599be8161d055fe6c425bc8ffdb1828ba64a4cf))
+* **photos:** version d'affichage recadrée et retouchée ([214ade0](https://github.com/djkix/ma-cave/commit/214ade03f6dff550448da4318a215abccb36c5aa))
+* **web:** icône de l'application, un verre de vin sur fond bordeaux ([11dadc1](https://github.com/djkix/ma-cave/commit/11dadc1b1c4eee8cab2ba573bc848ef8d6ca336d))
 
 
 ### Corrections
 
-* **mouvements:** refuser une image du web comme photo d'entrée ou de sortie ([d237d9b](https://github.com/djkix/cave-a-vin/commit/d237d9bd11b7a31d45964bed0718c81f663d60ef))
-* **photos:** compter au moins 1 ct par recherche du site officiel ([2cf110f](https://github.com/djkix/cave-a-vin/commit/2cf110ffc478c9dc2253f43216877825d67ff8ad))
-* **photos:** délai global de 30 s pour « Chercher une image » ([868ead6](https://github.com/djkix/cave-a-vin/commit/868ead6607c4c09901ec7dd3db712d312edb8c35))
-* **photos:** durcir la recherche d'image et le retour à ma photo ([3904faf](https://github.com/djkix/cave-a-vin/commit/3904fafb782406cfaab16ae1c762cd3f0afa7afc))
-* **photos:** fenêtre de recherche d'image sur toute la largeur de la fiche ([9acd23f](https://github.com/djkix/cave-a-vin/commit/9acd23f9d0253d172adce1d0f2fe66501f8879dc))
-* **photos:** recherche Open Food Facts plus fiable et plus pertinente ([ff975cd](https://github.com/djkix/cave-a-vin/commit/ff975cdb1dd73857a2f32b5fba5295ca8645cefe))
-* **photos:** retouche des couleurs plus douce ([d059fbf](https://github.com/djkix/cave-a-vin/commit/d059fbfb7f8521d7b75befe349f2e777b6c8c229))
+* **mouvements:** refuser une image du web comme photo d'entrée ou de sortie ([d237d9b](https://github.com/djkix/ma-cave/commit/d237d9bd11b7a31d45964bed0718c81f663d60ef))
+* **photos:** compter au moins 1 ct par recherche du site officiel ([2cf110f](https://github.com/djkix/ma-cave/commit/2cf110ffc478c9dc2253f43216877825d67ff8ad))
+* **photos:** délai global de 30 s pour « Chercher une image » ([868ead6](https://github.com/djkix/ma-cave/commit/868ead6607c4c09901ec7dd3db712d312edb8c35))
+* **photos:** durcir la recherche d'image et le retour à ma photo ([3904faf](https://github.com/djkix/ma-cave/commit/3904fafb782406cfaab16ae1c762cd3f0afa7afc))
+* **photos:** fenêtre de recherche d'image sur toute la largeur de la fiche ([9acd23f](https://github.com/djkix/ma-cave/commit/9acd23f9d0253d172adce1d0f2fe66501f8879dc))
+* **photos:** recherche Open Food Facts plus fiable et plus pertinente ([ff975cd](https://github.com/djkix/ma-cave/commit/ff975cdb1dd73857a2f32b5fba5295ca8645cefe))
+* **photos:** retouche des couleurs plus douce ([d059fbf](https://github.com/djkix/ma-cave/commit/d059fbfb7f8521d7b75befe349f2e777b6c8c229))
 
-## [1.8.0](https://github.com/djkix/cave-a-vin/compare/v1.7.0...v1.8.0) (2026-10-06)
+## [1.8.0](https://github.com/djkix/ma-cave/compare/v1.7.0...v1.8.0) (2026-10-06)
 
 ### Résumé
 
@@ -581,17 +581,17 @@ aucune nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **domaine:** descriptif du domaine généré par Gemini, côté api ([8319383](https://github.com/djkix/cave-a-vin/commit/83193833c9fa0b77fb736786ebc572466c833558))
-* **domaine:** descriptif du domaine sur la fiche vin, côté web ([9454162](https://github.com/djkix/cave-a-vin/commit/94541625b667d4913afd93f0b9bd1a3b22e8c388))
+* **domaine:** descriptif du domaine généré par Gemini, côté api ([8319383](https://github.com/djkix/ma-cave/commit/83193833c9fa0b77fb736786ebc572466c833558))
+* **domaine:** descriptif du domaine sur la fiche vin, côté web ([9454162](https://github.com/djkix/ma-cave/commit/94541625b667d4913afd93f0b9bd1a3b22e8c388))
 
 
 ### Corrections
 
-* **domaine:** auteur supprimé, texte conservé après échec, compteur sans espaces ([09f600c](https://github.com/djkix/cave-a-vin/commit/09f600c8d8ea5fce45b24ba4be35eeff8dd048ec))
-* **domaine:** clé du domaine sur la fiche, régénération et courses ([3ebbd40](https://github.com/djkix/cave-a-vin/commit/3ebbd40cc64127837c469fdc560f97836e490bbb))
-* **domaine:** régénération possible sur un domaine peu documenté, et nettoyage du bloc ([580dc9f](https://github.com/djkix/cave-a-vin/commit/580dc9fe27986e6039b3cd5bf46c534bbca89603))
+* **domaine:** auteur supprimé, texte conservé après échec, compteur sans espaces ([09f600c](https://github.com/djkix/ma-cave/commit/09f600c8d8ea5fce45b24ba4be35eeff8dd048ec))
+* **domaine:** clé du domaine sur la fiche, régénération et courses ([3ebbd40](https://github.com/djkix/ma-cave/commit/3ebbd40cc64127837c469fdc560f97836e490bbb))
+* **domaine:** régénération possible sur un domaine peu documenté, et nettoyage du bloc ([580dc9f](https://github.com/djkix/ma-cave/commit/580dc9fe27986e6039b3cd5bf46c534bbca89603))
 
-## [1.7.0](https://github.com/djkix/cave-a-vin/compare/v1.6.0...v1.7.0) (2026-10-05)
+## [1.7.0](https://github.com/djkix/ma-cave/compare/v1.6.0...v1.7.0) (2026-10-05)
 
 ### Résumé
 
@@ -635,36 +635,36 @@ d'environnement.
 
 ### Fonctionnalités
 
-* **accords:** accords mets-vins sur la fiche et recherche « Accompagner un plat » ([f35f99d](https://github.com/djkix/cave-a-vin/commit/f35f99d1f7029aed8528057a13743cb1437246e1))
-* **accords:** chercher dans la cave un vin pour accompagner un plat ([b2ab176](https://github.com/djkix/cave-a-vin/commit/b2ab1767d076ca2f41acd808a2e09032d0548507))
-* **accords:** génération en tâche de fond, rattrapage au démarrage et régénération ([8c360f9](https://github.com/djkix/cave-a-vin/commit/8c360f9c6425348287a551fda262208e07bfcc90))
-* **accords:** suggestions de plats par Gemini, comptées dans le plafond mensuel ([e2d2b00](https://github.com/djkix/cave-a-vin/commit/e2d2b00818ba9897046054d862c773ef75621f31))
-* **cave:** note de dégustation sur 20, posée et retirée par tout compte actif ([b8ca959](https://github.com/djkix/cave-a-vin/commit/b8ca9597f6a7d82289a2864288ec23bc032013ee))
-* **cave:** noter un vin sur 20 depuis sa fiche, note visible dans la cave et les statistiques ([489fa31](https://github.com/djkix/cave-a-vin/commit/489fa3139d93aba227b07d05efd499f131585612))
-* **cave:** schéma de la note de dégustation et des accords mets-vins ([1c75955](https://github.com/djkix/cave-a-vin/commit/1c75955faf9cf86d29a98e031303b17216a20265))
-* **entree:** analyse des photos d'entrée par lots de huit ([9cf48b0](https://github.com/djkix/cave-a-vin/commit/9cf48b0be270467eb350cbdecb59a8ace273e80d))
-* **entree:** envoi des photos en arrière-plan depuis le téléphone ([abeed34](https://github.com/djkix/cave-a-vin/commit/abeed34b4eb56e868c3c670d58614335d27b0d70))
-* **entree:** les photos d'entrée attendent l'analyse par lot ([f10cde2](https://github.com/djkix/cave-a-vin/commit/f10cde2333e56f620cbb7ae4cf5adc9baf6e5916))
-* **entree:** liste des vins à confirmer et photos écartées ([8580178](https://github.com/djkix/cave-a-vin/commit/8580178ec763f889106962b5993ea0826bda29d6))
-* **entree:** rafale de photos et liste des vins à confirmer ([30ce294](https://github.com/djkix/cave-a-vin/commit/30ce29480c87131da430666751198a39a452086d))
-* **stats:** classement des mieux notés, note et accords dans l'export ([199dca3](https://github.com/djkix/cave-a-vin/commit/199dca3175363cdfc39c8d9b475ebb7f47b370db))
-* **vision:** lecture de plusieurs étiquettes en un seul appel ([46c5583](https://github.com/djkix/cave-a-vin/commit/46c5583f4fab8ec8d2dd7f7e7fdd94e61c2e168e))
+* **accords:** accords mets-vins sur la fiche et recherche « Accompagner un plat » ([f35f99d](https://github.com/djkix/ma-cave/commit/f35f99d1f7029aed8528057a13743cb1437246e1))
+* **accords:** chercher dans la cave un vin pour accompagner un plat ([b2ab176](https://github.com/djkix/ma-cave/commit/b2ab1767d076ca2f41acd808a2e09032d0548507))
+* **accords:** génération en tâche de fond, rattrapage au démarrage et régénération ([8c360f9](https://github.com/djkix/ma-cave/commit/8c360f9c6425348287a551fda262208e07bfcc90))
+* **accords:** suggestions de plats par Gemini, comptées dans le plafond mensuel ([e2d2b00](https://github.com/djkix/ma-cave/commit/e2d2b00818ba9897046054d862c773ef75621f31))
+* **cave:** note de dégustation sur 20, posée et retirée par tout compte actif ([b8ca959](https://github.com/djkix/ma-cave/commit/b8ca9597f6a7d82289a2864288ec23bc032013ee))
+* **cave:** noter un vin sur 20 depuis sa fiche, note visible dans la cave et les statistiques ([489fa31](https://github.com/djkix/ma-cave/commit/489fa3139d93aba227b07d05efd499f131585612))
+* **cave:** schéma de la note de dégustation et des accords mets-vins ([1c75955](https://github.com/djkix/ma-cave/commit/1c75955faf9cf86d29a98e031303b17216a20265))
+* **entree:** analyse des photos d'entrée par lots de huit ([9cf48b0](https://github.com/djkix/ma-cave/commit/9cf48b0be270467eb350cbdecb59a8ace273e80d))
+* **entree:** envoi des photos en arrière-plan depuis le téléphone ([abeed34](https://github.com/djkix/ma-cave/commit/abeed34b4eb56e868c3c670d58614335d27b0d70))
+* **entree:** les photos d'entrée attendent l'analyse par lot ([f10cde2](https://github.com/djkix/ma-cave/commit/f10cde2333e56f620cbb7ae4cf5adc9baf6e5916))
+* **entree:** liste des vins à confirmer et photos écartées ([8580178](https://github.com/djkix/ma-cave/commit/8580178ec763f889106962b5993ea0826bda29d6))
+* **entree:** rafale de photos et liste des vins à confirmer ([30ce294](https://github.com/djkix/ma-cave/commit/30ce29480c87131da430666751198a39a452086d))
+* **stats:** classement des mieux notés, note et accords dans l'export ([199dca3](https://github.com/djkix/ma-cave/commit/199dca3175363cdfc39c8d9b475ebb7f47b370db))
+* **vision:** lecture de plusieurs étiquettes en un seul appel ([46c5583](https://github.com/djkix/ma-cave/commit/46c5583f4fab8ec8d2dd7f7e7fdd94e61c2e168e))
 
 
 ### Corrections
 
-* **accords:** « Régénérer », raison de l'attente et relance possible ([496961c](https://github.com/djkix/cave-a-vin/commit/496961cb04f9ebffac425dc03ec73a23faaf1dcd))
-* **accords:** l'entrée n'attend plus la file d'accords, régénérations simultanées tolérées, erreur de configuration distinguée ([f2a78ca](https://github.com/djkix/cave-a-vin/commit/f2a78ca2c095ae6e832de985474f36feb82a2ae1))
-* **accords:** les accords ne consomment plus le budget des photos ([b2e5159](https://github.com/djkix/cave-a-vin/commit/b2e5159ea5bb9b6c55eac755765e10c14d6d8b88))
-* **entree:** applique l'orientation EXIF avant de réduire la photo ([db586c8](https://github.com/djkix/cave-a-vin/commit/db586c839bd14b5462b50006d9d9ce26a6466c9f))
-* **entree:** consigne de lot cohérente et lot d'une photo en appel simple ([ef75271](https://github.com/djkix/cave-a-vin/commit/ef752719cab8bc8ea92b35b9c1196a99927fec5d))
-* **entree:** écarter demande confirmation, envoi actif partout ([18253fd](https://github.com/djkix/cave-a-vin/commit/18253fda473416b3122dd67a6e27f821d5ae384b))
-* **entree:** messages en français et clé Gemini invalide reportée ([8bba2f6](https://github.com/djkix/cave-a-vin/commit/8bba2f685b23a2821df982c28ea7fb15b90fcfc8))
-* **entree:** pending-review exclut les photos écartées ([002bf7f](https://github.com/djkix/cave-a-vin/commit/002bf7f04a1ed1595fe15f7dc9a34fd710a08f5a))
-* **entree:** reprise des photos bloquées et lot plus robuste ([ac86780](https://github.com/djkix/cave-a-vin/commit/ac867803aca582718193614bcf92772006eae751))
-* **stats:** ne souligne plus le nombre des barres d'apogée cliquables ([c3c6c34](https://github.com/djkix/cave-a-vin/commit/c3c6c348ab81869aa81c457f0f7b15377e78256a))
+* **accords:** « Régénérer », raison de l'attente et relance possible ([496961c](https://github.com/djkix/ma-cave/commit/496961cb04f9ebffac425dc03ec73a23faaf1dcd))
+* **accords:** l'entrée n'attend plus la file d'accords, régénérations simultanées tolérées, erreur de configuration distinguée ([f2a78ca](https://github.com/djkix/ma-cave/commit/f2a78ca2c095ae6e832de985474f36feb82a2ae1))
+* **accords:** les accords ne consomment plus le budget des photos ([b2e5159](https://github.com/djkix/ma-cave/commit/b2e5159ea5bb9b6c55eac755765e10c14d6d8b88))
+* **entree:** applique l'orientation EXIF avant de réduire la photo ([db586c8](https://github.com/djkix/ma-cave/commit/db586c839bd14b5462b50006d9d9ce26a6466c9f))
+* **entree:** consigne de lot cohérente et lot d'une photo en appel simple ([ef75271](https://github.com/djkix/ma-cave/commit/ef752719cab8bc8ea92b35b9c1196a99927fec5d))
+* **entree:** écarter demande confirmation, envoi actif partout ([18253fd](https://github.com/djkix/ma-cave/commit/18253fda473416b3122dd67a6e27f821d5ae384b))
+* **entree:** messages en français et clé Gemini invalide reportée ([8bba2f6](https://github.com/djkix/ma-cave/commit/8bba2f685b23a2821df982c28ea7fb15b90fcfc8))
+* **entree:** pending-review exclut les photos écartées ([002bf7f](https://github.com/djkix/ma-cave/commit/002bf7f04a1ed1595fe15f7dc9a34fd710a08f5a))
+* **entree:** reprise des photos bloquées et lot plus robuste ([ac86780](https://github.com/djkix/ma-cave/commit/ac867803aca582718193614bcf92772006eae751))
+* **stats:** ne souligne plus le nombre des barres d'apogée cliquables ([c3c6c34](https://github.com/djkix/ma-cave/commit/c3c6c348ab81869aa81c457f0f7b15377e78256a))
 
-## [1.6.0](https://github.com/djkix/cave-a-vin/compare/v1.5.0...v1.6.0) (2026-10-05)
+## [1.6.0](https://github.com/djkix/ma-cave/compare/v1.5.0...v1.6.0) (2026-10-05)
 
 ### Résumé
 
@@ -698,18 +698,18 @@ sans migration ni nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **cave:** coche un filtre d'apogée depuis l'URL ([01dfac0](https://github.com/djkix/cave-a-vin/commit/01dfac0d4d15c1bf079957629493a3b55db79e2f))
-* **stats:** calcul des statistiques de la cave ([5dd5a55](https://github.com/djkix/cave-a-vin/commit/5dd5a55185c973dd3cdf474cde2020a61d242d7a))
-* **stats:** page Statistiques et onglet Stats ([63c4686](https://github.com/djkix/cave-a-vin/commit/63c46867c7a4747e44a66dc72639ef554c82bd52))
-* **stats:** route GET /api/stats ([b5c04fa](https://github.com/djkix/cave-a-vin/commit/b5c04fa7a1d22805f8353073f4e524c416fd4c65))
+* **cave:** coche un filtre d'apogée depuis l'URL ([01dfac0](https://github.com/djkix/ma-cave/commit/01dfac0d4d15c1bf079957629493a3b55db79e2f))
+* **stats:** calcul des statistiques de la cave ([5dd5a55](https://github.com/djkix/ma-cave/commit/5dd5a55185c973dd3cdf474cde2020a61d242d7a))
+* **stats:** page Statistiques et onglet Stats ([63c4686](https://github.com/djkix/ma-cave/commit/63c46867c7a4747e44a66dc72639ef554c82bd52))
+* **stats:** route GET /api/stats ([b5c04fa](https://github.com/djkix/ma-cave/commit/b5c04fa7a1d22805f8353073f4e524c416fd4c65))
 
 
 ### Corrections
 
-* **export:** ignore le prix d'une entrée annulée, comme les statistiques ([a4c7464](https://github.com/djkix/cave-a-vin/commit/a4c7464a79b3194b5a6bb59f68c1c2bbb4fd045d))
-* **stats:** liens des classements stylés, tests resserrés ([2de6c41](https://github.com/djkix/cave-a-vin/commit/2de6c415bb647854b56f0ed6fe1b925c77e6da30))
+* **export:** ignore le prix d'une entrée annulée, comme les statistiques ([a4c7464](https://github.com/djkix/ma-cave/commit/a4c7464a79b3194b5a6bb59f68c1c2bbb4fd045d))
+* **stats:** liens des classements stylés, tests resserrés ([2de6c41](https://github.com/djkix/ma-cave/commit/2de6c415bb647854b56f0ed6fe1b925c77e6da30))
 
-## [1.5.0](https://github.com/djkix/cave-a-vin/compare/v1.4.1...v1.5.0) (2026-10-05)
+## [1.5.0](https://github.com/djkix/ma-cave/compare/v1.4.1...v1.5.0) (2026-10-05)
 
 ### Résumé
 
@@ -737,14 +737,14 @@ la main, sur 90 jours, comparée à l'objectif de 15 %.
 
 ### Fonctionnalités
 
-* **admin:** mesure « zéro saisie », part des champs corrigés à la main ([df8de8e](https://github.com/djkix/cave-a-vin/commit/df8de8ee87516d4e8fe37d130c04e603608d6794))
+* **admin:** mesure « zéro saisie », part des champs corrigés à la main ([df8de8e](https://github.com/djkix/ma-cave/commit/df8de8ee87516d4e8fe37d130c04e603608d6794))
 
 
 ### Corrections
 
-* **entree:** pré-remplit la fiche d'une photo déjà lue sans attendre le flux ([df8de8e](https://github.com/djkix/cave-a-vin/commit/df8de8ee87516d4e8fe37d130c04e603608d6794))
+* **entree:** pré-remplit la fiche d'une photo déjà lue sans attendre le flux ([df8de8e](https://github.com/djkix/ma-cave/commit/df8de8ee87516d4e8fe37d130c04e603608d6794))
 
-## [1.4.1](https://github.com/djkix/cave-a-vin/compare/v1.4.0...v1.4.1) (2026-10-05)
+## [1.4.1](https://github.com/djkix/ma-cave/compare/v1.4.0...v1.4.1) (2026-10-05)
 
 ### Résumé
 
@@ -760,9 +760,9 @@ la mise à jour : rien à recompter.
 
 ### Corrections
 
-* **stock:** le stock ne perd plus un mouvement quand deux se croisent ([bd7cb9c](https://github.com/djkix/cave-a-vin/commit/bd7cb9cdea6fca218785d6014c54d66462c8e116))
+* **stock:** le stock ne perd plus un mouvement quand deux se croisent ([bd7cb9c](https://github.com/djkix/ma-cave/commit/bd7cb9cdea6fca218785d6014c54d66462c8e116))
 
-## [1.4.0](https://github.com/djkix/cave-a-vin/compare/v1.3.0...v1.4.0) (2026-10-05)
+## [1.4.0](https://github.com/djkix/ma-cave/compare/v1.3.0...v1.4.0) (2026-10-05)
 
 ### Résumé
 
@@ -792,14 +792,14 @@ ni nouvelle variable d'environnement.
 
 ### Fonctionnalités
 
-* **cave:** filtre « à boire en priorité » et « sans apogée », export filtré ([76370f1](https://github.com/djkix/cave-a-vin/commit/76370f156418c7b2d714b784d55268416d2e069f))
+* **cave:** filtre « à boire en priorité » et « sans apogée », export filtré ([76370f1](https://github.com/djkix/ma-cave/commit/76370f156418c7b2d714b784d55268416d2e069f))
 
 
 ### Corrections
 
-* **cave:** valide l'export par schéma et signale l'échec du comptage ([c172dc4](https://github.com/djkix/cave-a-vin/commit/c172dc4282a68eaa09c0acfec24a1e65406d6733))
+* **cave:** valide l'export par schéma et signale l'échec du comptage ([c172dc4](https://github.com/djkix/ma-cave/commit/c172dc4282a68eaa09c0acfec24a1e65406d6733))
 
-## [1.3.0](https://github.com/djkix/cave-a-vin/compare/v1.2.0...v1.3.0) (2026-10-04)
+## [1.3.0](https://github.com/djkix/ma-cave/compare/v1.2.0...v1.3.0) (2026-10-04)
 
 ### Résumé
 
@@ -839,20 +839,20 @@ correction manuelle par vin reste toujours prioritaire.
 
 ### Fonctionnalités
 
-* **apogee:** administrer la qualité des millésimes et les gardes ([151848a](https://github.com/djkix/cave-a-vin/commit/151848a28a7b69f2733d1edf360c16a9b2a31b34))
-* **apogee:** administrer la qualité des millésimes et les gardes ([5d651a1](https://github.com/djkix/cave-a-vin/commit/5d651a10942070e58c600ec678dd9589ad9ca052))
-* **apogee:** apogée dans la liste et la fiche, correction manuelle par vin ([9ecafb8](https://github.com/djkix/cave-a-vin/commit/9ecafb8e6703287ef6c656000834a02a68981b8d))
-* **apogee:** apogée et confiance dans l'export, apogées passées mises en évidence ([aa9e743](https://github.com/djkix/cave-a-vin/commit/aa9e743272368fc046e135034495a4c1fe3b37ce))
-* **apogee:** estimer la fourchette d'apogée par règles ([ac1e55f](https://github.com/djkix/cave-a-vin/commit/ac1e55fe35f006e5cad2bcb80808d25291955945))
-* **apogee:** fourchette, confiance et correction sur la fiche, mention dans la cave ([84160d3](https://github.com/djkix/cave-a-vin/commit/84160d3430b4af99319c76f4a82f93efdac128ff))
-* **apogee:** tables des règles de garde et de qualité des millésimes ([7dbdd3f](https://github.com/djkix/cave-a-vin/commit/7dbdd3fd1006de0bb3d0b3dca4f1d775f7a47749))
+* **apogee:** administrer la qualité des millésimes et les gardes ([151848a](https://github.com/djkix/ma-cave/commit/151848a28a7b69f2733d1edf360c16a9b2a31b34))
+* **apogee:** administrer la qualité des millésimes et les gardes ([5d651a1](https://github.com/djkix/ma-cave/commit/5d651a10942070e58c600ec678dd9589ad9ca052))
+* **apogee:** apogée dans la liste et la fiche, correction manuelle par vin ([9ecafb8](https://github.com/djkix/ma-cave/commit/9ecafb8e6703287ef6c656000834a02a68981b8d))
+* **apogee:** apogée et confiance dans l'export, apogées passées mises en évidence ([aa9e743](https://github.com/djkix/ma-cave/commit/aa9e743272368fc046e135034495a4c1fe3b37ce))
+* **apogee:** estimer la fourchette d'apogée par règles ([ac1e55f](https://github.com/djkix/ma-cave/commit/ac1e55fe35f006e5cad2bcb80808d25291955945))
+* **apogee:** fourchette, confiance et correction sur la fiche, mention dans la cave ([84160d3](https://github.com/djkix/ma-cave/commit/84160d3430b4af99319c76f4a82f93efdac128ff))
+* **apogee:** tables des règles de garde et de qualité des millésimes ([7dbdd3f](https://github.com/djkix/ma-cave/commit/7dbdd3fd1006de0bb3d0b3dca4f1d775f7a47749))
 
 
 ### Corrections
 
-* **apogee:** corrige cinq points de la revue finale du lot 2b ([f887075](https://github.com/djkix/cave-a-vin/commit/f88707537a7bbe5cc911ace2d4841a4c47424037))
+* **apogee:** corrige cinq points de la revue finale du lot 2b ([f887075](https://github.com/djkix/ma-cave/commit/f88707537a7bbe5cc911ace2d4841a4c47424037))
 
-## [1.2.0](https://github.com/djkix/cave-a-vin/compare/v1.1.2...v1.2.0) (2026-10-04)
+## [1.2.0](https://github.com/djkix/ma-cave/compare/v1.1.2...v1.2.0) (2026-10-04)
 
 ### Résumé
 
@@ -922,26 +922,26 @@ physique.
 
 ### Fonctionnalités
 
-* **cave:** fiche vin, sortie par la liste et inventaire physique ([690fff1](https://github.com/djkix/cave-a-vin/commit/690fff1fdb980f28f75a10b205529a03b0fa70db))
-* **cave:** liste, fiche vin, inventaire et candidats de sortie ([5f78f57](https://github.com/djkix/cave-a-vin/commit/5f78f5712685db7c45e3d3b82bd270e8fa1c5e74))
-* **cave:** onglet Cave avec recherche, filtre et vignettes ([ab8c546](https://github.com/djkix/cave-a-vin/commit/ab8c5465904ddba59b1b87b6a80187d3bd3f2f7b))
-* **photos:** photos de sortie, file courte et tenues hors de la revue ([45f3808](https://github.com/djkix/cave-a-vin/commit/45f3808dff8b227cb9df65f12e677ca803aa8749))
-* **sortie:** classer les vins en stock face à l'étiquette lue ([55c210a](https://github.com/djkix/cave-a-vin/commit/55c210aaf23ec3861f8a92204dc8ff9707786dcc))
-* **sortie:** sortie de stock, inventaire physique et photo de référence ([15bb07f](https://github.com/djkix/cave-a-vin/commit/15bb07f90c0f8d0d5c12b0b954c5ade47fa821e6))
-* **sortie:** sortie par photo avec choix sur vignettes et repli sur la cave ([19b0a53](https://github.com/djkix/cave-a-vin/commit/19b0a536104cc37fddf162df2efe9ddb5d0367f2))
+* **cave:** fiche vin, sortie par la liste et inventaire physique ([690fff1](https://github.com/djkix/ma-cave/commit/690fff1fdb980f28f75a10b205529a03b0fa70db))
+* **cave:** liste, fiche vin, inventaire et candidats de sortie ([5f78f57](https://github.com/djkix/ma-cave/commit/5f78f5712685db7c45e3d3b82bd270e8fa1c5e74))
+* **cave:** onglet Cave avec recherche, filtre et vignettes ([ab8c546](https://github.com/djkix/ma-cave/commit/ab8c5465904ddba59b1b87b6a80187d3bd3f2f7b))
+* **photos:** photos de sortie, file courte et tenues hors de la revue ([45f3808](https://github.com/djkix/ma-cave/commit/45f3808dff8b227cb9df65f12e677ca803aa8749))
+* **sortie:** classer les vins en stock face à l'étiquette lue ([55c210a](https://github.com/djkix/ma-cave/commit/55c210aaf23ec3861f8a92204dc8ff9707786dcc))
+* **sortie:** sortie de stock, inventaire physique et photo de référence ([15bb07f](https://github.com/djkix/ma-cave/commit/15bb07f90c0f8d0d5c12b0b954c5ade47fa821e6))
+* **sortie:** sortie par photo avec choix sur vignettes et repli sur la cave ([19b0a53](https://github.com/djkix/ma-cave/commit/19b0a536104cc37fddf162df2efe9ddb5d0367f2))
 
 
 ### Corrections
 
-* **cave:** conserver le résultat de la sortie après le rafraîchissement du stock ([c38722d](https://github.com/djkix/cave-a-vin/commit/c38722d92f97215597e4f01c54f4254327b627bb))
-* **cave:** couleur affichée par ligne, vignette jamais cassée au chargement ([14a474c](https://github.com/djkix/cave-a-vin/commit/14a474c5c020351d8e430099898c8452eed8ae9f))
-* **photos:** rendre à l'entrée une photo de sortie inutilisée envoyée à nouveau en entrée ([4c63708](https://github.com/djkix/cave-a-vin/commit/4c637082f04308c921c790bc54292e8643db8108))
-* **sortie:** photo réutilisée, « Déjà sortie », résultat figé, format et inventaire borné ([10c1f2a](https://github.com/djkix/cave-a-vin/commit/10c1f2ac84bb44745201727c6c05ae5f8733a348))
-* **sortie:** réessayer l'envoi de la photo et revenir sur le choix du millésime ([4711ecc](https://github.com/djkix/cave-a-vin/commit/4711ecc8f81a921b5e6576b2568b570989015f62))
-* **sortie:** verrou déterministe testé, messages en français, clés protégées ([9976b59](https://github.com/djkix/cave-a-vin/commit/9976b591bdcb002aa309ceef6f0cd22de2350312))
-* **stock:** verrouiller le vin avant de vérifier le stock, une sortie par photo ([33c05d3](https://github.com/djkix/cave-a-vin/commit/33c05d3fb7df19cdbf9e41e871dbc96883efade2))
+* **cave:** conserver le résultat de la sortie après le rafraîchissement du stock ([c38722d](https://github.com/djkix/ma-cave/commit/c38722d92f97215597e4f01c54f4254327b627bb))
+* **cave:** couleur affichée par ligne, vignette jamais cassée au chargement ([14a474c](https://github.com/djkix/ma-cave/commit/14a474c5c020351d8e430099898c8452eed8ae9f))
+* **photos:** rendre à l'entrée une photo de sortie inutilisée envoyée à nouveau en entrée ([4c63708](https://github.com/djkix/ma-cave/commit/4c637082f04308c921c790bc54292e8643db8108))
+* **sortie:** photo réutilisée, « Déjà sortie », résultat figé, format et inventaire borné ([10c1f2a](https://github.com/djkix/ma-cave/commit/10c1f2ac84bb44745201727c6c05ae5f8733a348))
+* **sortie:** réessayer l'envoi de la photo et revenir sur le choix du millésime ([4711ecc](https://github.com/djkix/ma-cave/commit/4711ecc8f81a921b5e6576b2568b570989015f62))
+* **sortie:** verrou déterministe testé, messages en français, clés protégées ([9976b59](https://github.com/djkix/ma-cave/commit/9976b591bdcb002aa309ceef6f0cd22de2350312))
+* **stock:** verrouiller le vin avant de vérifier le stock, une sortie par photo ([33c05d3](https://github.com/djkix/ma-cave/commit/33c05d3fb7df19cdbf9e41e871dbc96883efade2))
 
-## [1.1.2](https://github.com/djkix/cave-a-vin/compare/v1.1.1...v1.1.2) (2026-10-03)
+## [1.1.2](https://github.com/djkix/ma-cave/compare/v1.1.1...v1.1.2) (2026-10-03)
 
 ### Résumé
 
@@ -957,9 +957,9 @@ quand elles comptent.
 
 ### Documentation
 
-* une seule section 1.1.1, résumé rédigé puis détail par commit ([582a2ec](https://github.com/djkix/cave-a-vin/commit/582a2eca5a801b9dcc6f0486b088ed8662e3bf8a))
+* une seule section 1.1.1, résumé rédigé puis détail par commit ([582a2ec](https://github.com/djkix/ma-cave/commit/582a2eca5a801b9dcc6f0486b088ed8662e3bf8a))
 
-## [1.1.1](https://github.com/djkix/cave-a-vin/compare/v1.1.0...v1.1.1) (2026-10-03)
+## [1.1.1](https://github.com/djkix/ma-cave/compare/v1.1.0...v1.1.1) (2026-10-03)
 
 ### Résumé
 
@@ -982,7 +982,7 @@ chaque commit. La publication des images est aussi fiabilisée.
   chaque dump écrit dans ses logs.
 - **Documentation de déploiement alignée sur Dockge** : création de la stack par
   collage du YAML (ou téléchargement du seul fichier), chemin
-  `/opt/stacks/cave-a-vin`, mise à jour sans `git pull`, et commande de
+  `/opt/stacks/ma-cave`, mise à jour sans `git pull`, et commande de
   vérification de la sauvegarde.
 
 ### Intégration continue
@@ -996,26 +996,26 @@ chaque commit. La publication des images est aussi fiabilisée.
   construction de l'image taguée d'une publication et celle de `latest` sur
   `main` se disputaient la même file d'attente — un seul travail peut y
   patienter, un troisième pousse celui en attente à l'annulation. C'est ce qui a
-  laissé l'image `cave-a-vin-web:1.1.0` manquante à la publication de la 1.1.0
+  laissé l'image `ma-cave-web:1.1.0` manquante à la publication de la 1.1.0
   (l'api, elle, était déjà publiée) ; elle a été republiée à la main.
 
 ### Détail par commit
 
 ### Corrections
 
-* **sauvegarde:** stack autonome, sans fichier du dépôt à côté du YAML ([#4](https://github.com/djkix/cave-a-vin/issues/4)) ([1a18c88](https://github.com/djkix/cave-a-vin/commit/1a18c886d938d30c455a8f0e9d053aedbd805776))
+* **sauvegarde:** stack autonome, sans fichier du dépôt à côté du YAML ([#4](https://github.com/djkix/ma-cave/issues/4)) ([1a18c88](https://github.com/djkix/ma-cave/commit/1a18c886d938d30c455a8f0e9d053aedbd805776))
 
 
 ### Documentation
 
-* une seule section 1.1.0, résumé rédigé puis détail par commit ([994f6da](https://github.com/djkix/cave-a-vin/commit/994f6daea71c398efe2b69696840b02c502a7cd0))
+* une seule section 1.1.0, résumé rédigé puis détail par commit ([994f6da](https://github.com/djkix/ma-cave/commit/994f6daea71c398efe2b69696840b02c502a7cd0))
 
 
 ### Intégration continue
 
-* isoler par référence la file de construction des images ([e450cd9](https://github.com/djkix/cave-a-vin/commit/e450cd9ea883c777bc590aa121efe7271319e01c))
+* isoler par référence la file de construction des images ([e450cd9](https://github.com/djkix/ma-cave/commit/e450cd9ea883c777bc590aa121efe7271319e01c))
 
-## [1.1.0](https://github.com/djkix/cave-a-vin/compare/v1.0.0...v1.1.0) (2026-09-21)
+## [1.1.0](https://github.com/djkix/ma-cave/compare/v1.0.0...v1.1.0) (2026-09-21)
 
 ### Résumé
 
@@ -1067,13 +1067,13 @@ listant que les analyses terminées.
 
 ### Fonctionnalités
 
-* **analyse:** reporter l'analyse au lieu d'abandonner la photo ([b776bc3](https://github.com/djkix/cave-a-vin/commit/b776bc38b5e062169d8c7d0fecbb3012927d438e))
-* **interface:** afficher la version sur chaque écran ([81d0bd8](https://github.com/djkix/cave-a-vin/commit/81d0bd8632871ffab9bd0ac5358985824e0faaef))
+* **analyse:** reporter l'analyse au lieu d'abandonner la photo ([b776bc3](https://github.com/djkix/ma-cave/commit/b776bc38b5e062169d8c7d0fecbb3012927d438e))
+* **interface:** afficher la version sur chaque écran ([81d0bd8](https://github.com/djkix/ma-cave/commit/81d0bd8632871ffab9bd0ac5358985824e0faaef))
 
 
 ### Documentation
 
-* une seule section 1.0.0, résumé rédigé puis détail par commit ([77e7ccc](https://github.com/djkix/cave-a-vin/commit/77e7ccc1fa9fe439379537a8b2f409cfff5f32b3))
+* une seule section 1.0.0, résumé rédigé puis détail par commit ([77e7ccc](https://github.com/djkix/ma-cave/commit/77e7ccc1fa9fe439379537a8b2f409cfff5f32b3))
 
 ## 1.0.0 (2026-09-21)
 
@@ -1115,7 +1115,7 @@ du cahier des charges, plus l'inscription libre et l'espace d'administration.
 - **Export Excel** : classeur `.xlsx` régénéré intégralement à la demande, trois
   feuilles (`Stock`, `Mouvements`, `Référence`), filtre optionnel par couleur.
 - **PWA** : installable sur l'écran d'accueil iOS et Android, jeu de tokens de
-  design « Cave & Terroir », aucune ressource `/api/` mise en cache par le
+  design « Ma Cave », aucune ressource `/api/` mise en cache par le
   service worker.
 
 ### Sécurité
@@ -1174,72 +1174,72 @@ du cahier des charges, plus l'inscription libre et l'espace d'administration.
 
 ### Fonctionnalités
 
-* **admin:** espace d'administration des comptes ([0a9a5d5](https://github.com/djkix/cave-a-vin/commit/0a9a5d5c45e790fe8ee8bdce112075e71c8d1706))
-* **appellations:** INAO referential seed and pg_trgm fuzzy resolution ([af6124c](https://github.com/djkix/cave-a-vin/commit/af6124c5737f83799e525cdf45bf3358a4a8ff70))
-* **auth:** Google OIDC with e-mail whitelist, Redis sessions and argon2 break-glass login ([232a912](https://github.com/djkix/cave-a-vin/commit/232a91212eb9cc8c6389af0dc88969f6710484fe))
-* **auth:** inscription libre, accès immédiat, blocage de compte ([cd38a07](https://github.com/djkix/cave-a-vin/commit/cd38a07aeb0f7cc2648ba38d07422696a8c61637))
-* **db:** Prisma schema, pg_trgm, no-negative-stock trigger and stock_courant view ([096afef](https://github.com/djkix/cave-a-vin/commit/096afef85e25d3ea02af8bf5e2d0fb363d025217))
-* **export:** on-demand Excel workbook (Stock, Mouvements, Référence) ([4526c09](https://github.com/djkix/cave-a-vin/commit/4526c093ea6690b126fceddac78166ee3233b5bf))
-* **movements:** confirmed IN movements with idempotency, inverse-movement cancel and history ([8289f12](https://github.com/djkix/cave-a-vin/commit/8289f123ab5288729d957c33b0d3e107691d9ff0))
-* **ops:** Docker Compose stack, Dockerfiles, backup sidecar and env template ([2f9e20b](https://github.com/djkix/cave-a-vin/commit/2f9e20b5b3f100dca652bc83ead40caff6bc5d40))
-* **photos:** upload, sharp normalization, content-hash dedup and local storage ([abfb8cf](https://github.com/djkix/cave-a-vin/commit/abfb8cf698a20b6d755ff19d7c5fc7ed10016739))
-* **queue:** BullMQ extraction worker with monthly vision cap and SSE result stream ([5e4b3f5](https://github.com/djkix/cave-a-vin/commit/5e4b3f55a6fbab00977e0133a9e66dfbe6ba5502))
-* **vision:** VisionProvider contract, strict JSON schema and Gemini implementation ([9276977](https://github.com/djkix/cave-a-vin/commit/927697786624a0eefb53f13729126d4ae83a69ce))
-* **web:** campaign mode with burst capture and grouped review ([4292311](https://github.com/djkix/cave-a-vin/commit/4292311aaa1795490101fa1718c59a969835a07c))
-* **web:** Cave & Terroir design tokens, base styles and confirmation-screen components ([3a8182e](https://github.com/djkix/cave-a-vin/commit/3a8182ef03bfca84ec6c48ce0c6186ffc6454e11))
-* **web:** IndexedDB offline photo queue with foreground flush and visible counter ([80787ca](https://github.com/djkix/cave-a-vin/commit/80787ca97baa4d2488ee3d457b4cd03154a7ddb8))
-* **web:** installable PWA shell with login, gated home and bottom navigation ([585c7ea](https://github.com/djkix/cave-a-vin/commit/585c7ea91f0d8bfdc6c26ae8ae8c18cf09c04cb0))
-* **web:** journal with one-tap cancel and Excel export button ([3126612](https://github.com/djkix/cave-a-vin/commit/31266127522960624918c81f10742acf07c85b7b))
-* **web:** photo capture, live extraction wait and confirmed stock-entry screen ([259b549](https://github.com/djkix/cave-a-vin/commit/259b5493d406fa96a2d39fea0140bf64840d66f2))
-* **wines:** normalized match key and dedup against the appellation referential ([ed308cd](https://github.com/djkix/cave-a-vin/commit/ed308cd2be8a7a4dc4848ff8e13c140d7db5cc3e))
+* **admin:** espace d'administration des comptes ([0a9a5d5](https://github.com/djkix/ma-cave/commit/0a9a5d5c45e790fe8ee8bdce112075e71c8d1706))
+* **appellations:** INAO referential seed and pg_trgm fuzzy resolution ([af6124c](https://github.com/djkix/ma-cave/commit/af6124c5737f83799e525cdf45bf3358a4a8ff70))
+* **auth:** Google OIDC with e-mail whitelist, Redis sessions and argon2 break-glass login ([232a912](https://github.com/djkix/ma-cave/commit/232a91212eb9cc8c6389af0dc88969f6710484fe))
+* **auth:** inscription libre, accès immédiat, blocage de compte ([cd38a07](https://github.com/djkix/ma-cave/commit/cd38a07aeb0f7cc2648ba38d07422696a8c61637))
+* **db:** Prisma schema, pg_trgm, no-negative-stock trigger and stock_courant view ([096afef](https://github.com/djkix/ma-cave/commit/096afef85e25d3ea02af8bf5e2d0fb363d025217))
+* **export:** on-demand Excel workbook (Stock, Mouvements, Référence) ([4526c09](https://github.com/djkix/ma-cave/commit/4526c093ea6690b126fceddac78166ee3233b5bf))
+* **movements:** confirmed IN movements with idempotency, inverse-movement cancel and history ([8289f12](https://github.com/djkix/ma-cave/commit/8289f123ab5288729d957c33b0d3e107691d9ff0))
+* **ops:** Docker Compose stack, Dockerfiles, backup sidecar and env template ([2f9e20b](https://github.com/djkix/ma-cave/commit/2f9e20b5b3f100dca652bc83ead40caff6bc5d40))
+* **photos:** upload, sharp normalization, content-hash dedup and local storage ([abfb8cf](https://github.com/djkix/ma-cave/commit/abfb8cf698a20b6d755ff19d7c5fc7ed10016739))
+* **queue:** BullMQ extraction worker with monthly vision cap and SSE result stream ([5e4b3f5](https://github.com/djkix/ma-cave/commit/5e4b3f55a6fbab00977e0133a9e66dfbe6ba5502))
+* **vision:** VisionProvider contract, strict JSON schema and Gemini implementation ([9276977](https://github.com/djkix/ma-cave/commit/927697786624a0eefb53f13729126d4ae83a69ce))
+* **web:** campaign mode with burst capture and grouped review ([4292311](https://github.com/djkix/ma-cave/commit/4292311aaa1795490101fa1718c59a969835a07c))
+* **web:** Ma Cave design tokens, base styles and confirmation-screen components ([3a8182e](https://github.com/djkix/ma-cave/commit/3a8182ef03bfca84ec6c48ce0c6186ffc6454e11))
+* **web:** IndexedDB offline photo queue with foreground flush and visible counter ([80787ca](https://github.com/djkix/ma-cave/commit/80787ca97baa4d2488ee3d457b4cd03154a7ddb8))
+* **web:** installable PWA shell with login, gated home and bottom navigation ([585c7ea](https://github.com/djkix/ma-cave/commit/585c7ea91f0d8bfdc6c26ae8ae8c18cf09c04cb0))
+* **web:** journal with one-tap cancel and Excel export button ([3126612](https://github.com/djkix/ma-cave/commit/31266127522960624918c81f10742acf07c85b7b))
+* **web:** photo capture, live extraction wait and confirmed stock-entry screen ([259b549](https://github.com/djkix/ma-cave/commit/259b5493d406fa96a2d39fea0140bf64840d66f2))
+* **wines:** normalized match key and dedup against the appellation referential ([ed308cd](https://github.com/djkix/ma-cave/commit/ed308cd2be8a7a4dc4848ff8e13c140d7db5cc3e))
 
 
 ### Corrections
 
-* **admin:** ne jamais exposer passwordHash/googleSub, ADMIN_EMAILS plancher ([04d449c](https://github.com/djkix/cave-a-vin/commit/04d449ca718e8bf93980951915508f68582faa4b))
-* **api:** boot with an empty .env, rate-limit the costly routes, one IN per photo ([4c596f3](https://github.com/djkix/cave-a-vin/commit/4c596f386e73904809dd40382f3e52e195b28a44))
-* **auth:** link Google sub to an existing local account, propagate logout errors, log Redis errors ([7f22482](https://github.com/djkix/cave-a-vin/commit/7f2248208e3188c7dfc38e18f0b512fb25362a97))
-* **auth:** lire ADMIN_EMAILS à l'appel, pas depuis le cache d'environnement ([e1e506b](https://github.com/djkix/cave-a-vin/commit/e1e506b024f73256ca8a2098c7a2e229bfaffeb5))
-* **auth:** rediriger un compte bloqué en session ouverte, aligner local-login ([938d99b](https://github.com/djkix/cave-a-vin/commit/938d99bc8f258c7ec8d0f842d6a4271b3c067a1a))
-* **ci:** least-privilege permissions for the release job ([2da50c7](https://github.com/djkix/cave-a-vin/commit/2da50c771cf4e5ff9f5381387e1dc4ceb5c8f138))
-* **ci:** run the token-generator test by file path ([a140da1](https://github.com/djkix/cave-a-vin/commit/a140da11b23f1992ff67bf47941f3d985ef88f42))
-* **deploy:** preserve the upstream X-Forwarded-Proto and never publish a truncated dump ([538243a](https://github.com/djkix/cave-a-vin/commit/538243a42cb020342e9bf1bbd741fe9a4dde4450))
-* **docker:** charger les moteurs Prisma compilés pour OpenSSL 3 ([2fa5c50](https://github.com/djkix/cave-a-vin/commit/2fa5c5088a55d081b2c408fc3c13fe1792912f02))
-* **export:** auto-filter on the Référence sheet, purchase price from IN movements only ([0892d63](https://github.com/djkix/cave-a-vin/commit/0892d630ba022b3994c7477a9af4b75d7f173291))
-* **movements:** make replays and cancels safe under concurrency, validate the cancel body ([3048aad](https://github.com/djkix/cave-a-vin/commit/3048aadeb445d5bd23d498996db449a192e6dde3))
-* **photos:** recover from concurrent duplicate uploads, reject unreadable images with a 400, drop HEIC ([a04488e](https://github.com/djkix/cave-a-vin/commit/a04488e4082833f3cdecd628a4374f7aa242d612))
-* **queue:** keep the api alive on SSE errors, fail only on the last attempt, roll back photos the queue cannot accept ([fde0026](https://github.com/djkix/cave-a-vin/commit/fde0026a21c6865fcc4987ea650e5f9034a23ab7))
-* **web:** campaign review surfaces bulk errors and incomplete rows; drop dead camera re-open; tolerate unparseable extractions ([f18f781](https://github.com/djkix/cave-a-vin/commit/f18f781eb1d640fdafe29fe520147b778f4040ad))
-* **web:** controlled EditableField, blur-committed free quantity, spacing token in QuantityPicker ([7f23421](https://github.com/djkix/cave-a-vin/commit/7f23421f553c7db38fc0216b096ce8a5f84a7bb9))
-* **web:** keep retryable uploads, explain a refused login, never leave a dead screen ([e48fb9a](https://github.com/djkix/cave-a-vin/commit/e48fb9a862eebf03787d3706c888d5ff7cce1cc3))
-* **web:** never-cache /api/ in the service worker and preserve JSON Content-Type with custom headers ([b3c36bb](https://github.com/djkix/cave-a-vin/commit/b3c36bb52612b5b38da1866ce023792ffacef00a))
-* **web:** resilient confirmation page (fetch errors, DONE prefill, no SSE leak, single submit); validate photo id on the image route ([b48414d](https://github.com/djkix/cave-a-vin/commit/b48414d25a202f47a6f9a5e305c9b10b491ffd9c))
-* **web:** stable foreground flush triggers, skip deterministically rejected photos, test the queue hook and capture page ([6fbac09](https://github.com/djkix/cave-a-vin/commit/6fbac098643b267879e9066ce3bdc34e50405658))
-* **wines:** resolve concurrent-create races and stop merging producers on connector words ([fd02764](https://github.com/djkix/cave-a-vin/commit/fd0276461e0660db7eedd0f7044872ec75ba4cf8))
+* **admin:** ne jamais exposer passwordHash/googleSub, ADMIN_EMAILS plancher ([04d449c](https://github.com/djkix/ma-cave/commit/04d449ca718e8bf93980951915508f68582faa4b))
+* **api:** boot with an empty .env, rate-limit the costly routes, one IN per photo ([4c596f3](https://github.com/djkix/ma-cave/commit/4c596f386e73904809dd40382f3e52e195b28a44))
+* **auth:** link Google sub to an existing local account, propagate logout errors, log Redis errors ([7f22482](https://github.com/djkix/ma-cave/commit/7f2248208e3188c7dfc38e18f0b512fb25362a97))
+* **auth:** lire ADMIN_EMAILS à l'appel, pas depuis le cache d'environnement ([e1e506b](https://github.com/djkix/ma-cave/commit/e1e506b024f73256ca8a2098c7a2e229bfaffeb5))
+* **auth:** rediriger un compte bloqué en session ouverte, aligner local-login ([938d99b](https://github.com/djkix/ma-cave/commit/938d99bc8f258c7ec8d0f842d6a4271b3c067a1a))
+* **ci:** least-privilege permissions for the release job ([2da50c7](https://github.com/djkix/ma-cave/commit/2da50c771cf4e5ff9f5381387e1dc4ceb5c8f138))
+* **ci:** run the token-generator test by file path ([a140da1](https://github.com/djkix/ma-cave/commit/a140da11b23f1992ff67bf47941f3d985ef88f42))
+* **deploy:** preserve the upstream X-Forwarded-Proto and never publish a truncated dump ([538243a](https://github.com/djkix/ma-cave/commit/538243a42cb020342e9bf1bbd741fe9a4dde4450))
+* **docker:** charger les moteurs Prisma compilés pour OpenSSL 3 ([2fa5c50](https://github.com/djkix/ma-cave/commit/2fa5c5088a55d081b2c408fc3c13fe1792912f02))
+* **export:** auto-filter on the Référence sheet, purchase price from IN movements only ([0892d63](https://github.com/djkix/ma-cave/commit/0892d630ba022b3994c7477a9af4b75d7f173291))
+* **movements:** make replays and cancels safe under concurrency, validate the cancel body ([3048aad](https://github.com/djkix/ma-cave/commit/3048aadeb445d5bd23d498996db449a192e6dde3))
+* **photos:** recover from concurrent duplicate uploads, reject unreadable images with a 400, drop HEIC ([a04488e](https://github.com/djkix/ma-cave/commit/a04488e4082833f3cdecd628a4374f7aa242d612))
+* **queue:** keep the api alive on SSE errors, fail only on the last attempt, roll back photos the queue cannot accept ([fde0026](https://github.com/djkix/ma-cave/commit/fde0026a21c6865fcc4987ea650e5f9034a23ab7))
+* **web:** campaign review surfaces bulk errors and incomplete rows; drop dead camera re-open; tolerate unparseable extractions ([f18f781](https://github.com/djkix/ma-cave/commit/f18f781eb1d640fdafe29fe520147b778f4040ad))
+* **web:** controlled EditableField, blur-committed free quantity, spacing token in QuantityPicker ([7f23421](https://github.com/djkix/ma-cave/commit/7f23421f553c7db38fc0216b096ce8a5f84a7bb9))
+* **web:** keep retryable uploads, explain a refused login, never leave a dead screen ([e48fb9a](https://github.com/djkix/ma-cave/commit/e48fb9a862eebf03787d3706c888d5ff7cce1cc3))
+* **web:** never-cache /api/ in the service worker and preserve JSON Content-Type with custom headers ([b3c36bb](https://github.com/djkix/ma-cave/commit/b3c36bb52612b5b38da1866ce023792ffacef00a))
+* **web:** resilient confirmation page (fetch errors, DONE prefill, no SSE leak, single submit); validate photo id on the image route ([b48414d](https://github.com/djkix/ma-cave/commit/b48414d25a202f47a6f9a5e305c9b10b491ffd9c))
+* **web:** stable foreground flush triggers, skip deterministically rejected photos, test the queue hook and capture page ([6fbac09](https://github.com/djkix/ma-cave/commit/6fbac098643b267879e9066ce3bdc34e50405658))
+* **wines:** resolve concurrent-create races and stop merging producers on connector words ([fd02764](https://github.com/djkix/ma-cave/commit/fd0276461e0660db7eedd0f7044872ec75ba4cf8))
 
 
 ### Documentation
 
-* cahier des charges et spec de design Lot 0+1 ([fc5dad5](https://github.com/djkix/cave-a-vin/commit/fc5dad5febda80387da693f70c2bde8db11d49e4))
-* document the lot 1 limits, the break-glass account and the restore ([4060fea](https://github.com/djkix/cave-a-vin/commit/4060fea7ea31405cea7403ba2b7747c36d6d42e4))
-* inscription libre et espace d'administration ([8f53626](https://github.com/djkix/cave-a-vin/commit/8f53626d66e2a0dee9e47fccc42fe1fbd7c8e200))
-* plan d'implémentation Lot 0+1 (18 tâches) ([047c009](https://github.com/djkix/cave-a-vin/commit/047c0096d5e837fbfbf8364249462703f9b1c090))
-* README détaillé, changelog en français et domaine réel ([f3335cf](https://github.com/djkix/cave-a-vin/commit/f3335cfbdde1da7787fc48e867005d8872d44135))
-* sémantique plancher d'ADMIN_EMAILS et correctifs de revue ([ac49d71](https://github.com/djkix/cave-a-vin/commit/ac49d71210f2381fe302abaf78beaed2e323e793))
+* cahier des charges et spec de design Lot 0+1 ([fc5dad5](https://github.com/djkix/ma-cave/commit/fc5dad5febda80387da693f70c2bde8db11d49e4))
+* document the lot 1 limits, the break-glass account and the restore ([4060fea](https://github.com/djkix/ma-cave/commit/4060fea7ea31405cea7403ba2b7747c36d6d42e4))
+* inscription libre et espace d'administration ([8f53626](https://github.com/djkix/ma-cave/commit/8f53626d66e2a0dee9e47fccc42fe1fbd7c8e200))
+* plan d'implémentation Lot 0+1 (18 tâches) ([047c009](https://github.com/djkix/ma-cave/commit/047c0096d5e837fbfbf8364249462703f9b1c090))
+* README détaillé, changelog en français et domaine réel ([f3335cf](https://github.com/djkix/ma-cave/commit/f3335cfbdde1da7787fc48e867005d8872d44135))
+* sémantique plancher d'ADMIN_EMAILS et correctifs de revue ([ac49d71](https://github.com/djkix/ma-cave/commit/ac49d71210f2381fe302abaf78beaed2e323e793))
 
 
 ### Tests
 
-* **api:** HTTP smoke spec over the real AppModule ([24f5230](https://github.com/djkix/cave-a-vin/commit/24f5230939258d3f2ec4881503ea166fd1237682))
+* **api:** HTTP smoke spec over the real AppModule ([24f5230](https://github.com/djkix/ma-cave/commit/24f5230939258d3f2ec4881503ea166fd1237682))
 
 
 ### Intégration continue
 
-* **api:** type-check, build and run the HTTP spec against Postgres and Redis ([cd20929](https://github.com/djkix/cave-a-vin/commit/cd20929d3c707912d472028cf39829bd18a92a58))
-* lint/test pipeline, GHCR image publishing and release-please ([1b88a93](https://github.com/djkix/cave-a-vin/commit/1b88a938f4699ef8e65300cc1bb1177acf9f4982))
+* **api:** type-check, build and run the HTTP spec against Postgres and Redis ([cd20929](https://github.com/djkix/ma-cave/commit/cd20929d3c707912d472028cf39829bd18a92a58))
+* lint/test pipeline, GHCR image publishing and release-please ([1b88a93](https://github.com/djkix/ma-cave/commit/1b88a938f4699ef8e65300cc1bb1177acf9f4982))
 
 
 ### Divers
 
-* ignore SDD workspace ([88c65b7](https://github.com/djkix/cave-a-vin/commit/88c65b7ce71658f2412bcb7a4c403309cb4c1e62))
-* scaffold api (NestJS) and web (Vite PWA) skeletons with smoke tests ([bef36bf](https://github.com/djkix/cave-a-vin/commit/bef36bfb3e2795ea36da0789c409bb9d8ba8d28b))
+* ignore SDD workspace ([88c65b7](https://github.com/djkix/ma-cave/commit/88c65b7ce71658f2412bcb7a4c403309cb4c1e62))
+* scaffold api (NestJS) and web (Vite PWA) skeletons with smoke tests ([bef36bf](https://github.com/djkix/ma-cave/commit/bef36bfb3e2795ea36da0789c409bb9d8ba8d28b))

@@ -1,4 +1,4 @@
-# Cave & Terroir — Design : une cave par compte, membres en lecture seule
+# Ma Cave — Design : une cave par compte, membres en lecture seule
 
 2026-10-07 · Franck Laval
 

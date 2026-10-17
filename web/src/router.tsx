@@ -4,6 +4,7 @@ import { ABoirePage } from './pages/ABoirePage';
 import { AdminPage } from './pages/AdminPage';
 import { AConfirmerPage } from './pages/AConfirmerPage';
 import { CavePage } from './pages/CavePage';
+import { ConfidentialitePage } from './pages/ConfidentialitePage';
 import { ComptePage } from './pages/ComptePage';
 import { EntreeCapturePage } from './pages/EntreeCapturePage';
 import { EntreeConfirmationPage } from './pages/EntreeConfirmationPage';
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
     errorElement: <RouteErrorPage />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/confidentialite', element: <ConfidentialitePage /> },
       {
         element: <RequireAuth />,
         children: [
@@ -49,7 +51,7 @@ export const routes: RouteObject[] = [
               { path: '/sortie', element: <SortieCapturePage /> },
               { path: '/sortie/:photoId', element: <SortieResolutionPage /> },
               { path: '/ma-cave', element: <MaCavePage /> },
-              // Ancienne adresse de l'écran des membres, désormais dans « Ma cave ».
+              // Ancienne adresse de l'écran des membres, désormais dans « Ma cave › Réglages ».
               { path: '/membres', element: <Navigate to="/ma-cave" replace /> },
             ],
           },

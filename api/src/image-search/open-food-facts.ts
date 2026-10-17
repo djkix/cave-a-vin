@@ -14,7 +14,7 @@ const FIELDS = 'product_name,brands,image_front_url,categories_tags,code';
  * Sans numéro de version : `api/package.json` reste à 0.0.0 (la version vit dans le
  * manifeste racine), mieux vaut ne rien annoncer qu'une fausse version.
  */
-export const USER_AGENT = 'CaveEtTerroir (+https://github.com/djkix/cave-a-vin)';
+export const USER_AGENT = 'MaCave (+https://github.com/djkix/ma-cave)';
 
 /** Mots trop courants dans les noms de producteurs pour reconnaître le bon. */
 const GENERIC_PRODUCER_WORDS = new Set(['domaine', 'chateau', 'maison', 'clos', 'cave', 'vins']);

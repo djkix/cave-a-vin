@@ -48,7 +48,7 @@ describe('searchOpenFoodFacts — service de recherche', () => {
   });
 
   it('le User-Agent nomme l’application et l’adresse du dépôt, sans fausse version', () => {
-    expect(USER_AGENT).toBe('CaveEtTerroir (+https://github.com/djkix/cave-a-vin)');
+    expect(USER_AGENT).toBe('MaCave (+https://github.com/djkix/ma-cave)');
   });
 
   it('garde « Domaine Tempier Bandol rouge » et rejette les résultats flous (Kirkland, Domaine Bousquet)', async () => {

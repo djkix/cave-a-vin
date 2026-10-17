@@ -1,4 +1,4 @@
-# Cave & Terroir — Design Lot 2b : l'apogée
+# Ma Cave — Design Lot 2b : l'apogée
 
 2026-10-04 · Franck Laval
 
