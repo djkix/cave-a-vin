@@ -55,15 +55,15 @@ describe('membre en lecture seule', () => {
   });
 });
 
-it('ouvre « Ma cave » au propriétaire', async () => {
+it('ouvre « Ma cave › Réglages » au propriétaire', async () => {
   vi.spyOn(api, 'getMembers').mockResolvedValue([]);
   vi.spyOn(api, 'getZones').mockResolvedValue([]);
   const router = mountAt('/ma-cave');
-  expect(await screen.findByRole('heading', { level: 1, name: 'Ma cave' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { level: 1, name: 'Ma cave › Réglages' })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe('/ma-cave');
 });
 
-it('redirige l’ancienne adresse /membres vers « Ma cave »', async () => {
+it('redirige l’ancienne adresse /membres vers « Ma cave › Réglages »', async () => {
   vi.spyOn(api, 'getMembers').mockResolvedValue([]);
   vi.spyOn(api, 'getZones').mockResolvedValue([]);
   const router = mountAt('/membres');

@@ -29,7 +29,7 @@ export function ZoneDetails({ zone, version }: { zone: Zone | undefined; version
  * suggestion (`<datalist>`). La zone choisie montre son indication et sa
  * vignette. `zones` indéfini (liste en cours de lecture ou illisible) : le choix
  * est grisé et montre la zone pré-remplie. Liste lue et vide : un lien mène à
- * « Ma cave » pour en créer une (formulaires réservés au propriétaire).
+ * « Ma cave › Réglages » pour en créer une (formulaires réservés au propriétaire).
  */
 export function LocationFields({ value, onChange, locations, zones }: {
   value: LocationInput; onChange: (v: LocationInput) => void; locations: Location[]; zones: Zone[] | undefined;

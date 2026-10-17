@@ -1,4 +1,4 @@
-# Cave & Terroir — Design Lot 0 + Lot 1
+# Ma Cave — Design Lot 0 + Lot 1
 
 2026-09-20 · Franck Laval
 
@@ -14,7 +14,7 @@ cote iDealwine, emplacements, alertes, valorisation, dégustation) restent
 définis par le cahier des charges et seront repris dans des specs séparées le
 moment venu.
 
-Application auto-hébergée : nouveau repo public `djkix/cave-a-vin`, déployé
+Application auto-hébergée : nouveau repo public `djkix/ma-cave`, déployé
 sur le même Proxmox/homelab que [`djkix/magazine-search`](https://github.com/djkix/magazine-search),
 dont les conventions d'hébergement (Docker Compose, images GHCR, Nginx Proxy
 Manager, sauvegardes) sont reprises telles quelles.
@@ -27,7 +27,7 @@ Manager, sauvegardes) sont reprises telles quelles.
 | Modèle de vision | **Google Gemini** (`GEMINI_API_KEY`), cohérent avec `magazine-search` qui l'utilise déjà pour l'extraction de sommaires |
 | Existe-t-il une liste de cave existante ? | Non → le **mode campagne** (rafale + revue groupée) fait partie du Lot 1, pas l'import CSV |
 | Charte graphique | 4 maquettes HTML/Tailwind fournies (palette bronze/doré "Bastide Provençale & Travertin Doré") → consolidées ci-dessous ; voir [`docs/design-reference/`](../../design-reference/) |
-| Nom du repo | `cave-a-vin`, public, sous le compte GitHub `djkix` |
+| Nom du repo | `ma-cave`, public, sous le compte GitHub `djkix` |
 | Déploiement effectif sur le serveur | Cette session n'a pas d'accès SSH au homelab : le repo est livré prêt à déployer (comme `magazine-search`), le `docker compose pull && up` final reste manuel côté utilisateur |
 
 ## Périmètre — Lot 0 + Lot 1
@@ -120,8 +120,8 @@ Docker (MinIO reporté).
 
 Conventions d'hébergement reprises de `magazine-search` :
 
-- Images publiées sur `ghcr.io/djkix/cave-a-vin-api`,
-  `ghcr.io/djkix/cave-a-vin-web` via GitHub Actions
+- Images publiées sur `ghcr.io/djkix/ma-cave-api`,
+  `ghcr.io/djkix/ma-cave-web` via GitHub Actions
   (`ci.yml` lint/tests, `docker-build.yml` build+push sur tag/`main`,
   `release-please.yml` versioning + changelog).
 - Un seul port publié sur l'hôte (`web`, qui relaie `/api/*` en interne) ;
@@ -134,7 +134,7 @@ Conventions d'hébergement reprises de `magazine-search` :
 - Exposition via le Nginx Proxy Manager déjà en place (nouveau sous-domaine à
   créer côté NPM, hors du périmètre de ce repo).
 
-## Design system consolidé — Cave & Terroir
+## Design system consolidé — Ma Cave
 
 Construit à partir des 4 maquettes fournies (voir
 [`docs/design-reference/`](../../design-reference/)), réconciliées sur la

@@ -6,7 +6,7 @@
 
 **Architecture:** Tables `cave` et `cave_member`, colonne `cave_id` sur `wine`, `photo`, `export_log`, `image_search_cost` ; garde `CaveAccessGuard` + décorateur `@CaveRole` qui injecte `{ caveId, role }` ; tous les services filtrent par `caveId` ; la session mémorise la cave courante.
 
-**Spec:** `docs/superpowers/specs/2026-10-07-cave-a-vin-multi-caves-design.md` (autorité).
+**Spec:** `docs/superpowers/specs/2026-10-07-ma-cave-multi-caves-design.md` (autorité).
 
 ## Global Constraints
 

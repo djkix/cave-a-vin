@@ -8,7 +8,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Cave & Terroir',
+        name: 'Ma Cave',
         short_name: 'Cave',
         lang: 'fr',
         start_url: '/',

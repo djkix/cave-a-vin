@@ -6,7 +6,7 @@
 
 **Architecture:** Table `location` par cave + `movement.location_id` ; le stock par emplacement est une somme de mouvements (aucune quantité stockée) ; déplacement = paire de mouvements `MOVE`. Table `price_quote` en ajout seulement ; cote courante = dernière saisie ; visible du seul propriétaire.
 
-**Spec:** `docs/superpowers/specs/2026-10-07-cave-a-vin-emplacements-cote-design.md` (autorité).
+**Spec:** `docs/superpowers/specs/2026-10-07-ma-cave-emplacements-cote-design.md` (autorité).
 
 ## Global Constraints
 

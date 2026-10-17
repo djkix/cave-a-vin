@@ -1,6 +1,6 @@
-<p align="center"><img src="web/public/icons/icon.svg" width="96" alt="Icône de Cave & Terroir : une niche voûtée avec trois bouteilles debout" /></p>
+<p align="center"><img src="web/public/icons/icon.svg" width="96" alt="Icône de Ma Cave : une niche voûtée avec trois bouteilles debout" /></p>
 
-# Cave & Terroir
+# Ma Cave
 
 Gestion de cave à vin sans saisie clavier : une photo à l'achat crédite le stock,
 une photo au moment de boire le débite, et un classeur Excel exportable donne à
@@ -22,7 +22,7 @@ utilisée depuis un téléphone (PWA installable).
   également livré : emplacements dans la cave (zone / casier / position,
   déplacement, filtre) et cote iDealwine saisie à la main (le relevé
   automatique prévu au cahier des charges a été abandonné, voir *Limites*).
-  Depuis la 2.6.0 : page « Ma cave » et zones de la cave (nom, indication,
+  Depuis la 2.6.0 : page « Ma cave › Réglages » et zones de la cave (nom, indication,
   photo, ordre). Depuis la 2.8.0 : plan de la cave (une image) avec le repère
   numéroté de chaque zone, montré sur la fiche et dans « À boire ».
 - **Reporté** : aucune alerte hors de l'application (notification ou e-mail) :
@@ -55,13 +55,13 @@ elle, entre directement, sans validation. Un identifiant (vin, photo,
 mouvement, membre) d'une autre cave répond comme un identifiant inconnu (404),
 et une cave à laquelle le compte n'a pas accès répond « Cave introuvable ».
 
-**Ma cave.** Depuis l'accueil ou *Mon compte*, le lien *Ma cave* (page
+**Ma cave › Réglages.** Depuis l'accueil ou *Mon compte*, le lien *Ma cave › Réglages* (page
 `/ma-cave`, propriétaire seulement ; l'ancienne adresse `/membres` y mène)
 regroupe, dans cet ordre, le **nom de la cave**, son **plan**, ses **zones**
 et ses **membres**.
 
 **Zones de la cave.** Une zone est un endroit de la cave où l'on range des
-bouteilles (« Cave 1 », « Garage »). Dans *Ma cave*, le propriétaire en ajoute
+bouteilles (« Cave 1 », « Garage »). Dans *Ma cave › Réglages*, le propriétaire en ajoute
 (*Ajouter une zone*), les range dans l'ordre voulu avec ↑ et ↓, les modifie
 (*Modifier*, dans la ligne) et les supprime (*Supprimer*, après confirmation).
 Chaque zone a :
@@ -79,7 +79,7 @@ refusé tant que des bouteilles y sont rangées (« Des bouteilles sont encore
 rangées dans cette zone ») ; une zone qui a servi dans l'historique est
 **archivée** : elle disparaît de la liste et du choix de la zone, et
 l'historique garde son libellé ; une zone jamais utilisée est supprimée
-(*Ma cave* affiche « Zone supprimée » ou « Zone archivée (elle reste dans
+(*Ma cave › Réglages* affiche « Zone supprimée » ou « Zone archivée (elle reste dans
 l'historique) »). Si des bouteilles reviennent ensuite dans une zone archivée
 (annulation d'une sortie, inventaire en hausse à cet emplacement), la zone est
 rétablie en fin de liste ; si son nom a été repris par une autre zone, c'est
@@ -92,7 +92,7 @@ sans pouvoir les changer. API : `GET`, `POST /api/caves/current/zones`,
 (toute cave du compte).
 
 **Plan de la cave.** Une image par cave : une photo de la pièce, ou d'un
-schéma dessiné à la main. Dans *Ma cave*, la carte *Plan de la cave* (avant
+schéma dessiné à la main. Dans *Ma cave › Réglages*, la carte *Plan de la cave* (avant
 *Zones*) l'envoie (*Ajouter le plan de la cave*, puis *Remplacer le plan* ;
 réduite à 2400 px par le téléphone avant l'envoi, 15 Mo au plus, redressée
 selon l'EXIF, ramenée à 2400 px sur le grand côté, en
@@ -109,14 +109,14 @@ endroit) et *Retirer le repère*. Une zone a au plus un repère ; les repères
 sont **numérotés dans l'ordre d'affichage des zones** (1, 2, 3… parmi les
 zones qui en ont un : changer l'ordre des zones change les numéros), et une
 zone archivée n'apparaît jamais sur le plan (son repère reste en base).
-**Retirer le plan garde les repères** (*Ma cave* le dit : « Les repères des
+**Retirer le plan garde les repères** (*Ma cave › Réglages* le dit : « Les repères des
 zones sont gardés ») : un plan équivalent remis ensuite les retrouve à leur
 place ; poser un repère sans plan est refusé (« Ajoutez d'abord un plan de la
 cave »). Le plan se retrouve sur la **fiche du vin** (toucher un emplacement
 montre, sous l'indication et la photo de sa zone, le plan avec son repère mis
 en avant) et dans **« À boire prochainement »** (un petit plan sous chaque
 en-tête d'une zone placée, qui s'agrandit au toucher). Un membre en lecture
-seule voit le plan et les repères depuis la fiche et À boire (*Ma cave* est
+seule voit le plan et les repères depuis la fiche et À boire (*Ma cave › Réglages* est
 réservée au propriétaire), sans rien pouvoir changer. API : `GET /api/caves/current/plan`
 (`{ plan: { width, height, updatedAt } | null, markers: [{ zoneId, name,
 number, x, y }] }`, aucun repère sans plan), `PUT` (champ `file`) et `DELETE
@@ -125,7 +125,7 @@ compte), `PUT /api/caves/current/zones/:id/marker` (`{ x, y }`, fractions de
 la largeur et de la hauteur entre 0 et 1, sinon « Position invalide sur le
 plan ») et `DELETE` ; chaque zone porte `marker: { x, y } | null`.
 
-**Membres en lecture seule.** Dans *Ma cave* (propriétaire seulement), la
+**Membres en lecture seule.** Dans *Ma cave › Réglages* (propriétaire seulement), la
 section *Membres* liste les membres, invite une adresse Google (« Cette
 adresse est déjà membre » si elle l'est déjà), retire un membre (jamais le
 propriétaire) et renomme la cave (1 à 80 caractères). Un membre voit la cave
@@ -227,7 +227,7 @@ décrit par une zone, un casier et une position (un seul des trois suffit ;
 rien vaut « Sans emplacement »), propre à la cave courante. La **zone** se
 choisit dans la liste des zones de la cave, dans leur ordre, ou « Sans zone » ;
 la zone choisie montre dessous son indication et sa vignette, et, tant que la
-cave n'a aucune zone, un lien *Créer une zone* mène à *Ma cave*. Le **casier**
+cave n'a aucune zone, un lien *Créer une zone* mène à *Ma cave › Réglages*. Le **casier**
 et la **position** restent du texte libre, avec les valeurs déjà utilisées en
 suggestion. Ce choix est proposé à l'entrée (unitaire et « À confirmer », bloc
 replié par défaut, pré-rempli avec le dernier emplacement d'entrée de la cave),
@@ -597,7 +597,7 @@ l'accueil) réunit, pour les administrateurs :
 - **Qualité de la lecture** et **règles d'apogée** (voir plus haut).
 
 Les **membres** d'une cave se gèrent, eux, par son propriétaire, depuis
-*Ma cave* (voir *Membres en lecture seule*).
+*Ma cave › Réglages* (voir *Membres en lecture seule*).
 
 `ADMIN_EMAILS` est un **plancher garanti, jamais un plafond** : une adresse qui
 y figure est administratrice même si la base dit le contraire (le propriétaire
@@ -642,17 +642,17 @@ code, et le script de sauvegarde est écrit dans le YAML lui-même). L'intégrat
 continue le vérifie à chaque commit en démarrant la stack dans un dossier qui ne
 contient que ces deux fichiers.
 
-**Avec Dockge** (le cas de ce serveur) : créer une stack `cave-a-vin`, coller le
+**Avec Dockge** (le cas de ce serveur) : créer une stack `ma-cave`, coller le
 contenu de [`docker-compose.yml`](docker-compose.yml) dans l'éditeur et celui du
 `.env` (étape 4) dans le panneau des variables. Dockge range la stack dans
-`/opt/stacks/cave-a-vin/`.
+`/opt/stacks/ma-cave/`.
 
 **En ligne de commande**, l'équivalent :
 
 ```bash
-mkdir -p /opt/stacks/cave-a-vin && cd /opt/stacks/cave-a-vin
-curl -fsSLO https://raw.githubusercontent.com/djkix/cave-a-vin/main/docker-compose.yml
-curl -fsSL -o .env https://raw.githubusercontent.com/djkix/cave-a-vin/main/.env.example
+mkdir -p /opt/stacks/ma-cave && cd /opt/stacks/ma-cave
+curl -fsSLO https://raw.githubusercontent.com/djkix/ma-cave/main/docker-compose.yml
+curl -fsSL -o .env https://raw.githubusercontent.com/djkix/ma-cave/main/.env.example
 ```
 
 Les sauvegardes sont écrites dans `./backups`, à côté du YAML.
@@ -663,8 +663,12 @@ Dans la console Google Cloud, avec le compte qui possédera l'application :
 
 1. Créer ou choisir un projet (<https://console.cloud.google.com/projectcreate>).
 2. **Google Auth Platform** (<https://console.cloud.google.com/auth/overview>) :
-   nom de l'application, adresse de support, **audience External**, puis
-   **Publish app**. Les scopes demandés se limitent à `openid`,
+   nom de l'application, adresse de support, **audience External**. Dans
+   **Branding**, page d'accueil `https://cave.djkix.ovh`, règles de
+   confidentialité `https://cave.djkix.ovh/confidentialite` (page publique de
+   l'application, sans connexion) et domaine autorisé `djkix.ovh` ; puis
+   **Publish app** (sans publication, seuls les « utilisateurs test » listés
+   peuvent se connecter). Les scopes demandés se limitent à `openid`,
    `userinfo.email` et `userinfo.profile` : ce périmètre est exempté de
    vérification par Google, il n'y a donc aucune démarche à faire.
 3. **Clients → Create client** (<https://console.cloud.google.com/auth/clients>),
@@ -681,7 +685,7 @@ L'export étant un simple téléchargement, l'application n'a besoin d'aucun acc
 ### 4. Renseigner le `.env`
 
 ```bash
-cd /opt/stacks/cave-a-vin && nano .env
+cd /opt/stacks/ma-cave && nano .env
 ```
 
 Générer les deux secrets :
@@ -723,7 +727,7 @@ echo <PAT> | docker login ghcr.io -u djkix --password-stdin
 ```
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose pull
+cd /opt/stacks/ma-cave && docker compose pull
 ```
 
 … soit construire les images sur place, ce qui évite toute authentification.
@@ -731,14 +735,14 @@ C'est le seul cas où le dépôt complet est nécessaire sur l'hôte, puisque la
 construction part des sources :
 
 ```bash
-git clone https://github.com/djkix/cave-a-vin.git /opt/stacks/cave-a-vin-src
-cd /opt/stacks/cave-a-vin-src && docker compose build
+git clone https://github.com/djkix/ma-cave.git /opt/stacks/ma-cave-src
+cd /opt/stacks/ma-cave-src && docker compose build
 ```
 
 ### 6. Démarrer
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose up -d
+cd /opt/stacks/ma-cave && docker compose up -d
 ```
 
 Le conteneur `api` applique les migrations Prisma puis charge le référentiel des
@@ -817,13 +821,49 @@ NPM, sinon l'en-tête est réécrit en `http` et la connexion boucle indéfinime
 Les images sont republiées automatiquement à chaque fusion sur `main`.
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose pull && docker compose up -d
+cd /opt/stacks/ma-cave && docker compose pull && docker compose up -d
 ```
 
 Si les images sont construites localement, remplacer `docker compose pull` par
 `docker compose build`. Pour figer une version plutôt que suivre `latest`,
 fusionner la demande de version proposée par release-please puis renseigner
 `IMAGE_TAG=<version>` dans le `.env`.
+
+### Passage à Ma Cave (anciennement « cave-a-vin »)
+
+L'application s'appelle désormais **Ma Cave** : le dépôt est `djkix/ma-cave`,
+les images `ghcr.io/djkix/ma-cave-api` et `ghcr.io/djkix/ma-cave-web`, et la
+stack vit dans `/opt/stacks/ma-cave`. Les anciennes images `cave-a-vin-*` ne
+reçoivent plus de mise à jour. Le nom du dossier de la stack donne son nom aux
+volumes Docker (`cave-a-vin_postgres_data` devient `ma-cave_postgres_data`) :
+la base et les photos sont donc **copiées** dans les nouveaux volumes, les
+anciens restant intacts tant qu'on ne les supprime pas.
+
+```bash
+# 1. Sauvegarde, puis arrêt de l'ancienne stack
+cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' | gzip > backups/avant-ma-cave.sql.gz
+docker compose down
+
+# 2. Nouvelle stack : réglages, sauvegardes et compose
+mkdir -p /opt/stacks/ma-cave && cp -a /opt/stacks/cave-a-vin/.env /opt/stacks/cave-a-vin/backups /opt/stacks/ma-cave/
+curl -fsSL https://raw.githubusercontent.com/djkix/ma-cave/main/docker-compose.yml -o /opt/stacks/ma-cave/docker-compose.yml
+
+# 3. Copie des données dans les volumes du nouveau nom
+for v in postgres_data redis_data photo_data; do
+  docker volume create ma-cave_$v
+  docker run --rm -v cave-a-vin_$v:/from:ro -v ma-cave_$v:/to alpine sh -c 'cp -a /from/. /to/'
+done
+
+# 4. Démarrage
+cd /opt/stacks/ma-cave && docker compose pull && docker compose up -d
+```
+
+Vérifier ensuite la connexion, la version dans « Mon compte » et quelques
+photos. La nouvelle stack apparaît d'elle-même dans Dockge (elle est dans
+`/opt/stacks`). Quand tout est bon, quelques jours plus tard, supprimer
+l'ancienne : `rm -rf /opt/stacks/cave-a-vin` puis
+`docker volume rm cave-a-vin_postgres_data cave-a-vin_redis_data cave-a-vin_photo_data`.
+L'adresse du site (`cave.djkix.ovh`) et le client OAuth Google ne changent pas.
 
 ### Passage à la 2.8.0 (plan de la cave)
 
@@ -866,7 +906,7 @@ sont **converties automatiquement** : une zone par cave et par nom distinct
 (espaces autour et casse ignorés : « Cave 1 » et « cave 1 » deviennent une
 seule zone, sous l'une des graphies saisies), rangées par nom ; chaque
 bouteille garde le même emplacement et le même stock. Les indications et les
-photos se renseignent ensuite dans *Ma cave*.
+photos se renseignent ensuite dans *Ma cave › Réglages*.
 
 **Retour arrière** : seulement en restaurant cette sauvegarde (procédure du
 retour arrière de la 2.0.0), ce qui **perd tout ce qui a été saisi depuis la
@@ -882,7 +922,7 @@ l'image 2.5.x, qui fonctionne sur la base inchangée), marquer la migration
 comme annulée, puis redémarrer :
 
 ```bash
-cd /opt/stacks/cave-a-vin
+cd /opt/stacks/ma-cave
 docker compose run --rm api npx prisma migrate resolve --rolled-back 20261015000000_zones
 docker compose up -d
 ```
@@ -906,7 +946,7 @@ La 2.0.0 change le fonctionnement pour tous les comptes. **Vérifier d'abord
 les comptes**, avant la mise à jour :
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT email, is_admin, is_break_glass, status FROM app_user ORDER BY created_at;"'
+cd /opt/stacks/ma-cave && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT email, is_admin, is_break_glass, status FROM app_user ORDER BY created_at;"'
 ```
 
 Votre adresse Google doit apparaître avec `is_admin` = `t` et le statut
@@ -927,7 +967,7 @@ administrateur qui se connecte reçoit la cave sans propriétaire.
 attendre le dump quotidien de `db-backup` :
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' | gzip > backups/cave-avant-2.0.0.sql.gz
+cd /opt/stacks/ma-cave && docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' | gzip > backups/cave-avant-2.0.0.sql.gz
 ```
 
 Vérifier que le fichier n'est pas vide (`ls -la backups/`) ; il se restaure
@@ -960,7 +1000,7 @@ Vérifier après la mise à jour que la cave appartient bien à votre adresse
 Google :
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT c.name, u.email FROM cave c LEFT JOIN app_user u ON u.id = c.owner_id;"'
+cd /opt/stacks/ma-cave && docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT c.name, u.email FROM cave c LEFT JOIN app_user u ON u.id = c.owner_id;"'
 ```
 
 **Retour arrière** : le schéma de la 1.9.0 ne sait pas lire la base migrée,
@@ -971,7 +1011,7 @@ schéma. Arrêter l'api et le worker, vider le schéma, restaurer, remettre
 `IMAGE_TAG=1.9.0` dans le `.env`, puis relancer :
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose stop api worker
+cd /opt/stacks/ma-cave && docker compose stop api worker
 docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
 gunzip -c backups/cave-avant-2.0.0.sql.gz | docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 docker compose up -d
@@ -989,13 +1029,13 @@ Pour vérifier que la sauvegarde tourne vraiment — le conteneur annonce son
 réglage au démarrage puis chaque dump écrit :
 
 ```bash
-cd /opt/stacks/cave-a-vin && docker compose logs db-backup --tail=5 && ls -la backups/
+cd /opt/stacks/ma-cave && docker compose logs db-backup --tail=5 && ls -la backups/
 ```
 
 Restauration :
 
 ```bash
-cd /opt/stacks/cave-a-vin && gunzip -c backups/cave-<date>.sql.gz | docker compose exec -T postgres psql -U cave -d cave
+cd /opt/stacks/ma-cave && gunzip -c backups/cave-<date>.sql.gz | docker compose exec -T postgres psql -U cave -d cave
 ```
 
 Les photos vivent dans le volume `photo_data` : à synchroniser vers le NAS chaque
@@ -1185,40 +1225,40 @@ Le détail par version, avec le lien vers chaque commit, est dans
 
 ### 2.10.0 — 15 octobre 2026
 
-Publiée ([v2.10.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.10.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.10.0` et `-web:2.10.0`.
+Publiée ([v2.10.0](https://github.com/djkix/ma-cave/releases/tag/v2.10.0)),
+images `ghcr.io/djkix/ma-cave-api:2.10.0` et `-web:2.10.0`.
 
 **Fiche vin réordonnée** : domaine et accords sous la photo, icône
 d'emplacement qui ouvre la photo de la zone et le plan.
 
 ### 2.9.1 — 15 octobre 2026
 
-Publiée ([v2.9.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.9.1)),
-images `ghcr.io/djkix/cave-a-vin-api:2.9.1` et `-web:2.9.1`.
+Publiée ([v2.9.1](https://github.com/djkix/ma-cave/releases/tag/v2.9.1)),
+images `ghcr.io/djkix/ma-cave-api:2.9.1` et `-web:2.9.1`.
 
 **Photo du plan ou d'une zone** : appareil photo ou galerie, au choix.
 
 ### 2.9.0 — 15 octobre 2026
 
-Publiée ([v2.9.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.9.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.9.0` et `-web:2.9.0`.
+Publiée ([v2.9.0](https://github.com/djkix/ma-cave/releases/tag/v2.9.0)),
+images `ghcr.io/djkix/ma-cave-api:2.9.0` et `-web:2.9.0`.
 
 **Nouvelle icône** : une niche de cave en pierre claire et trois bouteilles
 debout. Réinstaller l'application pour la voir sur le téléphone.
 
 ### 2.8.0 — 13 octobre 2026
 
-Publiée ([v2.8.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.8.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.8.0` et `-web:2.8.0`.
+Publiée ([v2.8.0](https://github.com/djkix/ma-cave/releases/tag/v2.8.0)),
+images `ghcr.io/djkix/ma-cave-api:2.8.0` et `-web:2.8.0`.
 
-**Plan de la cave.** Une photo de la pièce dans « Ma cave », avec un repère par
+**Plan de la cave.** Une photo de la pièce dans « Ma cave › Réglages », avec un repère par
 zone, visible depuis la fiche d'un vin et « À boire prochainement ». Migration
 `20261017000000_plan_cave`.
 
 ### 2.7.0 — 12 octobre 2026
 
-Publiée ([v2.7.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.7.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.7.0` et `-web:2.7.0`.
+Publiée ([v2.7.0](https://github.com/djkix/ma-cave/releases/tag/v2.7.0)),
+images `ghcr.io/djkix/ma-cave-api:2.7.0` et `-web:2.7.0`.
 
 **Accords et descriptifs par lots de dix.** Moins d'appels à Gemini, reprises
 patientes (abandon après 7 jours de panne seulement), coût réparti exactement.
@@ -1226,18 +1266,18 @@ Migration `20261016000000_lots_accords`.
 
 ### 2.6.0 — 8 octobre 2026
 
-Publiée ([v2.6.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.6.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.6.0` et `-web:2.6.0`.
+Publiée ([v2.6.0](https://github.com/djkix/ma-cave/releases/tag/v2.6.0)),
+images `ghcr.io/djkix/ma-cave-api:2.6.0` et `-web:2.6.0`.
 
-**Zones de la cave et page « Ma cave ».** Zones avec indication et photo,
+**Zones de la cave et page « Ma cave › Réglages ».** Zones avec indication et photo,
 choisies dans une liste à la saisie d'un emplacement (casier et position
 libres) ; recherche iDealwine avec des espaces. **Sauvegarder la base avant**
 et suivre « Passage à la 2.6.0 ». Migration `20261015000000_zones`.
 
 ### 2.5.0 — 8 octobre 2026
 
-Publiée ([v2.5.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.5.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.5.0` et `-web:2.5.0`.
+Publiée ([v2.5.0](https://github.com/djkix/ma-cave/releases/tag/v2.5.0)),
+images `ghcr.io/djkix/ma-cave-api:2.5.0` et `-web:2.5.0`.
 
 **Consommation Gemini et pause commune.** Section « Consommation Gemini » dans
 l'Administration (appels réussis, refusés, coût, par jour et par usage) ;
@@ -1246,8 +1286,8 @@ reprises en rafale. Migration `20261014000000_gemini_call`.
 
 ### 2.4.2 — 8 octobre 2026
 
-Publiée ([v2.4.2](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.2)),
-images `ghcr.io/djkix/cave-a-vin-api:2.4.2` et `-web:2.4.2`.
+Publiée ([v2.4.2](https://github.com/djkix/ma-cave/releases/tag/v2.4.2)),
+images `ghcr.io/djkix/ma-cave-api:2.4.2` et `-web:2.4.2`.
 
 **Quota Gemini épuisé signalé.** « Recherche d'image impossible : quota Gemini
 épuisé » quand Google refuse la recherche faute de quota, et le motif d'un
@@ -1255,8 +1295,8 @@ refus de l'api est affiché tel quel.
 
 ### 2.4.1 — 8 octobre 2026
 
-Publiée ([v2.4.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.1)),
-images `ghcr.io/djkix/cave-a-vin-api:2.4.1` et `-web:2.4.1`.
+Publiée ([v2.4.1](https://github.com/djkix/ma-cave/releases/tag/v2.4.1)),
+images `ghcr.io/djkix/ma-cave-api:2.4.1` et `-web:2.4.1`.
 
 **Recherche d'image journalisée.** Chaque recherche laisse une trace dans les
 journaux de l'api (issue ou raison du refus), et l'écran distingue une coupure
@@ -1264,16 +1304,16 @@ du proxy d'un refus de l'application.
 
 ### 2.4.0 — 8 octobre 2026
 
-Publiée ([v2.4.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.4.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.4.0` et `-web:2.4.0`.
+Publiée ([v2.4.0](https://github.com/djkix/ma-cave/releases/tag/v2.4.0)),
+images `ghcr.io/djkix/ma-cave-api:2.4.0` et `-web:2.4.0`.
 
 **À boire prochainement.** Carte sur l'accueil et page `/a-boire` : les vins à
 boire au plus tard l'an prochain, regroupés par emplacement.
 
 ### 2.3.0 — 8 octobre 2026
 
-Publiée ([v2.3.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.3.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.3.0` et `-web:2.3.0`.
+Publiée ([v2.3.0](https://github.com/djkix/ma-cave/releases/tag/v2.3.0)),
+images `ghcr.io/djkix/ma-cave-api:2.3.0` et `-web:2.3.0`.
 
 **Mon compte.** Installation de l'application sur le téléphone, caves dont on
 est propriétaire ou invité, sauvegarde Excel, version et déconnexion, réunies
@@ -1281,8 +1321,8 @@ dans une page ouverte depuis l'icône de l'en-tête.
 
 ### 2.2.1 — 8 octobre 2026
 
-Publiée ([v2.2.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.2.1)),
-images `ghcr.io/djkix/cave-a-vin-api:2.2.1` et `-web:2.2.1`.
+Publiée ([v2.2.1](https://github.com/djkix/ma-cave/releases/tag/v2.2.1)),
+images `ghcr.io/djkix/ma-cave-api:2.2.1` et `-web:2.2.1`.
 
 **Lien iDealwine corrigé et bouton « Se déconnecter ».** « Voir la cote sur
 iDealwine » ouvre leur vraie recherche au lieu d'une page 404 ; l'accueil
@@ -1290,8 +1330,8 @@ propose « Se déconnecter ».
 
 ### 2.2.0 — 8 octobre 2026
 
-Publiée ([v2.2.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.2.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.2.0` et `-web:2.2.0`.
+Publiée ([v2.2.0](https://github.com/djkix/ma-cave/releases/tag/v2.2.0)),
+images `ghcr.io/djkix/ma-cave-api:2.2.0` et `-web:2.2.0`.
 
 **Emplacements et cote iDealwine saisie à la main.** Bouteilles rangées par
 zone, casier et position, avec « D'où sort-elle ? » à la sortie et
@@ -1302,8 +1342,8 @@ suivre « Passage à la 2.2.0 ».
 
 ### 2.1.1 — 7 octobre 2026
 
-Publiée ([v2.1.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.1.1)),
-images `ghcr.io/djkix/cave-a-vin-api:2.1.1` et `-web:2.1.1`.
+Publiée ([v2.1.1](https://github.com/djkix/ma-cave/releases/tag/v2.1.1)),
+images `ghcr.io/djkix/ma-cave-api:2.1.1` et `-web:2.1.1`.
 
 **Petites corrections.** Appel Gemini abandonné au délai de la recherche
 d'image compté dans le budget ; message clair quand une image du web est
@@ -1311,8 +1351,8 @@ proposée pour une entrée ou une sortie.
 
 ### 2.1.0 — 7 octobre 2026
 
-Publiée ([v2.1.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.1.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.1.0` et `-web:2.1.0`.
+Publiée ([v2.1.0](https://github.com/djkix/ma-cave/releases/tag/v2.1.0)),
+images `ghcr.io/djkix/ma-cave-api:2.1.0` et `-web:2.1.0`.
 
 **Compte de secours et budget des caves invitées.** Le compte de secours a les
 droits du propriétaire sur la cave principale, pour tenir la cave pendant une
@@ -1321,8 +1361,8 @@ Gemini (réglable), le reste étant garanti à la cave principale.
 
 ### 2.0.1 — 7 octobre 2026
 
-Publiée ([v2.0.1](https://github.com/djkix/cave-a-vin/releases/tag/v2.0.1)),
-images `ghcr.io/djkix/cave-a-vin-api:2.0.1` et `-web:2.0.1`.
+Publiée ([v2.0.1](https://github.com/djkix/ma-cave/releases/tag/v2.0.1)),
+images `ghcr.io/djkix/ma-cave-api:2.0.1` et `-web:2.0.1`.
 
 **Prêt pour les prochains modèles Gemini.** Les appels à Gemini n'envoient plus
 de température, que les prochains modèles refuseront. Rien à faire de plus
@@ -1330,8 +1370,8 @@ qu'une mise à jour habituelle (passer d'abord par la 2.0.0 et sa sauvegarde).
 
 ### 2.0.0 — 7 octobre 2026
 
-Publiée ([v2.0.0](https://github.com/djkix/cave-a-vin/releases/tag/v2.0.0)),
-images `ghcr.io/djkix/cave-a-vin-api:2.0.0` et `-web:2.0.0`.
+Publiée ([v2.0.0](https://github.com/djkix/ma-cave/releases/tag/v2.0.0)),
+images `ghcr.io/djkix/ma-cave-api:2.0.0` et `-web:2.0.0`.
 
 **Une cave par compte.** Inscriptions Google validées par l'administrateur,
 membres invités en lecture seule (sans prix, journal ni export), sélecteur de
@@ -1341,8 +1381,8 @@ jour** et suivre « Passage à la 2.0.0 » : la migration
 
 ### 1.9.0 — 7 octobre 2026
 
-Publiée ([v1.9.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.9.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.9.0` et `-web:1.9.0`.
+Publiée ([v1.9.0](https://github.com/djkix/ma-cave/releases/tag/v1.9.0)),
+images `ghcr.io/djkix/ma-cave-api:1.9.0` et `-web:1.9.0`.
 
 **Icône, photos plus nettes et image trouvée sur le web.** L'application a son
 icône (un verre de vin sur fond bordeaux) ; les vignettes sont recadrées sur
@@ -1352,8 +1392,8 @@ Migration `20261011000000_image_reference`.
 
 ### 1.8.0 — 6 octobre 2026
 
-Publiée ([v1.8.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.8.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.8.0` et `-web:1.8.0`.
+Publiée ([v1.8.0](https://github.com/djkix/ma-cave/releases/tag/v1.8.0)),
+images `ghcr.io/djkix/ma-cave-api:1.8.0` et `-web:1.8.0`.
 
 **Descriptif du domaine.** Un bloc « Le domaine » sur chaque fiche vin : 3 à
 4 phrases par producteur rédigées par Gemini en tâche de fond (« Domaine peu
@@ -1363,8 +1403,8 @@ domaines existants sont mis en file.
 
 ### 1.7.0 — 6 octobre 2026
 
-Publiée ([v1.7.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.7.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.7.0` et `-web:1.7.0`.
+Publiée ([v1.7.0](https://github.com/djkix/ma-cave/releases/tag/v1.7.0)),
+images `ghcr.io/djkix/ma-cave-api:1.7.0` et `-web:1.7.0`.
 
 **Entrée en rafale, note de dégustation et accords mets-vins.** On photographie
 les bouteilles à la suite sans attendre : envoi en arrière-plan, lecture par
@@ -1376,8 +1416,8 @@ suggérés par Gemini avec la recherche « Accompagner un plat ». Migrations
 
 ### 1.6.0 — 5 octobre 2026
 
-Publiée ([v1.6.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.6.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.6.0` et `-web:1.6.0`.
+Publiée ([v1.6.0](https://github.com/djkix/ma-cave/releases/tag/v1.6.0)),
+images `ghcr.io/djkix/ma-cave-api:1.6.0` et `-web:1.6.0`.
 
 **Statistiques.** Un 5e onglet *Stats* : valeur de la cave au prix d'achat,
 répartition par apogée, couleur, région et millésime, mouvements sur 12 mois
@@ -1387,8 +1427,8 @@ Ni migration ni nouvelle variable d'environnement.
 
 ### 1.5.0 — 5 octobre 2026
 
-Publiée ([v1.5.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.5.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.5.0` et `-web:1.5.0`.
+Publiée ([v1.5.0](https://github.com/djkix/ma-cave/releases/tag/v1.5.0)),
+images `ghcr.io/djkix/ma-cave-api:1.5.0` et `-web:1.5.0`.
 
 **Mesure « zéro saisie ».** L'Administration affiche la part des champs
 corrigés à la main à l'entrée par photo sur 90 jours, par rapport à l'objectif
@@ -1398,8 +1438,8 @@ se pré-remplit même si le flux temps réel se coupe. Migration
 
 ### 1.4.1 — 5 octobre 2026
 
-Publiée ([v1.4.1](https://github.com/djkix/cave-a-vin/releases/tag/v1.4.1)),
-images `ghcr.io/djkix/cave-a-vin-api:1.4.1` et `-web:1.4.1`.
+Publiée ([v1.4.1](https://github.com/djkix/ma-cave/releases/tag/v1.4.1)),
+images `ghcr.io/djkix/ma-cave-api:1.4.1` et `-web:1.4.1`.
 
 **Le stock ne perd plus de mouvement quand deux se croisent.** La vue
 `stock_courant` est désormais calculée à chaque lecture au lieu d'être
@@ -1409,8 +1449,8 @@ la mise à jour, rien à recompter.
 
 ### 1.4.0 — 5 octobre 2026
 
-Publiée ([v1.4.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.4.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.4.0` et `-web:1.4.0`.
+Publiée ([v1.4.0](https://github.com/djkix/ma-cave/releases/tag/v1.4.0)),
+images `ghcr.io/djkix/ma-cave-api:1.4.0` et `-web:1.4.0`.
 
 **À boire en priorité.** Dans l'onglet Cave, la case *À boire en priorité*
 garde les vins dont l'apogée se termine au plus tard l'an prochain, la fin la
@@ -1421,8 +1461,8 @@ nouvelle variable d'environnement.
 
 ### 1.3.0 — 4 octobre 2026
 
-Publiée ([v1.3.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.3.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.3.0` et `-web:1.3.0`.
+Publiée ([v1.3.0](https://github.com/djkix/ma-cave/releases/tag/v1.3.0)),
+images `ghcr.io/djkix/ma-cave-api:1.3.0` et `-web:1.3.0`.
 
 **L'apogée : une fourchette de buvabilité estimée par règles, recalculée à
 chaque lecture.** Fiche vin (fourchette, confiance, statut, correction
@@ -1437,8 +1477,8 @@ Migration `20261005000000_lot2b_apogee` (tables `vintage_quality`,
 
 ### 1.2.0 — 4 octobre 2026
 
-Publiée ([v1.2.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.2.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.2.0` et `-web:1.2.0`.
+Publiée ([v1.2.0](https://github.com/djkix/ma-cave/releases/tag/v1.2.0)),
+images `ghcr.io/djkix/ma-cave-api:1.2.0` et `-web:1.2.0`.
 
 **Le lot 2a boucle le cycle du stock : on peut désormais sortir ce qu'on a
 rentré.** Onglet *Cave* (recherche sans accents, filtre couleur, vins
@@ -1460,15 +1500,15 @@ inutilisée rejoint la revue groupée.
 
 ### 1.1.2 — 3 octobre 2026
 
-Version de documentation uniquement ([v1.1.2](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.2)),
+Version de documentation uniquement ([v1.1.2](https://github.com/djkix/ma-cave/releases/tag/v1.1.2)),
 sans changement de code. Désormais, seuls les commits de fonctionnalité, de
 correction et de performance déclenchent une nouvelle version : la mise à jour
 de la documentation n'ouvre plus de version vide.
 
 ### 1.1.1 — 3 octobre 2026
 
-Publiée ([v1.1.1](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.1)),
-images `ghcr.io/djkix/cave-a-vin-api:1.1.1` et `-web:1.1.1`.
+Publiée ([v1.1.1](https://github.com/djkix/ma-cave/releases/tag/v1.1.1)),
+images `ghcr.io/djkix/ma-cave-api:1.1.1` et `-web:1.1.1`.
 
 **La sauvegarde de la base tourne enfin.** Le service `db-backup` dépendait d'un
 script du dépôt monté depuis l'hôte, absent d'une stack créée dans Dockge : il
@@ -1480,8 +1520,8 @@ d'une publication ne peut plus être annulée par un push concurrent.
 
 ### 1.1.0 — 21 septembre 2026
 
-Publiée ([v1.1.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.1.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.1.0` et `-web:1.1.0`.
+Publiée ([v1.1.0](https://github.com/djkix/ma-cave/releases/tag/v1.1.0)),
+images `ghcr.io/djkix/ma-cave-api:1.1.0` et `-web:1.1.0`.
 
 **Analyse des photos différée et jamais bloquante.** Une indisponibilité
 passagère du service de vision (429, 500, 502, 503, 504, coupure réseau,
@@ -1499,8 +1539,8 @@ l'écran de connexion, avec l'empreinte du commit pour une image `latest`.
 
 ### 1.0.0 — 21 septembre 2026
 
-Première version déployable ([v1.0.0](https://github.com/djkix/cave-a-vin/releases/tag/v1.0.0)),
-images `ghcr.io/djkix/cave-a-vin-api:1.0.0` et `-web:1.0.0`.
+Première version déployable ([v1.0.0](https://github.com/djkix/ma-cave/releases/tag/v1.0.0)),
+images `ghcr.io/djkix/ma-cave-api:1.0.0` et `-web:1.0.0`.
 
 **Fonctionnalités**
 

@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { localLogin } from '../lib/api-client';
 import { APP_VERSION } from '../lib/version';
@@ -35,7 +35,7 @@ export function LoginPage() {
   return (
     <main className="login">
       <Icon name="wine_bar" className="login__logo" />
-      <h1 className="login__title">Cave &amp; Terroir</h1>
+      <h1 className="login__title">Ma Cave</h1>
       {redirectError && <p role="alert" className="text-error">{redirectError}</p>}
       <a className="btn btn--primary" href="/api/auth/google">
         Se connecter avec Google
@@ -61,6 +61,7 @@ export function LoginPage() {
           répétée pour qu'elle reste lisible avant même d'être connecté, quand on
           cherche justement à savoir ce qui tourne sur le serveur. */}
       <p className="login__version" aria-label={`Version ${APP_VERSION}`}>v{APP_VERSION}</p>
+      <Link to="/confidentialite" className="btn btn--link">Confidentialité</Link>
     </main>
   );
 }

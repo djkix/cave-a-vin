@@ -1,6 +1,6 @@
 services:
   web:
-    image: ghcr.io/djkix/cave-a-vin-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/djkix/ma-cave-web:${IMAGE_TAG:-latest}
     build: ./web
     restart: unless-stopped
     ports:
@@ -10,7 +10,7 @@ services:
     networks: [internal]
 
   api:
-    image: ghcr.io/djkix/cave-a-vin-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/djkix/ma-cave-api:${IMAGE_TAG:-latest}
     build: ./api
     restart: unless-stopped
     env_file: .env
@@ -28,7 +28,7 @@ services:
     networks: [internal]
 
   worker:
-    image: ghcr.io/djkix/cave-a-vin-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/djkix/ma-cave-api:${IMAGE_TAG:-latest}
     build: ./api
     restart: unless-stopped
     command: ["node", "dist/worker.js"]

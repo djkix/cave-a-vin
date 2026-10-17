@@ -12,7 +12,7 @@ export function TopBar({ title, back }: { title?: string; back?: string }) {
       ) : (
         <Icon name="wine_bar" className="topbar__logo" />
       )}
-      <h1 className="topbar__title">{title ?? 'Cave & Terroir'}</h1>
+      <h1 className="topbar__title">{title ?? 'Ma Cave'}</h1>
       <CaveSwitcher />
       {/* Mon compte : installation, caves, sauvegarde, version, déconnexion. */}
       <Link to="/compte" aria-label="Mon compte" className="topbar__account">

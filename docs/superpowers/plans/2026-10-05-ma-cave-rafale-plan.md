@@ -8,7 +8,7 @@
 
 **Tech Stack:** NestJS 10, Prisma 5 (SQL écrit à la main, `migrate deploy`), PostgreSQL 16, BullMQ, `@google/generative-ai`, Jest ; React 18, TanStack Query 5, `idb`, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-10-05-cave-a-vin-rafale-entree-design.md` (autorité ; ce plan l'argumente).
+**Spec:** `docs/superpowers/specs/2026-10-05-ma-cave-rafale-entree-design.md` (autorité ; ce plan l'argumente).
 
 ## Global Constraints
 

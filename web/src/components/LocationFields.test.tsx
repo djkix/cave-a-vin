@@ -9,7 +9,7 @@ const locations: Location[] = [
   { id: 'l1', zoneId: 'z2', zone: 'Cave 2', casier: 'B', position: '3', label: 'Cave 2 / B / 3', lastUsed: false },
   { id: 'l2', zoneId: 'z1', zone: 'Garage', casier: null, position: null, label: 'Garage', lastUsed: false },
 ];
-// Ordre d'affichage choisi dans « Ma cave », pas l'ordre alphabétique.
+// Ordre d'affichage choisi dans « Ma cave › Réglages », pas l'ordre alphabétique.
 const zones: Zone[] = [
   { id: 'z1', name: 'Garage', indication: 'Au fond, derrière l’escalier', hasPhoto: true, sortOrder: 0, marker: null },
   { id: 'z2', name: 'Cave 2', indication: null, hasPhoto: false, sortOrder: 1, marker: null },
@@ -76,7 +76,7 @@ it('casier et position restent libres, avec les valeurs déjà saisies en sugges
   expect(screen.getByText('Haut')).toBeInTheDocument();
 });
 
-it('sans aucune zone (liste lue) : lien « Créer une zone » vers « Ma cave », la saisie en cours sera perdue', () => {
+it('sans aucune zone (liste lue) : lien « Créer une zone » vers « Ma cave › Réglages », la saisie en cours sera perdue', () => {
   render(<Harness initial={{ zoneId: null, casier: null, position: null }} zoneList={[]} block={false} />);
   expect(screen.getByRole('link', { name: 'Créer une zone' })).toHaveAttribute('href', '/ma-cave');
   expect(screen.getByText(/la saisie en cours sera perdue/)).toBeInTheDocument();

@@ -62,7 +62,7 @@ describe('caves, membres et administration', () => {
     expect(await call(() => api.getMembers(), '[]')).toEqual({ url: '/api/caves/current/members', method: 'GET', body: undefined });
     expect(await call(() => api.inviteMember('a@b.c'))).toEqual({ url: '/api/caves/current/members', method: 'POST', body: '{"email":"a@b.c"}' });
     expect(await call(() => api.removeMember('m1'), '', 204)).toEqual({ url: '/api/caves/current/members/m1', method: 'DELETE', body: undefined });
-    expect(await call(() => api.renameCave('Ma cave'))).toEqual({ url: '/api/caves/current', method: 'PATCH', body: '{"name":"Ma cave"}' });
+    expect(await call(() => api.renameCave('Ma cave › Réglages'))).toEqual({ url: '/api/caves/current', method: 'PATCH', body: '{"name":"Ma cave › Réglages"}' });
   });
 
   it('zones de la cave : liste, création, modification, ordre, suppression, photo', async () => {

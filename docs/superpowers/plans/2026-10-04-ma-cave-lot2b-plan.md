@@ -8,7 +8,7 @@
 
 **Tech Stack:** NestJS 10, Prisma 5, PostgreSQL 16, Jest ; React 18, TanStack Query 5, Vitest + Testing Library ; ExcelJS.
 
-**Spec:** [`docs/superpowers/specs/2026-10-04-cave-a-vin-lot2b-apogee-design.md`](../specs/2026-10-04-cave-a-vin-lot2b-apogee-design.md)
+**Spec:** [`docs/superpowers/specs/2026-10-04-ma-cave-lot2b-apogee-design.md`](../specs/2026-10-04-ma-cave-lot2b-apogee-design.md)
 
 ## Global Constraints
 

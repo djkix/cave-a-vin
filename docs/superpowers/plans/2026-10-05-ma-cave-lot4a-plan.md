@@ -8,7 +8,7 @@
 
 **Tech Stack:** NestJS 10, Prisma 5, PostgreSQL 16, Jest (api) ; React 18, TanStack Query 5, React Router, Vitest + Testing Library (web).
 
-**Spec:** `docs/superpowers/specs/2026-10-05-cave-a-vin-lot4a-statistiques-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-05-ma-cave-lot4a-statistiques-design.md`
 
 ## Global Constraints
 

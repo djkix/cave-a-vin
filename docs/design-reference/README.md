@@ -1,4 +1,4 @@
-# Maquettes de référence — Cave & Terroir
+# Maquettes de référence — Ma Cave
 
 Ces 4 fichiers sont des maquettes HTML/Tailwind générées par IA (fournies par
 l'utilisateur), servant de référence visuelle pour l'implémentation :

@@ -56,11 +56,11 @@ it('masque le badge quand rien n’est à confirmer', async () => {
   expect(screen.queryByText(/à confirmer/)).not.toBeInTheDocument();
 });
 
-it('mène le propriétaire à « Ma cave »', async () => {
+it('mène le propriétaire à « Ma cave › Réglages »', async () => {
   vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
   vi.spyOn(api, 'getEntryInbox').mockResolvedValue({ toConfirm: [], inProgress: [], failed: [] });
   mount();
-  expect(await screen.findByRole('link', { name: 'Ma cave' })).toHaveAttribute('href', '/ma-cave');
+  expect(await screen.findByRole('link', { name: 'Ma cave › Réglages' })).toHaveAttribute('href', '/ma-cave');
   expect(screen.queryByRole('link', { name: /Membres/ })).not.toBeInTheDocument();
 });
 
@@ -81,7 +81,7 @@ it('n’offre à un membre en lecture seule que la cave et les statistiques, san
   expect(screen.queryByText(/à confirmer/)).not.toBeInTheDocument();
   expect(screen.queryByText(/en attente d’analyse/)).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /journal/ })).not.toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: 'Ma cave' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Ma cave › Réglages' })).not.toBeInTheDocument();
   expect(screen.queryByText('DERNIERS MOUVEMENTS')).not.toBeInTheDocument();
 });
 
@@ -96,7 +96,7 @@ it('montre l’administration seulement à un administrateur', async () => {
   vi.spyOn(api, 'getRecentMovements').mockResolvedValue([]);
   vi.spyOn(api, 'getEntryInbox').mockResolvedValue({ toConfirm: [], inProgress: [], failed: [] });
   mount();
-  await screen.findByRole('link', { name: 'Ma cave' });
+  await screen.findByRole('link', { name: 'Ma cave › Réglages' });
   expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument();
 });
 

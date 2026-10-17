@@ -1,4 +1,4 @@
-# Cave & Terroir — Design Lots 4b et 4c : note de dégustation et accords mets-vins
+# Ma Cave — Design Lots 4b et 4c : note de dégustation et accords mets-vins
 
 2026-10-05 · Franck Laval
 

@@ -81,7 +81,7 @@ export class ExportService {
     const inStock = filter.drinkSoon ? sortByApogeeEnd(filtered.filter((i) => isDrinkSoon(i.apogee, year))) : filtered;
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Cave & Terroir';
+    wb.creator = 'Ma Cave';
     wb.created = new Date();
 
     const stock = wb.addWorksheet('Stock', { views: [{ state: 'frozen', ySplit: 1 }] });

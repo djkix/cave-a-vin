@@ -126,7 +126,7 @@ export interface Place { id: string | null; label: string; quantity: number; zon
 export const getLocations = () => apiFetch<Location[]>('/locations');
 
 /**
- * Zone de la cave (« Ma cave »), dans l'ordre d'affichage ; la photo se lit à `zonePhotoUrl(id)`.
+ * Zone de la cave (« Ma cave › Réglages »), dans l'ordre d'affichage ; la photo se lit à `zonePhotoUrl(id)`.
  * `marker` : son repère sur le plan (fractions de la largeur et de la hauteur), gardé même sans plan.
  */
 export interface Zone { id: string; name: string; indication: string | null; hasPhoto: boolean; sortOrder: number; marker: { x: number; y: number } | null }

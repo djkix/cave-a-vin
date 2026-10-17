@@ -59,7 +59,7 @@ function CavesCard() {
   );
 }
 
-/** Mon compte : installation, caves, sauvegarde, « Ma cave » (propriétaire), version, déconnexion. Ouvert à tout compte connecté. */
+/** Mon compte : installation, caves, sauvegarde, « Ma cave › Réglages » (propriétaire), version, déconnexion. Ouvert à tout compte connecté. */
 export function ComptePage() {
   const { isOwner, isAdmin, me } = useCurrentCave();
   return (
@@ -79,7 +79,7 @@ export function ComptePage() {
             </a>
           </section>
         )}
-        {isOwner && <Link to="/ma-cave" className="btn btn--link">Ma cave</Link>}
+        {isOwner && <Link to="/ma-cave" className="btn btn--link">Ma cave › Réglages</Link>}
         {isAdmin && <Link to="/admin" className="btn btn--link">Administration</Link>}
         <p className="list__meta" aria-label={`Version ${APP_VERSION}`}>Version {APP_VERSION}</p>
         <LogoutButton />
